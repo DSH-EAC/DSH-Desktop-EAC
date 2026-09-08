@@ -51,7 +51,7 @@ const ROOT_FILES = [
 ];
 const LIB_DESKTOP = [
   'file-roots.js', 'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js', 'guard-box.js',
-  'runtime-patches.js', 'companion-sync.js', 'plugin-ops.js', 'market.js',
+  'runtime-patches.js', 'companion-sync.js', 'plugin-sync-registry.js', 'plugin-ops.js', 'market.js',
   'shortcuts.js', 'junction-patrol.js', 'client-update.js', 'static-preview.js',
   'boot-server.js', 'feature-pack.js',
 ];

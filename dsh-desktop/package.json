@@ -15,7 +15,7 @@
     "fetch-kernel": "npm run build && node scripts/fetch-kernel.js",
     "gen-kernel-overrides": "npm run build && node scripts/gen-kernel-overrides.js",
     "plugin:validate": "node scripts/plugin-sync.mjs validate --locked",
-    "plugin:generate-registry": "node scripts/plugin-sync.mjs generate-registry",
+    "plugin:generate-registry": "node scripts/generate-plugin-registry.mjs",
     "plugin:sync": "node scripts/plugin-sync.mjs sync",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json",

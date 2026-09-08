@@ -14,6 +14,7 @@ import { ensureGuard } from './guard-box';
 import { applySessionManageFix } from './runtime-patches';
 import { pluginCapabilityDetails } from './platform';
 import { writeFileAtomic } from '../atomic-json.js';
+import { PLUGIN_UPDATE_SOURCES as GENERATED_PLUGIN_UPDATE_SOURCES } from './plugin-sync-registry';
 // 未类型化依赖（Wave 3 收编），先以窄签名消费。
 const updater = require('../../updater') as {
   loadSettings(c: ReturnType<typeof updCtx>): { removedPlugins?: unknown };
@@ -273,31 +274,8 @@ export function companionPluginsForPlatform(platform: NodeJS.Platform = 'win32')
   return COMPANION_PLUGINS.filter((plugin) => capabilities[plugin.id]?.status !== 'unavailable');
 }
 
-// ---------------------------------------------------------------------------
-// 内置插件上游更新源（V4.3，plugin-updater.js 消费）：
-//
-// 只登记「上游仍在 npm / GitHub 发布」的社区插件 —— 内置分发的副本可以
-// 跟随上游修复而更新。EAC 独占插件（package.json 标记 private，如
-// dsh-balance / dsh-terminal）绝不登记。
-// 运行时 npm 404（未上架/改名）优雅降级为「无上游」，绝不阻塞。
-// ---------------------------------------------------------------------------
-export const PLUGIN_UPDATE_SOURCES: Record<string, { npm?: string; github?: string }> = {
-  'picturereader': { npm: 'picturereader' },
-  'computer-user': { npm: 'computer-user' },
-  'soul-md': { npm: 'dsh-soul-md' },
-  'dsh-pet': { npm: 'dsh-pet' },
-  'better-sidebar': { npm: 'dsh-better-sidebar' },
-  'dsh-navbar': { npm: '@vlln/dsh-navbar' },
-  'mobile-fix': { npm: 'dsh-web-mobile-fix' },
-  'offpeak': { npm: 'dsh-offpeak' },
-  // 统一市场（unified-market）：npm 已发布，正式纳入官方内置插件更新。
-  'unified-market': { npm: 'dsh-unified-market' },
-  'dsh-session-manager': { npm: 'dsh-session-manager' },
-  // GitHub 分发（npm 未发布）：dsh-undo-savepoint。
-  'dsh-undo': { github: 'lire1131/dsh-undo-savepoint' },
-  // dsh-raw-html 是 EAC 托管适配版，不登记上游更新源，避免被原版 bundle
-  // 注入实现覆盖。上游升级必须先移植并通过 EAC slot 集成回归。
-};
+// 更新源唯一来自 generated registry；此导出保留给旧调用方。
+export const PLUGIN_UPDATE_SOURCES: Record<string, { npm?: string; github?: string }> = GENERATED_PLUGIN_UPDATE_SOURCES;
 
 // ---------------------------------------------------------------------------
 // 内置插件「移除」跳过清单（settings.removedPlugins）：被 plugin-ops 与
@@ -360,8 +338,11 @@ export function seedBundledPlugins(profileDir: string): { changed: boolean; bund
 /** 把内置插件表 + 更新源注册表合并成 plugin-updater 的 sources 输入。 */
 export function pluginUpdateSources(): { id: string; name: string; assetsDir: string; update: { npm?: string; github?: string } }[] {
   const removed = removedPluginIds();
+  const platform = ctx?.platform ?? 'win32';
+  const available = new Set(companionPluginsForPlatform(platform).map((plugin) => plugin.id));
   const out: { id: string; name: string; assetsDir: string; update: { npm?: string; github?: string } }[] = [];
   for (const p of COMPANION_PLUGINS) {
+    if (!available.has(p.id)) continue;
     const update = PLUGIN_UPDATE_SOURCES[p.id];
     if (!update) continue;
     if (removed.has(p.id)) continue;
