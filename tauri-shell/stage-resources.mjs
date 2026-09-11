@@ -10,13 +10,14 @@
 // 用法：node stage-resources.mjs [--target=win32|linux|darwin] [--skip-npm]
 
 import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, readFileSync, statSync, readdirSync, writeFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canReuseStagedNodeModules, writeStagedPlatformStamp } from './stage-platform-cache.mjs';
 import { copyKernelCacheForTarget, sanitizeClientBuildPaths } from './stage-linux-sanitize.mjs';
 import { withAbsolutizedKernelManifests } from './stage-kernel-manifest.mjs';
 import { pruneDarwinPayloads, pruneNonDarwinPrebuilds } from './stage-platform-prune.mjs';
+import { copyPluginLock, pluginLockManifest, validatePluginLock } from './plugin-lock-stage.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dd = path.join(root, 'dsh-desktop');
@@ -35,6 +36,10 @@ if (targetPlatform !== process.platform) {
     + '（原生模块按本机架构装配，target 必须与本机一致）',
   );
 }
+
+// 插件 lock 是正式构建的输入边界：先离线验证清单、目录、registry、入口和
+// 摘要，再触碰 staged-resources。验证脚本不解析网络来源，也不修改工作树。
+const pluginLock = validatePluginLock(root);
 
 // 人工同步：新增根模块要加进来（Electron 时代的 main.js / preload.js 与其
 // 独享模块 error-detail / koffi-preflight / renderer-recovery / watchdog /
@@ -226,9 +231,15 @@ if (keepStagedNm) {
 }
 mkdirSync(path.join(staged, 'sidecar'), { recursive: true });
 mkdirSync(path.join(staged, 'dsh-desktop'), { recursive: true });
+copyPluginLock(pluginLock, path.join(staged, 'dsh-desktop'));
 
 console.log('[stage] 编译 TypeScript（tsc 就地产物）');
-execSync('npx tsc -p tsconfig.json', { cwd: dd, stdio: 'inherit' });
+// staging 不应因缺少本地 compiler 而隐式联网下载 npm 包；CI 依赖安装阶段
+// 已提供 package-lock.json 中的 TypeScript，缺失时直接 fail-fast。不能用
+// npx：缺少本地 tsc 时它可能只打印提示并返回成功，掩盖真正的 staging 错误。
+const tsc = path.join(dd, 'node_modules', 'typescript', 'bin', 'tsc');
+requireFile(tsc, 'TypeScript compiler');
+execFileSync(process.execPath, [tsc, '-p', 'tsconfig.json'], { cwd: dd, stdio: 'inherit' });
 
 console.log('[stage] sidecar 产物');
 // 5.2 起 mobile-app.html 退役（手机桥 = 完整 Web UI 反向代理，见 phone-bridge.ts）。
@@ -411,7 +422,10 @@ console.log(`[stage] 已清理 ${sanitizedClients} 个内核 client bundle 的�
   const { createRequire } = await import('node:module');
   const req = createRequire(import.meta.url);
   const bi = req(path.join(dd, 'bundle-integrity.js'));
-  const manifest = bi.buildBundleManifest(nmDest);
+  const manifest = {
+    ...bi.buildBundleManifest(nmDest),
+    pluginLock: pluginLockManifest(pluginLock),
+  };
   writeFileSync(path.join(staged, 'dsh-desktop', 'bundle-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log('[stage] bundle manifest written (' + Object.keys(manifest.packages).length + ' packages)');
 }

@@ -38,6 +38,9 @@ jobs:
       - name: 检出代码（标签指向的提交）
         uses: actions/checkout@v4
 
+      - name: 离线校验插件 manifest、lock 与 generated registry
+        run: node scripts/plugin-sync.mjs validate --locked
+
       - name: 从标签/输入提取版本号
         id: tag
         shell: bash
@@ -157,6 +160,9 @@ jobs:
     steps:
       - name: 检出代码（标签指向的提交）
         uses: actions/checkout@v4
+
+      - name: 离线校验插件 manifest、lock 与 generated registry
+        run: node scripts/plugin-sync.mjs validate --locked
 
       - name: 从标签/输入提取版本号
         id: tag

@@ -47,6 +47,9 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      - name: 离线校验插件 manifest、lock 与 generated registry
+        run: node scripts/plugin-sync.mjs validate --locked
+
       - name: 安装 Node.js 24（含 npm 缓存）
         uses: actions/setup-node@v4
         with:
