@@ -94,9 +94,12 @@
             Domain = 'presets-profile'
             Pattern = '^dsh-desktop/assets/skills/|syncBundledSkills'
             Reference = 'references/presets-and-profile.md'
-            Level = 'full'
+            # Content-only change: bundled Skills are shipped content
+            # (SKILL.md + .eac-skill.json) with no source logic and no
+            # assembly path, so no full test run, no boot smoke, no Rust build.
+            Level = 'targeted'
             Tests = @()
-            Smoke = @('node boot-smoke.js')
+            Smoke = @()
         },
         @{
             Name = 'openclaw-bridge'
@@ -163,14 +166,18 @@
             Domain = 'plugins'
             Pattern = '^dsh-desktop/assets/plugins/'
             Reference = 'references/dsh-plugins.md'
-            Level = 'full'
+            # Content-only change: adding/upgrading a bundled plugin is
+            # shipped content - no full test run and no packaging smoke.
+            # Keep only the targeted contract tests below (registry / copy
+            # integrity / slot registration / onboarding).
+            Level = 'targeted'
             Tests = @(
                 'test/companion-plugins-registry.test.ts',
                 'test/companion-copy-integrity.test.ts',
                 'test/plugin-slot-registration.test.ts',
                 'test/onboarding-selection.test.ts'
             )
-            Smoke = @('node tauri-shell/stage-resources.mjs')
+            Smoke = @()
         },
         @{
             Name = 'desktop-package-manifest'
@@ -354,7 +361,10 @@
         @{
             Name = 'release'
             Domain = 'release-git'
-            Pattern = '^\.github/workflows/release.*\.ya?ml$|(^|/)CHANGELOG|package-lock\.json$'
+            # CHANGELOG belongs to the documentation rule (targeted). Keeping
+            # it here raised every changelog edit - including content-only
+            # changes - to package level.
+            Pattern = '^\.github/workflows/release.*\.ya?ml$|package-lock\.json$'
             Reference = 'references/release-and-git.md'
             Level = 'package'
             Tests = @()

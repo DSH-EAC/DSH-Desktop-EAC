@@ -46,6 +46,13 @@
 
 ## 插件与资源
 
+本节的「内容型改动」（新增/升级内置插件、新增/修改内置 Skill、皮肤资源、
+文档）只改变随包分发的内容，不涉及源码逻辑与装配路径：不需要全量
+`npm test`、不需要 boot / GUI / 打包 smoke，也不需要 Rust 编译。只做文件级
+自检（frontmatter、`.eac-skill.json` 标记与版本、必需清单登记）和规则中列出的
+针对性契约测试；只有改动同步与装配逻辑本身（如 `syncBundledSkills`、
+`copyPluginPackage`、`pluginCopyEntries`）时才升级验证级别。
+
 | 修改 | 必查 |
 | --- | --- |
 | 新增内置插件目录 | `package.json`、exports、patch、`COMPANION_PLUGINS`、复制清单、注册表测试 |
@@ -54,7 +61,7 @@
 | 退役插件 | `RETIRED_BUILTIN_PLUGINS`、patch/依赖/bundle 清理、迁移测试 |
 | 修改皮肤 | `assets/skins`、互斥切换、profile、z-index、许可证 |
 | 修改 preset | `preset.yml`、`agent.cordis.yml`、共享 `_preset`、同步和迁移测试 |
-| 修改内置 Skill | `assets/skills`、`.eac-skill.json`、`syncBundledSkills`、CI paths |
+| 修改内置 Skill | `assets/skills`、`.eac-skill.json`、`syncBundledSkills`、CI paths；内容型改动只做文件级自检，不需要全量测试与 boot smoke |
 | 修改开发者 Skill | `SKILL.md`、`agents/openai.yaml`、`references/`、`scripts/`、Skill 自检、CI paths |
 
 ## 更新与分发

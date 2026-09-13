@@ -106,6 +106,17 @@ description: 面向 Deepseek Harness EAC 源码仓库的全栈开发与维护技
 
 根据影响面选择最低充分级别。不要用 V1 冒充跨层、更新或安装链路的完整验收。
 
+### 内容型改动
+
+新增/升级内置插件、新增/修改内置 Skill、皮肤资源与文档属于**内容型改动**：
+它们只改变随包分发的内容，不属于改源码，默认**不需要** V2 全量测试、V4 运行时
+smoke，也不需要 Rust 编译（V3）。验证收敛为 V1：文件级自检（frontmatter、
+`.eac-skill.json` 标记与版本、必需清单登记）加上规则中列出的针对性契约测试即可。
+
+只有改动同步与装配逻辑本身（`syncBundledSkills`、`copyPluginPackage`、
+`pluginCopyEntries`、`stage-resources.mjs` 等）才按普通源码改动升级级别。
+不要用「内容型改动」豁免跨层、更新或安装链路的验收。
+
 `package -Execute` 只完成可自动化部分；真实安装、故障注入、文件锁、权限和路径环境未完成时，结果只能是 `partial`。
 
 ## 辅助脚本
