@@ -1,7 +1,7 @@
 # ADR 0006 — 最简本体范围界定（Task 3.1 解耦本体）
 
-日期：2026-09-14（v2 同日修订：待确认项经代码全面查证后转为决策）
-状态：Accepted（v6 Task 3.1；查证证据见「查证记录」节）
+日期：2026-09-14（v3 同日修订：按字面严格解释裁决，见文末「严格模式」节）
+状态：Accepted（v6 Task 3.1；v3 = 严格模式生效版）
 
 ## 背景
 
@@ -198,3 +198,47 @@ Rust 壳（main.rs）实际调用的 sidecar 方法：`boot.start/restart/state/
 - 风险：被剥能力之间的隐性依赖（如 recovery-center ↔ supervisor ↔
   extension-host 三件套）——已裁决：恢复中心收窄保留、supervisor 与
   extension-host 随插件系统整体剥出（恢复中心对二者的引用经降级桩消化）。
+
+
+## 严格模式（v3，2026-09-14 看板主人裁决）
+
+**裁决**：「按字面严格解释最简本体，但保留对未来可能的插口。」
+
+### 与 v2 的差异（进一步剥离）
+
+| 能力面 | v2（务实取舍） | v3（严格模式） |
+|---|---|---|
+| 恢复中心动作面（rc.*） | 收窄保留（三件套随行） | **剥出** → 桩应答 |
+| 救援链（rescue.*） | 保留 | **剥出** → 桩应答 |
+| 插件保护中心（guard.*） | 保留 | **剥出** → 桩应答 |
+| 插件治理三件套（companion-sync / plugin-ops / guard-box） | 降级保留 | **剥出**（含 10 个传递依赖） |
+| rescue-integration / phone-bridge / recovery-center | 装配 | **不装配** |
+| BUNDLED_BUILTIN_PLUGINS（dsh-raw-html bundle 播种） | 保留 | **清空**（随 assets/plugins 剥出） |
+| native/.node（supervisor/snapshot） | snapshot 保留 | **不装配**（快照面无运行时入口） |
+
+### 插口契约（capability-stubs.ts）
+
+被剥能力统一经 `tauri-shell/sidecar/capability-stubs.ts` 的降级桩应答：
+- **方法名与参数形态不变**（Rust 壳 / 恢复中心页面的调用面零改动）；
+- 桩应答 `{ ok:false, unavailable:true, capability, reason }` —— 调用方
+  渲染「能力未安装」而非运行时错误；
+- **接回 = 用真实现覆盖 methods 表同名条目 + 装配清单补模块**，不动 Rust 壳。
+
+接回任务映射：rc.* → Task 3.5/5.x；rescue.* → Task 3.5；guard.* 与
+三件套 → Task 2.x/3.3；内置 bundle 插件 → Task 3.3。
+
+### 自救底线（严格模式下的行为变化）
+
+Rust 壳 /died 页（服务停止时）的「重启服务」按钮走 boot.start（真实现，
+保留）——**主自救路径不受影响**。「安全模式」按钮走 rescue.safe-mode 桩
+（安全模式本是插件系统的产物，无插件时语义为空）。
+
+### 严格模式验证（2026-09-14 实测）
+
+- 装配闭包：24 依赖边 / 18 产物 / 0 缺失（v2 为 59 边 / 34 产物，
+  运行面 -44%）；
+- 桩冒烟：rc/rescue/guard/plugin-ops 面 8 项统一 unavailable:true；
+- boot 全链路：纯净 profile → web-ready 带 token → 303 cookie →
+  **HTTP 200 UI 完整可达**；
+- 全量测试 873/867/2（与 v2 最佳持平；剩余 2 失败为已知环境项）；
+- 6 个契约测试改严格模式守门（装配方向反转 + 桩面断言）。

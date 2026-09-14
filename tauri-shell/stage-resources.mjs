@@ -3,7 +3,7 @@
 // 供 tauri.conf.json 的 resources 映射进安装包。
 //
 // 布局（= main.rs resource_root() 的约定）：
-//   staged-resources/sidecar/server.js|bridge.js|rescue-integration.js
+//   staged-resources/sidecar/server.js|bridge.js|capability-stubs.js
 //   staged-resources/dsh-desktop/<Electron 时代的精确文件清单 + 生产 node_modules
 //                              + assets + vendor/node + vendor/npm>
 //
@@ -57,47 +57,26 @@ if (targetPlatform !== process.platform) {
 const ROOT_FILES = [
   'logger.js', 'session-watcher.js',
   'bundle-integrity.js', 'stable-port.js', 'stream-write-guard.js',
-  'rescue-agent.js',
-  // updater.js 整体保留（ADR 0006 修订）：它是「overlay 内核管理 + 更新流」
-  // 混合模块 —— runtime-paths（overlayBinPath/rollback：boot 失败隔离切内置
-  // 内核的链路）、profile、companion-sync 都消费其 overlay 面。更新流函数
-  //（checkLatest/applyUpdate）在最简本体上无人调用，不占运行时资源；
-  // v6.1 Task 8 拆分该模块时再分离两半。
+  // updater.js 保留其 overlay 内核管理面（boot 失败隔离切内置内核的链路，
+  // runtime-paths/profile 消费）；更新流函数无人调用，v6.1 Task 8 拆分。
   'updater.js',
-  // v6 Task 3.1 审计修订（装配闭包实测）：恢复中心收窄三件套的传递依赖。
-  // companion-sync / plugin-ops / guard-box 是 God module，顶层 require 了
-  // 下列插件治理面模块 —— 不装配则打包态 sidecar 加载即 MODULE_NOT_FOUND。
-  // 代码原位保留；Task 3.3 拆解 companion-sync 时按域分装。
-  'plugin-updater.js', 'plugin-guard.js', 'plugin-manager-state.js',
-  'builtin-collision.js', 'patch-row-heal.js', 'profile-module-heal.js',
-  'preset-sync.js', 'compact-preset-migrate.js', 'router-persona-preset-migrate.js',
 ];
 const LIB_DESKTOP = [
   'file-roots.js', 'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js',
   'runtime-patches.js', 'boot-server.js',
-  // 恢复中心收窄保留三件套（ADR 0006 已裁决项 5）：register.ts 直接
-  // import 这三个模块，剥掉即恢复中心窗口起不来（Rust 壳 41 处 recovery
-  // 引用：托盘菜单 / 启动失败链 / safe-mode）。
-  'guard-box.js', 'companion-sync.js', 'plugin-ops.js',
-  // companion-sync 的编译依赖（plugin-sync-registry.ts 由 generate-plugin-registry
-  // 生成）：companionSyncMod 的插件清单与更新源从这里取。
-  'plugin-sync-registry.js',
 ];
 const SCRIPTS = [
-  'patch-session-manage.js', 'plugin-manager-patch.js', 'patch-deps.js',
-  // 审计修订：plugin-ops（恢复中心三件套）顶层 require onboarding.js。
-  'onboarding.js',
+  'patch-session-manage.js', 'patch-deps.js',
 ];
 
-// vnext 隔离体系（ADR 0006）：恢复中心收窄保留——supervisor（SDK 插件
-// 安装器）与 extension-host（隔离宿主）随插件系统剥出；native/.node
-// 中 snapshot/index.node 是 guard-box 快照依赖故保留，supervisor/index.node
-// 剥出。
+// v6 严格模式（ADR 0006 v3）：supervisor / extension-host / recovery-center
+// 随插件系统与恢复中心动作面整体剥出；rescue-integration 同剥（rescue.*
+// 由 sidecar/capability-stubs 桩应答）。native 只留 snapshot（无消费方则
+// 一并裁撤——guard-box 剥出后快照面无运行时入口）。
 const LIB_VNEXT = [
   'state.js', 'log.js', 'plugin-copy.js', 'atomic-json.js',
-  'recovery-center/register.js',
 ];
-const NATIVE_MODULES = ['snapshot/index.node'];
+const NATIVE_MODULES = [];
 function requireFile(file, label) {
   if (!existsSync(file) || !statSync(file).isFile()) {
     throw new Error(`[stage] 缺少${label || '文件'}: ${path.relative(root, file)}`);
@@ -222,7 +201,9 @@ execSync('npx tsc -p tsconfig.json', { cwd: dd, stdio: 'inherit' });
 
 console.log('[stage] sidecar 产物');
 // 5.2 起 mobile-app.html 退役（手机桥 = 完整 Web UI 反向代理，见 phone-bridge.ts）。
-for (const f of ['server.js', 'bridge.js', 'rescue-integration.js', 'phone-bridge.js']) {
+// v6 严格模式：sidecar 只装 server + bridge；rescue-integration（rescue.*
+// 桩应答）与 phone-bridge（增值功能）剥出。
+for (const f of ['server.js', 'bridge.js', 'capability-stubs.js']) {
   cpSync(path.join(root, 'tauri-shell', 'sidecar', f), path.join(staged, 'sidecar', f));
 }
 
@@ -242,9 +223,11 @@ for (const f of LIB_VNEXT) {
 // shared/protocol.js：隔离体系单点协议源，extension-host/rpc.js 运行时 require
 // （../../shared/protocol.js）——漏装配会让 sidecar 启动即 MODULE_NOT_FOUND。
 copyRequired(path.join(dd, 'shared', 'protocol.js'), path.join(staged, 'dsh-desktop', 'shared', 'protocol.js'), '共享协议');
-mkdirSync(path.join(staged, 'dsh-desktop', 'native'), { recursive: true });
-for (const f of NATIVE_MODULES) {
-  copyRequired(path.join(dd, 'native', f), path.join(staged, 'dsh-desktop', 'native', f), '原生模块');
+if (NATIVE_MODULES.length) {
+  mkdirSync(path.join(staged, 'dsh-desktop', 'native'), { recursive: true });
+  for (const f of NATIVE_MODULES) {
+    copyRequired(path.join(dd, 'native', f), path.join(staged, 'dsh-desktop', 'native', f), '原生模块');
+  }
 }
 mkdirSync(path.join(staged, 'dsh-desktop', 'scripts'), { recursive: true });
 for (const f of SCRIPTS) {

@@ -20,14 +20,16 @@ function makeProfile(dir: string, bundles: unknown[]): void {
 }
 
 test('seedBundledPlugins appends missing bundled builtins and writes back', () => {
+  // v6 Task 3.1（ADR 0006 v3 · 严格模式）：BUNDLED_BUILTIN_PLUGINS 已清空
+  //（内置 bundle 插件随 assets/plugins 剥出）—— 播种行为守门：空清单下
+  // 不追加、changed=false。Task 3.3 接回插件时恢复追加断言。
   const dir = mkdtempSync(join(tmpdir(), 'seed-bundled-'));
   try {
     makeProfile(dir, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app']);
     const r1 = seedBundledPlugins(dir);
-    assert.equal(r1.changed, true);
-    assert.ok(r1.bundles.includes('dsh-raw-html'));
+    assert.equal(r1.changed, false);
     const after = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-    assert.deepEqual(after.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-raw-html']);
+    assert.deepEqual(after.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app']);
     // 幂等：第二次无变化、不重写
     const r2 = seedBundledPlugins(dir);
     assert.equal(r2.changed, false);

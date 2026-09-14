@@ -55,28 +55,18 @@ const userDataDir = desktopPlatform.userDataDir();
 const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const pathsMod = mount('runtime-paths');
 const profileMod = mount('profile');
-const guardBoxMod = mount('guard-box');
 const runtimePatchesMod = mount('runtime-patches');
 const fileRootsMod = mount('file-roots');
 const bootMod = mount('boot-server');
 
-// v6 Task 3.1：恢复中心收窄保留三件套（ADR 0006 已裁决项 5）——Rust 壳的
-// recovery 链（托盘菜单 / 启动失败 / safe-mode）依赖 rc.action；其动作面
-// （插件启停/快照/档案）在最简本体上自然降级为空列表/无操作。
-const pluginOpsMod = mount('plugin-ops');
-const companionSyncMod = mount('companion-sync');
-const recoveryCenter = require(path.join(DSH_DESKTOP_ROOT, 'lib', 'recovery-center', 'register.js')) as {
-  init(d: {
-    appVersion: string;
-    profile: string;
-    restartWebService(): Promise<{ ok: boolean; url?: string; error?: string }>;
-    requestSafeModeRelaunch(): void;
-  }): void;
-  handleRcAction(action: string, value?: unknown): Promise<Record<string, unknown>>;
-  archivePluginProfiles(): void;
-};
+// v6 Task 3.1（ADR 0006 v3 · 严格模式）：插件治理三件套（companion-sync /
+// plugin-ops / guard-box）、恢复中心（recovery-center）、救援链
+//（rescue-integration）全部移出运行面 —— 本体只保留对 dsh 的最简包装。
+// 被剥能力经 capability-stubs 的降级桩应答（方法名与参数形态不变，
+// Task 3.3/3.5 接回时替换桩即可，插口契约见该文件头注释）。
+import stubs = require('./capability-stubs');
 
-const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'guard-box', 'runtime-patches', 'file-roots', 'companion-sync', 'plugin-ops', 'boot-server'];
+const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'runtime-patches', 'file-roots', 'boot-server'];
 
 // 打包态判定 + 资源根：Rust 壳 spawn sidecar 时注入 DSH_SHELL_EXE /
 // DSH_RESOURCE_ROOT（main.rs Sidecar::spawn）。DSH_RESOURCE_ROOT 存在即打包态；
@@ -106,23 +96,7 @@ const notifyFallback = (n: { title: string; body: string }): void => {
 procMod.init({ log, getDshHome: () => dshHome, getDesktopProfile: desktopProfileFn });
 pathsMod.init({ log, getUserDataDir: () => userDataDir, isPackaged: () => isPackagedRuntime(), resourcesPath: () => resourceRoot(), platform: process.platform });
 profileMod.init({ log, getDshHome: () => dshHome });
-guardBoxMod.init({
-  log,
-  getDshHome: () => dshHome,
-  getDesktopProfile: desktopProfileFn,
-  getDshBin: () => (pathsMod.dshBin as () => string)(),
-});
 runtimePatchesMod.init({ log, getDshHome: () => dshHome, getUserDataDir: () => userDataDir });
-pluginOpsMod.init({ log });
-companionSyncMod.init({
-  log,
-  getDshHome: () => dshHome,
-  getUserDataDir: () => userDataDir,
-  applyLegacySkinChoice: () => { /* v6：皮肤行写入随皮肤系统剥出（Task 3.2 接回） */ },
-  showMainWindow: () => say('showMainWindow (host-delegated)'),
-  notify: notifyFallback,
-  platform: process.platform,
-});
 
 // ---- boot-server（P2：dsh web 服务编排） --------------------------------
 // settings 兼容层：与 updater.js 的 userData/settings.json 同文件同语义
@@ -223,14 +197,12 @@ function startSessionWatcher(): void {
 vnextLog.setLogSink(log);
 vnextState.initVNextState({ dshHome, userDataDir, logsDir: path.join(userDataDir, 'logs') });
 
-// 前置文件树准备（v6 最简版）：退役清理 → 配套插件同步（收窄面：无内置插件
-// 资产时为空转）→ 模块遮蔽修复。市场排队 / SDK 残余清扫 / 技能同步随插件
-// 系统剥出。boot.start 与 restart 共用。
-async function preBootSync(): Promise<void> {
-  (companionSyncMod.retireRemovedBuiltinPluginsGated as (dir: string) => void)((profileMod.desktopProfileDir as () => string)());
-  (companionSyncMod.syncCompanionPlugins as () => void)();
-  (companionSyncMod.healProfileModules as () => void)();
-}
+// 前置文件树准备（v6 严格最简版）：只做 profile 初始化 —— 插件同步/退役
+// 清理/宿主依赖落位随三件套剥出（capability-stubs.minimalPreBootSync）。
+const preBootSync = stubs.minimalPreBootSync(
+  () => (profileMod.ensureDesktopProfileInit as () => void)(),
+  log,
+);
 
 // 原地重启（= main.js restartWebServiceCore，v6 最简版）：前置同步 → 拉起。
 async function restartWebServiceCore(): Promise<{ ok: boolean; webUrl?: string; port?: number; error?: string }> {
@@ -248,8 +220,6 @@ async function restartWebServiceCore(): Promise<{ ok: boolean; webUrl?: string; 
     }
     log('service', '请求重启 dsh web 服务');
     await (bootMod.killAndWaitForRestart as () => Promise<void>)();
-    (companionSyncMod.syncCompanionPlugins as () => void)();
-    (companionSyncMod.healProfileModules as () => void)();
     const r = await guardedStartAndWait([]);
     log('service', 'dsh web 服务已重启: ' + r.webUrl);
     notify('boot.web-ready', r);
@@ -263,14 +233,9 @@ async function restartWebServiceCore(): Promise<{ ok: boolean; webUrl?: string; 
   }
 }
 
-// ---- 守护启动（快照 + 最后良好 + 事故留痕；无 updater 面的最简版）----------
+// ---- 守护启动（v6 严格模式：无快照/事故面 —— guard-box 随插件保护中心剥出；
+// overlay 失败隔离（runtime-paths 自带）保留 —— 那是 boot 链的一部分）----
 async function guardedStartAndWait(overlays: string[]): Promise<{ webUrl: string; port: number }> {
-  const g = (guardBoxMod.ensureGuard as () => {
-    snapshot(r: string): { id: string } | null;
-    markGood(id: string): void;
-    reportIncident(t: string, d: string): { ok: boolean };
-  })();
-  const snap = g.snapshot('boot');
   const startedWithOverlay = (pathsMod.isUsingOverlay as () => boolean)();
   try {
     let r: { webUrl: string; port: number };
@@ -293,22 +258,14 @@ async function guardedStartAndWait(overlays: string[]): Promise<{ webUrl: string
         );
       }
     }
-    if (snap) g.markGood(snap.id);
     return r;
   } catch (e) {
-    try {
-      g.reportIncident('boot-failed', 'dsh web 服务拉起失败。\n\n错误：\n' + String(((e as Error).message) || e));
-    } catch { /* 尽力而为 */ }
     throw e;
   }
 }
 
-recoveryCenter.init({
-  appVersion: pkgVersion,
-  profile: desktopProfileFn(),
-  restartWebService: async () => restartWebServiceCore(),
-  requestSafeModeRelaunch: () => notify('shell.relaunch-safe-mode', {}),
-});
+// （v6 严格模式：rc.* / guard.* 的桩注册移至 methods 声明之后的
+//  「能力桩注册」段统一执行；recoveryCenter.init 随恢复中心剥出。）
 
 // ---- 方法注册表 -----------------------------------------------------------
 interface RpcReq { id: number | null; method: string; params?: Record<string, unknown> }
@@ -344,8 +301,8 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
   'profile.dir': (): RpcResult => ({ dir: (profileMod.desktopProfileDir as () => string)() }),
   'runtime.nodeExe': (): RpcResult => ({ exe: (pathsMod.nodeExe as () => string)() }),
   'runtime.dshBin': (): RpcResult => ({ bin: (pathsMod.dshBin as () => string)() }),
-  'plugins.removedIds': (): RpcResult => ({ ids: (companionSyncMod.removedPluginIds as () => unknown[])() }),
-  'guard.ensure': (): RpcResult => ({ ok: !!(guardBoxMod.ensureGuard as () => unknown)() }),
+  // （v6 严格模式：plugins.removedIds / guard.ensure 随插件治理面剥出 ——
+  //  guard.ensure 已由 capability-stubs 桩注册。）
   // ---- boot.*（P2：dsh web 服务编排，Rust 壳的启动主链路） ----
   'boot.start': async (p): Promise<RpcResult> => {
     const overlays = Array.isArray(p && p.overlays) ? (p!.overlays as string[]) : [];
@@ -365,12 +322,12 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
     try {
       r = await guardedStartAndWait(overlays);
     } catch (e) {
-      // 崩溃循环计数：连续失败达阈值后，救援页据 rescue.state.crash 引导安全模式。
-      rescueIntegration.recordBootFailureNow(String(((e as Error).message) || e));
+      // 崩溃循环计数随救援链剥出（v6 严格模式）：桩只记日志。
+      bootFailureRecorder.recordBootFailureNow(String(((e as Error).message) || e));
       notify('boot.failed', { error: String(((e as Error).message) || e) });
       throw e;
     }
-    rescueIntegration.clearRescueState?.();
+    bootFailureRecorder.clearRescueState();
     notify('boot.web-ready', r);
     // 应答必须立刻返回：boot.start 是 Rust 壳 180s 超时的同步等待点。
     setImmediate(() => {
@@ -414,13 +371,8 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
   'boot.restart': async (): Promise<RpcResult> => restartWebServiceCore(),
   // bridge.ts 的 restartService() 调 service.restart：与 boot.restart 同一核心。
   'service.restart': async (): Promise<RpcResult> => restartWebServiceCore(),
-  // ---- 恢复中心（收窄保留）：Rust 壳创建的恢复中心窗口经专用 preload
-  // （WS JSON-RPC）调用这两个方法；动作分发在 lib/recovery-center。----
-  'rc.action': async (p): Promise<RpcResult> => {
-    const action = String((p && p.action) || '');
-    return await recoveryCenter.handleRcAction(action, p && p.value);
-  },
-  'rc.close': (): RpcResult => ({ ok: true }),
+  // （v6 严格模式：rc.action / rc.close 由 capability-stubs 桩注册 ——
+  //  恢复中心动作面剥出，方法面与参数形态不变，接回见插口契约。）
   // ---- 文件树基础能力（files.*：会话工作区围栏，内核文件树 UI 消费） ----
   'files.revert': (p): Record<string, unknown> => {
     const changes = (p && p.changes) as Array<{ path?: string; oldText?: string; newText?: string }>;
@@ -496,63 +448,10 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
     if (!fs.existsSync(fp)) return { ok: false, error: 'file not found' };
     return { ok: true, path: fp };
   },
-  // ---- 插件 IPC 桩（保留方法面，收窄语义：粘贴/拖放在本体上仍可用，
-  // plugin-ops 的落盘实现保留；这是 dsh Web UI 原生交互面的基础能力）----
-  'image-paste.save': (p): Record<string, unknown> => {
-    try {
-      return (pluginOpsMod.imagePasteSave as (d: string, n: string) => Record<string, unknown>)(String((p && p.dataUrl) || ''), String((p && p.name) || '粘贴图片'));
-    } catch (e) {
-      return { ok: false, error: String(((e as Error).message) || e) };
-    }
-  },
-  'file-drop.save': (p): Record<string, unknown> => {
-    try {
-      return (pluginOpsMod.fileDropSave as (d: string, n: string) => Record<string, unknown>)(String((p && p.dataUrl) || ''), String((p && p.name) || '拖入文件'));
-    } catch (e) {
-      return { ok: false, error: String(((e as Error).message) || e) };
-    }
-  },
-  'guard.action': (p): Record<string, unknown> => {
-    const action = String((p && p.action) || '');
-    const value = p && p.value;
-    const g = (guardBoxMod.ensureGuard as () => Record<string, (...a: unknown[]) => unknown>)();
-    switch (action) {
-      case 'status': {
-        const st = loadSettings() as { shareWebProfile?: boolean };
-        return {
-          ok: true,
-          profile: desktopProfileFn(),
-          shareWebProfile: st.shareWebProfile === true,
-          snapshots: (g.listSnapshots as () => unknown[])().slice(0, 20),
-          incidents: (g.listIncidents as () => unknown[])().slice(0, 20),
-          lastGood: (g.lastGoodSnapshot as () => unknown)(),
-        };
-      }
-      case 'snapshot': {
-        const s = (g.snapshot as (r: string) => unknown)(String(value || 'manual'));
-        return { ok: !!s, snapshot: s };
-      }
-      case 'restore': {
-        const running = (bootMod.state as () => { running: boolean })().running;
-        if (running) {
-          return { ok: false, error: 'service-running', hint: '请先重启 Web 服务（或让回滚在重启间隙执行）' };
-        }
-        return (g.restore as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
-      }
-      case 'check':
-        return { ok: true, report: (g.healthCheck as () => unknown)() };
-      case 'repair': {
-        const r = (g.repair as () => { applied: unknown })();
-        return { ok: true, applied: r.applied };
-      }
-      case 'incident':
-        return (g.readIncident as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
-      case 'resolve-incident':
-        return (g.resolveIncident as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
-      default:
-        return { ok: false, error: 'unknown action' };
-    }
-  },
+  // ---- 粘贴/拖放保存（v6 严格模式：plugin-ops 剥出，方法面转桩）----
+  'image-paste.save': stubs.stubMethod('plugin-ops', 'image-paste.save', log),
+  'file-drop.save': stubs.stubMethod('plugin-ops', 'file-drop.save', log),
+  // （v6 严格模式：guard.action 由 capability-stubs 桩注册。）
   'menu.action': async (p): Promise<Record<string, unknown> | null> => {
     const action = String((p && p.action) || '');
     const s = loadSettings() as { notifyOnTurnEnd?: boolean; shortcutPolicy?: string; exitAction?: string; closeToTray?: boolean };
@@ -599,38 +498,15 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
   },
 };
 
-// ---- 救援链（保留：Rust 壳 /died 页 + crash 计数消费；ADR 0006 已裁决项 5）--
-const rescueIntegration = require('./rescue-integration') as {
-  initRescue(host: unknown): void;
-  rescueMethods(): Record<string, (p: Record<string, unknown> | undefined) => unknown>;
-  recordBootFailureNow(errText: string): void;
-  shouldEnterRescueNow(): boolean;
-  clearRescueState(): void;
-};
-rescueIntegration.initRescue({
-  dshHome,
-  userDataDir,
-  pkgVersion,
-  desktopProfile: desktopProfileFn,
-  desktopProfileDir: () => (profileMod.desktopProfileDir as () => string)(),
-  dshVersion: () => (pathsMod.dshVersion as () => string)(),
-  dshVersionSource: () => (pathsMod.dshVersionSource as () => string)(),
-  log,
-  notify,
-  mods: {
-    boot: {
-      ...bootMod,
-      // rescue retry / recovery.reload 直调 startAndWait 统一走守护启动链。
-      startAndWait: async (overlays: string[]) => {
-        const r = await guardedStartAndWait(overlays);
-        return r;
-      },
-    },
-    guardBox: guardBoxMod, pluginOps: pluginOpsMod, companionSync: companionSyncMod,
-  },
-  bootRestart: () => (methods['boot.restart'] as (p?: unknown) => Promise<Record<string, unknown>>)({} as Record<string, unknown>),
-});
-Object.assign(methods, rescueIntegration.rescueMethods());
+// ---- 救援链 + 能力桩注册（v6 严格模式）-----------------------------------
+// rescue-integration 剥出：rescue.* 方法面由桩注册（形态不变），boot 失败
+// 记录走桩 recorder（真实现的崩溃计数随 Task 3.5 接回）。
+const bootFailureRecorder = stubs.makeBootFailureRecorder(log);
+
+// ---- 能力桩注册：rc.* / rescue.* / guard.*（插口契约见 capability-stubs）----
+Object.assign(methods, stubs.rcMethods(log));
+Object.assign(methods, stubs.rescueMethods(log));
+Object.assign(methods, stubs.guardMethods(log));
 
 function respond(msg: Record<string, unknown>): void {
   process.stdout.write(JSON.stringify(msg) + '\n');

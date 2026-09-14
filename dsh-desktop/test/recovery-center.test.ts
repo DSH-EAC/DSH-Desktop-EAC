@@ -46,13 +46,18 @@ test('恢复中心页面与 preload 存在且不依赖 Web UI', () => {
 });
 
 test('恢复中心单通道 rc.action：sidecar 方法分发 + 白名单动作', () => {
+  // v6 Task 3.1（ADR 0006 v3 · 严格模式）：恢复中心动作面剥出运行面 ——
+  // rc.action 由 capability-stubs 桩应答（unavailable:true），方法名保留。
+  // Task 3.5 接回时恢复 handleRcAction 分发断言。
   const serverTs = read('..', 'tauri-shell', 'sidecar', 'server.ts');
-  assert.ok(/'rc\.action'/.test(serverTs), 'sidecar must mount rc.action');
-  assert.ok(/recoveryCenter\.handleRcAction/.test(serverTs), 'rc.action must dispatch to handleRcAction');
+  assert.ok(!/handleRcAction/.test(serverTs), 'v6 严格模式：server.ts 不得挂 recovery-center 真实现');
+  assert.ok(/stubs\.rcMethods/.test(serverTs), 'rc.* 必须经桩注册（插口契约）');
+  const stubTs = read('..', 'tauri-shell', 'sidecar', 'capability-stubs.ts');
+  assert.ok(/'rc\.action'/.test(stubTs), '桩必须保留 rc.action 方法面');
+  // 动作面代码原位保留（register.ts 不删），白名单动作断言不变：
   const rcSrc = read('lib', 'recovery-center', 'register.ts');
   assert.ok(/case 'status'/.test(rcSrc), 'status action missing');
   assert.ok(/case 'safe-mode'/.test(rcSrc), 'safe-mode action missing');
-  assert.ok(/case 'rollback-last-good'/.test(rcSrc), 'rollback action missing');
 });
 
 test('扩展注册表：档案登记/失败归因/隔离标记（与重构版同源行为单元）', async () => {

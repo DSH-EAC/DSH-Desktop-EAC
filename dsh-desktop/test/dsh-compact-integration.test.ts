@@ -111,6 +111,7 @@ test('dsh-compact integration: migration helper is included in packaged app', ()
   // 必须装配（见 preset-sync.test.ts 同款注释）；assets 整树断言改为保留项拷贝守门。
   const stage = readFileSync(join(root, '..', 'tauri-shell', 'stage-resources.mjs'), 'utf8')
   const rootFiles = /const ROOT_FILES = \[([\s\S]*?)\]/.exec(stage)![0]
-  assert.match(rootFiles, /'compact-preset-migrate\.js'/, 'companion-sync 传递依赖必须装配')
+  // v6 严格模式：companion-sync 剥出 → compact-preset-migrate 不装配。
+  assert.doesNotMatch(rootFiles, /'compact-preset-migrate\.js'/, 'v6 严格模式不得装配')
   assert.doesNotMatch(stage, /cpSync\(path\.join\(dd, 'assets'\)/, 'v6 assets 应按保留项拷贝而非整树')
 })
