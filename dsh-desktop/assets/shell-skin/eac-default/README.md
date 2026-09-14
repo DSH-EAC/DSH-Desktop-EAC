@@ -1,14 +1,30 @@
-# EAC 本体默认皮肤包（eac-default）
+# EAC 本体默认皮肤包（system.default）
 
 v6 Task 1.1 交付物。EAC 桌面壳层（本体）UI 的视觉皮肤包，把壳层页面与
 控件的样式从硬编码中分离。设计决策见
 `docs/adr/0005-builtin-shell-skin-pack.md`。
 
+## 公约兼容
+
+本包遵循《DSH-Desktop-EAC UI Skin Authoring Convention》Draft v0.11：
+
+- 默认皮肤 ID 为公约保留的 `system.default`，包类型为 `skin`；
+- `owner` 使用反向域名命名空间，兼容目标声明为
+  `dsh-desktop-eac-ui-skin-profile@^0.3`；
+- 控件层 `system.shell-controls` 与样式层 `system.shell-style` 分别声明，
+  版本依赖记录在 `dependencies`，允许后续宿主选择机制按层替换；
+- loading / died / update / about / 向导 / 恢复中心 / 退出确认均为独立窗口
+  或弹层实例，按公约第 8 节不进入区块 Binding Table。
+
+`kind: "shell-skin"` 是 L1 壳路由使用的扩展分类，不替代公约的
+`type: "skin"`。当前目录名保留为 `eac-default`，包身份以 manifest 的
+`system.default` 为准。
+
 ## 结构
 
 ```text
 eac-default/
-├── skin.json     # 清单：id、kind: "shell-skin"、version、files、consumers
+├── skin.json     # 清单：公约字段、L1 扩展分类、assets、consumers
 ├── tokens.css    # 全部视觉 token 的单一事实源（--eac-shell-* 命名空间）
 └── controls.css  # 壳层控件类样式（.eac-shell 作用域），只消费 token
 ```

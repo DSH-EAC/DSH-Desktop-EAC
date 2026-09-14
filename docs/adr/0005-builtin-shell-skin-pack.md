@@ -31,7 +31,9 @@ dsh 内核的 React 控件库（`@deepseek-ai/dsh-client-ui-primitives` 等）�
 
 1. **皮肤包位置与结构**：内置皮肤包放在
    `dsh-desktop/assets/shell-skin/eac-default/`，含三个文件：
-   - `skin.json` — 清单（id / kind: "shell-skin" / version / files / consumers）；
+   - `skin.json` — 清单（公约 `type: "skin"`、默认包 ID `system.default`、
+     owner、profile 兼容范围、控件/样式层依赖，以及 L1 扩展分类
+     `kind: "shell-skin"` / assets / consumers）；
    - `tokens.css` — 全部视觉 token 的**单一事实源**（`--eac-shell-*` 命名空间）；
    - `controls.css` — 壳层控件类样式（`.eac-shell` 作用域），只消费 token。
    不放进 `assets/skins/`：那是 dsh 客户端 cordis 皮肤目录，由
@@ -66,6 +68,13 @@ dsh 内核的 React 控件库（`@deepseek-ai/dsh-client-ui-primitives` 等）�
    - 不动 cordis 皮肤协议与 `skin.json`（那是客户端皮肤的清单，两者同名
      但字段集不同、目录不同、消费方不同）；
    - Rust 壳不新增业务逻辑，仅静态文件路由（L1 边界，ADR 0002）。
+
+7. **皮肤创作公约兼容**：遵循《DSH-Desktop-EAC UI Skin Authoring
+   Convention》Draft v0.11。默认皮肤使用公约保留 ID `system.default`，
+   声明 `dsh-desktop-eac-ui-skin-profile@^0.3`、反向域名 owner，以及
+   `system.shell-controls` / `system.shell-style` 两层和对应版本依赖。
+   壳页和退出确认是独立窗口或弹层实例，按公约第 8 节不进入区块
+   Binding Table；`kind: "shell-skin"` 仅为 L1 静态路由的扩展分类。
 
 ## 后果
 

@@ -70,17 +70,25 @@ function stripShellVars(src: string): string {
   return src.replace(/var\(\s*--eac-shell-[\w-]+[^()]*(?:\([^()]*\)[^()]*)*\)/g, 'TOKEN');
 }
 
-test('壳层皮肤包三件套存在且 skin.json 字段合法', () => {
+test('壳层皮肤包文件存在且 skin.json 符合皮肤创作公约', () => {
   for (const f of ['skin.json', 'tokens.css', 'controls.css', 'README.md']) {
     assert.ok(existsSync(join(packDir, f)), `assets/shell-skin/eac-default/${f} missing`);
   }
   const manifest = JSON.parse(read('assets', 'shell-skin', 'eac-default', 'skin.json'));
-  assert.equal(manifest.id, 'eac-default');
+  assert.equal(manifest.id, 'system.default');
+  assert.equal(manifest.type, 'skin');
   assert.equal(manifest.kind, 'shell-skin');
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
-  assert.ok(Array.isArray(manifest.files) && manifest.files.length > 0);
-  for (const f of manifest.files) {
-    assert.ok(existsSync(join(packDir, f)), `skin.json files 声明了不存在的 ${f}`);
+  assert.match(manifest.owner, /^(?:[a-z0-9-]+\.){2,}[a-z0-9-]+$/);
+  assert.equal(manifest.compatibility.profile, 'dsh-desktop-eac-ui-skin-profile@^0.3');
+  assert.equal(manifest.compatibility.forceable, false);
+  assert.equal(manifest.control, 'system.shell-controls');
+  assert.equal(manifest.style, 'system.shell-style');
+  assert.equal(manifest.dependencies[manifest.control], manifest.version);
+  assert.equal(manifest.dependencies[manifest.style], manifest.version);
+  assert.ok(Array.isArray(manifest.assets) && manifest.assets.length > 0);
+  for (const f of manifest.assets) {
+    assert.ok(existsSync(join(packDir, f)), `skin.json assets 声明了不存在的 ${f}`);
   }
 });
 
