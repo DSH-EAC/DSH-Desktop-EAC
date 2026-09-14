@@ -1,7 +1,7 @@
 # ADR 0006 — 最简本体范围界定（Task 3.1 解耦本体）
 
-日期：2026-09-14（v3 同日修订：按字面严格解释裁决，见文末「严格模式」节）
-状态：Accepted（v6 Task 3.1；v3 = 严格模式生效版）
+日期：2026-09-14（v4 同日修订：剥离文件连同源码删除，见文末「源码删除」节）
+状态：Accepted（v6 Task 3.1；v4 = 严格模式 + 源码删除版）
 
 ## 背景
 
@@ -242,3 +242,32 @@ Rust 壳 /died 页（服务停止时）的「重启服务」按钮走 boot.start
   **HTTP 200 UI 完整可达**；
 - 全量测试 873/867/2（与 v2 最佳持平；剩余 2 失败为已知环境项）；
 - 6 个契约测试改严格模式守门（装配方向反转 + 桩面断言）。
+
+
+## 源码删除（v4，2026-09-14 看板主人裁决）
+
+**裁决**：「剥出文件不保留在源码中。」—— v3 的「代码原位保留等接回」
+改为彻底删除。git 历史（分支 b9e1d9a 及更早）可完整找回被删文件；
+接回时从历史恢复 + 覆盖 capability-stubs 桩即可。
+
+### 删除清单（git rm，共 1165+ 文件）
+
+| 类别 | 内容 |
+|---|---|
+| 根模块（14） | balance / builtin-collision / client-updater / compact-preset-migrate / host-bootstrap / patch-row-heal / plugin-guard / plugin-manager-state / plugin-updater / preset-sync / profile-module-heal / rescue-agent / router-persona-preset-migrate / shortcut-maintenance |
+| lib/desktop（11） | client-update / companion-sync / feature-pack / guard-box / install-profile / junction-patrol / market / plugin-ops / shortcuts / static-preview / plugin-sync-registry |
+| lib 子树（3） | extension-host / supervisor / recovery-center 整目录 |
+| 资产 | assets/plugins（49 插件）/ assets/skins（11 皮肤）/ sdk-plugins / agent-presets / onboarding.html |
+| 账本 | .sync/（plugins.json / lock / schema / policies） |
+| 仓库级 | openclaw-dsh-bridge / research 整目录；顶层 smoke/verify 脚本（10 个） |
+| scripts（11） | onboarding / plugin-manager-patch / feature-pack-cli / generate-plugin-registry / gen-plugin-manifests / plugin-kernel-compat / plugin-ledger / plugin-sync / publish-pack-index / install-plugin-engines |
+| 测试（95） | 断言对象为已删模块的全部测试（873 → 180） |
+| npm scripts | plugin:validate / plugin:sync / plugin:generate-registry / plugin:kernel-compat / ledger:check / install:plugin-engines |
+
+### 删除后验证（2026-09-14 实测）
+
+- 装配闭包：24 边 / 18 产物 / 0 缺失（不变——运行面在 v3 已收敛）；
+- tsc 全绿；全量测试 **180/178/0 失败**（+2 skip，全为保留面测试）；
+- 严格 boot 全链路：web-ready 带 token → 303 → **200 UI 完整可达**；
+- 插口（capability-stubs.ts）不受影响 —— 接回路径改为
+  「git 历史恢复模块 + 覆盖桩 + 装配清单补条目」。
