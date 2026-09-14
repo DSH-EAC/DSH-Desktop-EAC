@@ -1,6 +1,6 @@
 # 插件冲突审计：60 条目分类、冲突与功能影响
 
-Closes #365 ｜  看板：Task 2.2
+Closes #366 ｜  看板：Task 2.2
 
 > **基线**：dev@`e46ebb2`（60 条目 = 49 插件 + 10 皮肤 + 1 SDK）。
 > **计数纪律**：任何计数必须带 `数字@revision@口径` 后缀；裸数字无效。负面结论（"不存在"）必须附完整命令与候选总数。
@@ -73,7 +73,7 @@ Closes #365 ｜  看板：Task 2.2
 | 40 | settings-groups | dsh-std·upstream | unknown | 自启行 | 启用 | 无（settings 撞词） | manual | — |
 | 41 | settings-scroll-fix | dsh-std·eac-original | internal | 自启行 | 启用 | 宿主锚（data-composer-card） | internal | — |
 | 42 | side-session | dsh-std·upstream | internal | 自启行 | 启用 | 公用依赖 | internal | ※台账矛盾（伴侣套件）；lite 停用 |
-| 43 | skin-switch | 皮肤公约（运行时） | internal | 自启行 | 启用 | 无 | internal | 9 款注册皮肤运行时依赖本插件（maid-atelier 黑名单不注册） |
+| 43 | skin-switch | 皮肤公约（运行时） | internal | 自启行 | 启用 | 无 | internal | 9 款注册皮肤的启停状态由本插件注册后唯一改写（初值由 companion-sync 播种，皮肤代码零引用；maid-atelier 黑名单不注册） |
 | 44 | soul-md | dsh-std·upstream | npm | 自启行 | 启用 | 公用依赖 | follow-upstream | 行必须带 config.path |
 | 45 | terminal | dsh-std·upstream | internal | 自启行 | 启用 | 无 | internal | ※台账矛盾（伴侣套件，上游退役） |
 | 46 | unified-market | dsh-std·upstream | npm | 自启行 | 启用 | 无 | follow-upstream | — |
@@ -103,17 +103,18 @@ Closes #365 ｜  看板：Task 2.2
 | C-ID | 类型 | 涉及插件 | 机制 | 证据（file:line，分档） | 失效模式 | 严重度 | 已证实? |
 |---|---|---|---|---|---|---|---|
 | C-01 | 登记冲突（双护栏） | dsh-pet ↔ dsh-pet-settings（误命中对）+ 全表 id≠包名 | ①安装期：候选 patch 行与 profile 行按 id/name 比对，命中即 refuse（PATCH_DUP_ID/PATCH_DUP_NAME）；②运行期：companion-sync id/name 映射表 + heal 负向断言（短 id 不得前缀误命中长 id 兄弟行）+ 回归测试 + 启动期 PATCH_DUP_ID 兜底。**弱点**：stripPatchRows（builtin-collision.ts:94-100）不查自写行豁免，防线仅 companion-sync.ts:693-700 单点闸门 | code：plugin-conflict-scan.mjs:110-122；companion-sync.ts:93-238；patch-row-heal.ts:54/:133；plugin-guard.ts:400。test：test/patch-row-heal.test.ts:77-93 | 响亮崩溃（安装期拒装/整树崩）；修复前 = 静默改坏兄弟行 | 高 | 是（code+test） |
-| C-02 | 共享依赖分裂 | @deepseek-ai/schemastery 族声明者 12 插件（口径见证据列）vs 裸 schemastery（2 插件：better-sidebar:127、side-session:19，均 deps ^3.18.0） | scoped 与裸名字面键不同永不相遇 → 模块双实例、Symbol 身份分裂 | code：composer-dynamic-island:70 / dafeiyu:45 / soul-md:48（deps ^3.18.1）；computer-user:60 / compact:44 / picturereader:67（peer ^3.18.1）；agent-teams:98（peer ^3.18.1-rc.1）+ devDependencies:163；openclaw-bridge:28 / prompt-custom:31（peer `*`） | 静默失效 | 高 | 是（声明层）；运行时双实例 not-tested |
+| C-02 | 共享依赖分裂 | 声明者共 12：@deepseek-ai/schemastery 族 10（证据列具名 9 + raw-html optional:63-65，见 C-04）＋裸 schemastery 2（better-sidebar:127、side-session:19，均 deps ^3.18.0） | scoped 与裸名字面键不同永不相遇 → 模块双实例、Symbol 身份分裂 | code：composer-dynamic-island:70 / dafeiyu:45 / soul-md:48（deps ^3.18.1）；computer-user:60 / compact:44 / picturereader:67（peer ^3.18.1）；agent-teams:98（peer ^3.18.1-rc.1）+ devDependencies:163；openclaw-bridge:28 / prompt-custom:31（peer `*`） | 静默失效 | 高 | 是（声明层）；运行时双实例 not-tested |
 | C-03 | 预检器死检查 | 全部内置插件（受害者） | SETTINGS_NS_CLASH 要求 dsh.settings.key（49 manifest 结构化计数 **0**）；CORE_DEP_CLASH 比较集恒空；installed 集设计上近乎空（companion-sync 刻意不写 deps，:112-115） | code：plugin-conflict-scan.mjs:70/:80-85/:101/:123-161/:154 | 静默失效（护栏形同虚设） | 高 | 是（静态） |
 | C-04 | 漏读 optionalDependencies | dsh-raw-html（唯一声明者，且无 dependencies 段） | 扫描器 :70/:101/:154 三处只读 dependencies，optional/peer 结构性不可见 → 对 raw-html 必然漏报 | code：dsh-raw-html/package.json:63-65；plugin-conflict-scan.mjs:101/:154 | 静默失效 | 中 | 是（静态） |
 | C-05 | bundle 与自启行互斥 | dsh-raw-html（bundle 件）；dsh-undo-savepoint（双模） | bundle 包内挂载行与 overlay 行同 id → duplicate loader entry 拖垮整树；removeBundledRowDuplicates 双信号去重 | code：plugin-guard.ts:400；patch-row-heal.ts:212-269；companion-sync.ts:914（跳过）/:901（剥离）；dsh-undo-savepoint/package.json（dsh.bundle.patch） | 响亮崩溃 | 高 | 是（修复侧）；内核行为 not-tested |
 | C-06 | 层级抢共用容器 | dsh-pet ↔ dsh-agent-teams / meow-smooth | dsh-pet 对共享容器写 `!important` 最大层级，消费方（agent-teams 两处几何锚定、meow-smooth 守卫选择器）被一并抬升 | code：dsh-pet/lib/client.js:59（:54/:110 同值）；agent-teams client.js:1465 + ActivityPanel.js:332；meow-smooth client.js:1536。test：pet-overlay.test.ts:33（**固化冲突**） | 视觉错乱 | 中 | 是（代码+测试固化）；渲染结果 not-tested |
-| C-07 | 层级值越过内核基准 | pet、message-rewind、font-custom、file-drop-eac、raw-html、change-review、better-sidebar + 皮肤 maid-atelier（8 行，19 处声明见附录 A） | 各插件独立越过内核基准 2147483000，遮挡顺序仅由加载序决定；**真正在越界加码的是宿主自身**（bridge 5100 压 prompt-optimizer 5000 / navbar 950，R13:61）；反例位 client-file-changes:756=2147482990 主动低于基准 | code：附录 A 19 行逐条 file:line；dsh-client-file-changes/lib/client.js:756 | 视觉错乱 | 中 | 是（数值事实）；压序结果 not-tested |
+| C-07 | 层级值越过内核基准 | pet、message-rewind、font-custom、file-drop-eac、raw-html、change-review、better-sidebar + 皮肤 maid-atelier（8 行，19 处命中 = 18 独立声明 + 1 同源重复产物，见附录 A） | 各插件独立越过内核基准 2147483000，遮挡顺序仅由加载序决定；**真正在越界加码的是宿主自身**（bridge 5100 压 prompt-optimizer 5000 / navbar 950：bridge.ts:407、navbar client.js:44、prompt-optimizer client.js:71/:94，均已实测）；反例位 client-file-changes:756=2147482990 主动低于基准 | code：附录 A 19 行逐条 file:line；dsh-client-file-changes/lib/client.js:756 | 视觉错乱 | 中 | 是（数值事实）；压序结果 not-tested |
 | C-08 | 硬编码内核 CSS 哈希 | conversation-tweaks、better-sidebar、web-mobile-fix | 选择器写死内核编译哈希类名，内核重构建即批量静默脱钩 | code：conversation-tweaks client.js:99-100/:154/:160（querySelectorAll）/:169-170（**querySelector 单数**）；web-mobile-fix:149-151（.YDXeBa_*）；better-sidebar:2462（css$4 .nArs4W_*） | 静默失效 | 中 | 是（静态）；哈希漂移 not-tested |
 | C-09 | 跨插件类名耦合 | font-custom ↔ balance / offpeak | font-custom 把他包私有类名写进自己的选择器与预览 DOM（:116 .dsh-balance-dock code 档；:445-453 预览复刻 .dspg_*）；:126 注释与代码不符（--eac-widget-fg 实为自产自销，offpeak 零消费） | code：font-custom client.js:116/:120/:129/:445-453；comment：:126 | 静默失效/视觉错乱 | 中 | 是（静态）；对方重构后表现待验 |
 | C-10 | 配置缺块拖垮插件树 | soul-md v2.0.0、dsh-pet v3.1.0 | 行缺 config 块 → 校验失败/读 undefined → 整树崩，且每次启动重写坏行 → 崩溃循环，用户删不掉 | code：plugin-guard.ts:405（PATCH_SOUL_CONFIG）、patch-row-heal.ts:8-21/:114-125 | 响亮崩溃（循环） | 高 | 是（守卫+事故注释）；内核因果 not-tested |
 | C-11 | 自启行 schema 必填变更 | soul-md v2.0.0 | path 必填无默认 → 存量仅 id+name 的行校验失败崩树；修复 = schema 默认值 + 显式 config + heal + 回归测试 | code：patch-row-heal.ts:8-19；test：patch-row-heal.test.ts:12-31/:135-139 | 响亮崩溃（循环） | 高 | 是（代码+测试防回归） |
 | C-12 | 发行侧三合一 | tauri-shell（非插件） | ①descriptor 四处 schema 违例（顶层 x-eac、组件附加键、#id、absolute-path 枚举）；②单实例键=产品 identifier（COEX-02 粒度，双安装互踩）；③安装器 taskkill /F /T /IM 按镜像名批量杀（COEX-05 射程内，被两测试固化）；④可变状态写 profiles（junction 换血） | code：gen-distribution-descriptor.mjs:90-94；main.rs:2377；tauri.conf.json:5；installer-hooks.nsh；plugin-guard.ts:518-550（junction 换血锚）。test：installer-nsh-pipe.test.ts:25、installer-takeover.test.ts:38 | 静默/互斥失效 | 中 | 是（代码+测试固化）；安装器运行行为 not-tested |
+
 ---
 
 ## 3. 表 3 · 功能影响表（F-01..F-42）
@@ -131,7 +132,7 @@ Closes #365 ｜  看板：Task 2.2
 | F-05 ✅ | ① 全新安装后一直「启动失败」反复闪退；② 按网上说法删掉插件，重启后它又回来了 | 新装机器用户；整机不可用（最重） | 全新环境命中缺配置的旧行 | 【dev 已修】现在重装/重启即可恢复（回来的必是补全过的健康行——但模块遮蔽清理的影子拷贝分支例外）；仍失败进安全模式、导出诊断。真实案例：#7/#14/#15/#131/#172/#246 + Linux #262/#266/#282 | dsh-pet、dsh-soul-md（历史版本）、装配写入链 | 高（dev 已修） |
 | F-06 | ① 设置页某一组打不开或整片空白；② 报错显示同一核心组件被装出两个版本 | 桌面版与原版同装、或装了社区整合包的用户 | 特定插件组合使核心包双实例 | 升级到已修复版本；避开会提升核心包的安装方式 | better-sidebar、computer-user 等组合 | 高 |
 | F-07 | 鲸鱼余额卡不跟随外观字体设置（峰谷提醒弹窗正常跟随，不受影响） | 用鲸鱼卡的人；单个卡片 | 字体插件与卡片对同一设置的写法互不相认 | 在卡片自身设置里单独调字体 | dsh-whale-widget、dsh-font-custom | 低 |
-| F-08 | 弹窗弹出来被别的浮层盖住，点不到 | 打开弹窗的用户 | 多层浮层同时出现 | 先关掉别的浮层再操作 | offpeak、dsh-pet 等浮层插件与附录 A 所列 8 项越界声明 | 中 |
+| F-08 | 弹窗弹出来被别的浮层盖住，点不到 | 打开弹窗的用户 | 多层浮层同时出现 | 先关掉别的浮层再操作 | offpeak、dsh-pet 等浮层插件与附录 A 所涉 8 个条目的越界声明 | 中 |
 | F-09 | 装完发现有几个功能本来就没开——预期设计，不是坏了 | 精简版用户（14 个出厂停用）+ 3 个设计停用 | 首次安装精简版，或使用默认配置 | 设置 → 插件 → 管理里手动开启（精简版下功能开关页也停用，只剩这一条路） | lite 14 清单 + dsh-pet / dsh-whale-widget / image-paste | 低 |
 | F-10 | 外部工具链认不出整合包的描述文件（日常使用无感，接工具链才失败） | 集成侧 | 接入发行校验工具链 | 等描述符修正后重新生成 | 安装包生成工具 | 中 |
 | F-11 | ① 装了桌面版后，命令行原版开始报错、起不来；② 原版升级后桌面版跟着乱。已有真实用户报告（issue #283） | 同机装两份并交替使用的人 | 桌面版与原版共用同一主目录且共享链接被重建 | 只保留一份；被串改后从备份恢复 | 桌面端与原生 dsh | 高 |
@@ -173,12 +174,12 @@ Closes #365 ｜  看板：Task 2.2
 
 ## 4. 交叉索引（60 行 × C/F 双列）
 
-**基线 3 项适用范围**：C-01 适用 49 插件行 + 皮肤/SDK 安装期候选；C-03 适用 49 插件；F-02 为条件命中（约 24 个声明 dsh.bundle.patch 的插件）。**孤儿术语**：orphan = 仅基线命中（44 行）；blank = 零覆盖（预期 0）。
-**专项归属统计**：C-02 = 9 行（better-sidebar/compact/composer-dynamic-island/computer-user/dsh-dafeiyu/openclaw-bridge/prompt-custom/side-session/soul-md）；C-07 = 8 行（7 插件 + 皮肤 maid-atelier）；F-06 = 21；F-09 = 17（14 lite ∪ 4 defaultDisabled − dsh-stt 重叠）；F-16 = 11（skin-switch + 10 皮肤）；F-35 = 8（font-custom + 7 皮肤写全局字体，口径待复算）；专项 F 单行若干。
+**基线 3 项适用范围**：C-01 适用 49 插件行 + 皮肤/SDK 安装期候选；C-03 适用 49 插件；F-02 为条件命中（约 24 个声明 dsh.bundle.patch 的插件）。**孤儿术语**：orphan = 仅基线命中（交叉索引 49 插件行中 C/F 双列均为"—"起首者实测 5 行：行 5/12/25/37/45@dev@`e46ebb2`@交叉索引行计，其中 4 行显式标 orphan、行 5 为反例位注记）；blank = 双列完全空白（实测 0，符合预期 0）。
+**专项归属统计**：C-02 = 12 行（scoped 10：compact/composer-dynamic-island/computer-user/dsh-dafeiyu/openclaw-bridge/prompt-custom/soul-md/agent-teams/picturereader/raw-html；裸名 2：better-sidebar/side-session）；C-07 = 8 行（7 插件 + 皮肤 maid-atelier）；F-06 = 21；F-09 = 17（14 lite ∪ 4 defaultDisabled − dsh-stt 重叠）；F-16 = 11（skin-switch + 10 皮肤）；F-35 = 8（font-custom + 7 皮肤写全局字体，口径待复算）；专项 F 单行若干。
 
 | # | id | 命中 C-ID（除基线） | 命中 F-ID（除基线） | 备注 |
 |---|---|---|---|---|
-| 1 | agent-teams | C-06 | F-04, F-09 | data-shell-overlay 消费 ×2（client.js:1465、ActivityPanel.js:332） |
+| 1 | agent-teams | C-02, C-06 | F-04, F-09 | data-shell-overlay 消费 ×2（client.js:1465、ActivityPanel.js:332） |
 | 2 | balance | C-09 | F-06 | .dsh-balance-dock 被 font-custom 未登记依赖 |
 | 3 | better-sidebar | C-02, C-07, C-08 | F-06, F-18 | 裸 schemastery；硬编码哈希；junction 设计样本 |
 | 4 | change-review | C-07 | F-06, F-09 | 附录 A 在列 |
@@ -190,13 +191,13 @@ Closes #365 ｜  看板：Task 2.2
 | 10 | dock-settings | — | F-06, F-26 | — |
 | 11 | dsh-dafeiyu | C-02 | F-06, F-09 | class=resource |
 | 12 | dsh-feature-toggles | —（orphan） | — | 纯开关型 |
-| 13 | dsh-navbar | — | F-24 | 曾被 bridge 5100 具名压值（R13:61） |
+| 13 | dsh-navbar | — | F-24 | 曾被 bridge 5100 具名压值（bridge.ts:407） |
 | 14 | dsh-pet | C-01（误命中对）, C-06, C-07, C-10 | F-04, F-05（历史，dev 已修）, F-06, F-09（设计停用） | int32 CSS ×3 + 测试固化 |
 | 15 | dsh-pet-settings | C-01（误命中对） | F-06, F-09 | lite 停用 |
 | 16 | dsh-phone | — | F-09 | lite 停用 |
-| 17 | dsh-raw-html | C-04, C-05, C-07 | F-03, F-17 | optional 唯一声明者；bundle 件；3000→3006 内部阶梯 |
+| 17 | dsh-raw-html | C-02, C-04, C-05, C-07 | F-03, F-17 | optional 唯一声明者；bundle 件；3000→3006 内部阶梯 |
 | 18 | dsh-session-manager | — | F-20 | 前置内核补丁 |
-| 19 | dsh-undo | — | F-21 | 目录名 dsh-undo-savepoint；双模 |
+| 19 | dsh-undo | C-05 | F-21 | 目录名 dsh-undo-savepoint；双模 |
 | 20 | dsh-webui-prompt-optimizer | — | F-08, F-09 | 曾被 bridge 5100 压值 |
 | 21 | dsh-whale-widget | — | F-07, F-09（设计停用） | class=resource；不消费皮肤变量 |
 | 22 | eac-core-bridge | — | F-12 | 桥本体 |
@@ -207,12 +208,12 @@ Closes #365 ｜  看板：Task 2.2
 | 27 | float-window | — | F-08, F-09 | lite 停用 |
 | 28 | font-custom | C-07, C-09 | F-06, F-28, F-35 | 与 7 款皮肤双写字体 |
 | 29 | image-paste | — | F-08, F-09（设计停用） | 与 picturereader 入口重叠 |
-| 30 | meow-smooth | — | F-19 | 读 data-shell-overlay；web-push 依赖 |
+| 30 | meow-smooth | C-06 | F-19 | 读 data-shell-overlay；web-push 依赖 |
 | 31 | message-rewind | C-07 | F-06, F-09 | 3200/3300 |
-| 32 | mobile-fix | — | F-03, F-30 | 硬编码 .YDXeBa_* |
+| 32 | mobile-fix | C-08 | F-03, F-30 | 硬编码 .YDXeBa_*（C-08 证据列作 web-mobile-fix，即本条目） |
 | 33 | offpeak | C-09 | F-06, F-31 | .dspg_* 定义方；弹窗正常跟随外观 |
 | 34 | openclaw-bridge | C-02 | F-06, F-09 | peer * |
-| 35 | picturereader | — | F-23 | macOS external-dependency；自带旧组件拷贝（F-37） |
+| 35 | picturereader | C-02 | F-23, F-37 | macOS external-dependency；自带旧组件拷贝（F-37）；schemastery peer ^3.18.1 |
 | 36 | plugin-manager | — | F-01 | — |
 | 37 | plugin-shield | —（orphan，防御载体） | — | 保护中心 |
 | 38 | plugin-wizard | — | F-08 | 向导弹窗 |
@@ -220,15 +221,15 @@ Closes #365 ｜  看板：Task 2.2
 | 40 | settings-groups | — | F-06, F-29 | — |
 | 41 | settings-scroll-fix | —（修补载体；† = R1 名单沿用项，锚点未逐行复算） | F-06† | data-composer-card 消费 |
 | 42 | side-session | C-02 | F-06, F-09 | 裸 schemastery；junction 设计样本 |
-| 43 | skin-switch | — | F-03, F-16 | 皮肤运行时宿主 |
+| 43 | skin-switch | — | F-03, F-16 | 皮肤行注册后唯一写者（初值由 companion-sync 播种） |
 | 44 | soul-md | C-02, C-10, C-11 | F-05（历史，dev 已修）, F-06, F-22 | 缺文件时静默降级（该路径） |
 | 45 | terminal | —（orphan，核心锁定） | — | — |
 | 46 | unified-market | — | F-01, F-15 | 预检器所在插件 |
 | 47 | viewport-lock | — | F-14 | 修复核心体验 |
 | 48 | think-zh-expand-eac | — | F-33 | "抢座位"叙事仅 comment 档（dev 克隆 companion-sync.ts:288-289） |
 | 49 | dsh-stt | — | F-09, F-26 | sherpa-onnx-node 原生件；LITE∩defaultDisabled 唯一重叠；排除 C-07（无越界声明） |
-| 50–51、53–59 | ui-skin-blue-fantasy / dragon-heir / miku / minecraft / qq98 / ths / trading / whale-song / xp（9 款） | —（经 skin-switch 承载） | F-16；F-35（其中 miku/minecraft/qq98/ths/trading/xp 写全局字体，whale-song 不写） | 运行时依赖 skin-switch |
-| 52★ | ui-skin-maid-atelier | C-07 | F-16, F-35, F-08 | 不注册黑名单；int32+全屏；写全局字体 |
+| 50–51、53–59 | ui-skin-blue-fantasy / dragon-heir / miku / minecraft / qq98 / ths / trading / whale-song / xp（9 款） | —（启停行经 skin-switch 写入） | F-16；F-35（其中 miku/minecraft/qq98/ths/trading/xp 写全局字体，whale-song 不写） | 启停行由 skin-switch 写入，无代码引用 |
+| 52★ | ui-skin-maid-atelier | C-07 | F-16, F-35, F-08 | 不注册黑名单；源码级命中成立，F-16/F-35/F-08 均为条件命中（解除黑名单才被用户遇到）；int32+全屏；写全局字体 |
 | 60 | sample-sdk-plugin | — | F-12（备注位） | 隔离 SDK 示例 |
 
 （★ maid-atelier 行为 52 号，列于其原排序位；9 款可用皮肤为 50-51、53-59。）
@@ -237,7 +238,7 @@ Closes #365 ｜  看板：Task 2.2
 
 ## 附录 A · 顶层越界 z-index 清单（19 处，dev@`e46ebb2`）
 
-谓词：`z-index:` ≥ 2147483000，限定 `dsh-desktop/assets` 源码、排除 .map；**宿主侧 bridge.ts 4 行（:486/:518/:541/:546，值 3000/3000/3002/3001）另册**，23−4=19 对账成立（19 行为命中口径，内含 1 行同源重复产物，去重后有效声明 18 处）。全量口径（含 950/1000/5000 等低位值的全部 z-index 声明）= 58 处/29 文件，另行登记、不与本表混用。
+谓词：`z-index:` ≥ 2147483000，限定 `dsh-desktop/assets` 源码、排除 .map；**宿主侧 bridge.ts 4 行（:486/:518/:541/:546，值 2147483000/2147483000/2147483002/2147483001）另册**，23−4=19 对账成立（19 行为命中口径，内含 1 行同源重复产物，去重后有效声明 18 处）。全量口径（含 950/1000/5000 等低位值的全部 z-index 声明）= 58 处/29 文件，另行登记、不与本表混用。
 
 | # | 位置 | 选择器/载体 | 值 | !important | 插件/皮肤 |
 |---|---|---|---|---|---|
@@ -249,19 +250,19 @@ Closes #365 ｜  看板：Task 2.2
 | 6 | plugins/dsh-message-rewind/lib/client.js:351 | .dshrw-overlay | …200 | — | message-rewind |
 | 7 | plugins/dsh-font-custom/lib/client.js:266 | .__fc_wmock_overlay | …100 | — | font-custom |
 | 8 | plugins/dsh-raw-html/lib/client.js:2125 | 字体面板 cssText | …006 | — | raw-html |
-| 9 | plugins/dsh-raw-html/lib/client.js:1495 | .aes-fontcat-menu | …003 | — | raw-html |
-| 10 | plugins/dsh-raw-html/lib/client.js:1514 | .aes-tagmenu | …003 | — | raw-html |
-| 11 | plugins/dsh-raw-html/lib/client.js:1470 | .aes-modal | …002 | — | raw-html |
-| 12 | plugins/dsh-file-drop-eac/lib/client.js:394 | [data-dsh-file-preview-modal] | …001 | — | file-drop-eac |
-| 13 | plugins/dsh-raw-html/lib/client.js:1436 | 查看器全屏层 | …001 | — | raw-html |
-| 14 | plugins/dsh-change-review/lib/client.js:67 | toast cssText | …000 | — | change-review |
-| 15 | plugins/dsh-file-drop-eac/lib/client.js:696 | 拖放指示 cssText | …000 | — | file-drop-eac |
-| 16 | plugins/dsh-better-sidebar/lib/client.js:13342 | 调试 bar cssText | …000 | — | better-sidebar |
-| 17 | plugins/dsh-better-sidebar/lib/client-registry.js:13342 | 同上（重复构建产物，**低/不另计**） | …000 | — | better-sidebar |
-| 18 | plugins/dsh-raw-html/lib/client.js:1158 | 顶栏入口 cssText | …000 | — | raw-html |
-| 19 | plugins/dsh-client-file-changes 之外的最高位（pet :56 注释行引用值，非声明） | — | — | — | 注释行不计 |
+| 9 | plugins/dsh-raw-html/lib/client.js:1410 | .aes-picker | …006 | — | raw-html |
+| 10 | plugins/dsh-raw-html/lib/client.js:1495 | .aes-fontcat-menu | …003 | — | raw-html |
+| 11 | plugins/dsh-raw-html/lib/client.js:1514 | .aes-tagmenu | …003 | — | raw-html |
+| 12 | plugins/dsh-raw-html/lib/client.js:1470 | .aes-modal | …002 | — | raw-html |
+| 13 | plugins/dsh-file-drop-eac/lib/client.js:394 | [data-dsh-file-preview-modal] | …001 | — | file-drop-eac |
+| 14 | plugins/dsh-raw-html/lib/client.js:1436 | 查看器全屏层 | …001 | — | raw-html |
+| 15 | plugins/dsh-change-review/lib/client.js:67 | toast cssText | …000 | — | change-review |
+| 16 | plugins/dsh-file-drop-eac/lib/client.js:696 | 拖放指示 cssText | …000 | — | file-drop-eac |
+| 17 | plugins/dsh-better-sidebar/lib/client.js:13342 | 调试 bar cssText | …000 | — | better-sidebar |
+| 18 | plugins/dsh-better-sidebar/lib/client-registry.js:13342 | 同上（重复构建产物，**低/不另计**） | …000 | — | better-sidebar |
+| 19 | plugins/dsh-raw-html/lib/client.js:1158 | 顶栏入口 cssText | …000 | — | raw-html |
 
-**反例位（不入表）**：client-file-changes client.js:756 = 2147482990（主动低于内核标题栏 10）。
+**反例位与注释行（不入表）**：client-file-changes client.js:756 = 2147482990（主动低于内核标题栏 10）；dsh-pet client.js:56 为注释行引用 …647（仅宽谓词命中，非声明）。
 **剔除口径**：位运算数值（xterm/LSP）、第三方库代码（mermaid）、文档文字、`client.js.map` 源映射（sourcesContent 会重复计入）。
 
 ---
@@ -275,10 +276,10 @@ Closes #365 ｜  看板：Task 2.2
 | 1 | `--dsw-alias-` 消费文件·净口径 | **52**@dev@`e46ebb2`@仅js净 | `grep -rl --include="*.js" -e "var(--dsw-alias-" dsh-desktop/assets \| grep -v '\.map' \| wc -l` | 已定稿 |
 | 2 | 同上·宽口径 | **54**@dev@`e46ebb2`@js+2文档 | `grep -rl -e "var(--dsw-alias-" dsh-desktop/assets \| grep -v '\.map' \| wc -l`（多出 raw-html 的 CHANGELOG.md 与 docs/EVOLUTION-2026-08-24.md） | 已定稿 |
 | 3 | 同上·含 .map 全口径 | **57**@dev@`e46ebb2`@含3.map（agent-teams/meow-smooth/webui-prompt-optimizer） | 同上无排除 | 已定稿 |
-| 4 | `--dsw-alias-` 定义方 | 12 = 10 皮肤 + dsh-agent-teams + dsh-font-custom | 权威记录 | **待复算** |
+| 4 | `--dsw-alias-` 定义方 | **12**@dev@`e46ebb2`@定义口径 = 10 皮肤 + dsh-agent-teams + dsh-font-custom | `grep -rlE -- '--dsw-alias-[a-z0-9-]+:' dsh-desktop/assets --include=*.js \| grep -v '\.map' \| wc -l` | 已定稿（2026-09-15 独立复算，组成全等） |
 | 5 | `data-composer-card` | **81 次/8 文件**@净口径，revision 不变量（main@`8c17e99` 与 dev 同值）；91/9 含 meow-smooth .map 10 次 | 同式 -o/-rl | 已定稿 |
-| 6 | `data-ds-dark-theme` 消费 | 14 文件（better-sidebar 3 bundle + 10 皮肤 + 类型声明） | 权威记录 | **待复算** |
-| 7 | `data-aionui-` 消费 | 8 文件 | 权威记录 | **待复算** |
+| 6 | `data-ds-dark-theme` 消费 | **14**@dev@`e46ebb2`@文件净口径（better-sidebar 3 bundle + 10 皮肤 + 类型声明） | `grep -rl 'data-ds-dark-theme' dsh-desktop/assets \| grep -v '\.map' \| wc -l` | 已定稿（2026-09-15 独立复算，组成全等） |
+| 7 | `data-aionui-` 消费 | **8**@dev@`e46ebb2`@文件净口径（blue-fantasy/dragon-heir/miku/minecraft/qq98/ths/whale-song/xp） | `grep -rl 'data-aionui-' dsh-desktop/assets \| grep -v '\.map' \| wc -l` | 已定稿（2026-09-15 独立复算，组成全等） |
 | 8 | body/head 挂载 bundle | 55 | 权威记录 | **待复算** |
 
 ---
