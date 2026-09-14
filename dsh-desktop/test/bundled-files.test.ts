@@ -72,6 +72,9 @@ test('Tauri 资源装配不再携带 WSL 后端', () => {
 });
 
 test('generated plugin registry is included in the staged desktop runtime', () => {
+  // v6 Task 3.1（ADR 0006）：plugin-sync-registry 是 companion-sync（恢复中心
+  // 收窄三件套之一）的编译依赖，仍随最简本体装配。Task 3.3 剥离 companion-sync
+  // 时此断言一并退役。
   const lists = stageLists();
   assert.ok(lists.LIB_DESKTOP.includes('plugin-sync-registry.js'));
 });

@@ -12,7 +12,8 @@ test('Tauri sidecar authorizes files but delegates native actions to L1', () => 
   assert.doesNotMatch(sidecar, /desktopPlatform\.(?:openPath|writeClipboardText)/);
   assert.match(sidecar, /'files\.authorize-open'/);
   assert.doesNotMatch(sidecar, /'clipboard\.write-text'\s*:/);
-  assert.match(sidecar, /notify\('shell\.open-external'/);
+  // v6 Task 3.1（ADR 0006）：open-external 委托原属 client-update 面（已剥出，
+  // v6.1 Task 8 接回）；system-notification 仍由 session-watcher 通知链消费。
   assert.match(sidecar, /notify\('shell\.system-notification'/);
 });
 

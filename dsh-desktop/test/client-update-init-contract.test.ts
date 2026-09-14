@@ -6,30 +6,15 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-function initObject(source: string, call: string): string {
-  const start = source.indexOf(`${call}({`);
-  assert.notEqual(start, -1, `${call} init call is missing`);
-  const objectStart = source.indexOf('{', start);
-  let depth = 0;
-  for (let i = objectStart; i < source.length; i += 1) {
-    if (source[i] === '{') depth += 1;
-    if (source[i] === '}') {
-      depth -= 1;
-      if (depth === 0) return source.slice(objectStart, i + 1);
-    }
-  }
-  throw new Error(`${call} init object is not balanced`);
-}
-
+// v6 Task 3.1（ADR 0006）：client-update 与 shortcuts 模块随更新体系/增值
+// 面剥出装配（v6.1 Task 8 接回）。原「platform handoff 只注入 client-update」
+// 契约的最简本体守门：server.ts 不得再挂载这两个模块（防接回前漏装配）。
 for (const relative of ['../tauri-shell/sidecar/server.ts']) {
-  test(`${relative} injects platform handoff into client update only`, () => {
+  test(`${relative} v6 minimal core does not mount client-update / shortcuts`, () => {
     const source = readFileSync(join(root, relative), 'utf8');
-    const clientUpdate = initObject(source, 'clientUpdateMod.init');
-    const shortcuts = initObject(source, 'shortcutsMod.init');
-
-    assert.match(clientUpdate, /\bgetPlatform\s*:/);
-    assert.match(clientUpdate, /\bopenExternal\s*:/);
-    assert.doesNotMatch(shortcuts, /\bgetPlatform\s*:/);
-    assert.doesNotMatch(shortcuts, /\bopenExternal\s*:/);
+    assert.doesNotMatch(source, /mount\('client-update'\)/);
+    assert.doesNotMatch(source, /mount\('shortcuts'\)/);
+    assert.doesNotMatch(source, /clientUpdateMod\.init/);
+    assert.doesNotMatch(source, /shortcutsMod\.init/);
   });
 }
