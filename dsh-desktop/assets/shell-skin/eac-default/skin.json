@@ -1,0 +1,15 @@
+{
+  "id": "eac-default",
+  "name": "EAC 本体默认皮肤",
+  "nameEn": "EAC Shell Default",
+  "kind": "shell-skin",
+  "version": "1.0.0",
+  "description": "EAC 桌面壳层（loading / died / update / about / 向导 / 恢复中心 / 退出确认）的本体控件与样式皮肤包。tokens.css 定义全部视觉 token（--eac-shell-*），controls.css 提供壳层控件类样式；页面与壳层脚本只消费 token，不持有视觉定义。视觉值取自 v6 拆分前的壳层硬编码样式，保证零回归。",
+  "consumers": [
+    "tauri-shell/src/main.rs（内嵌壳页：loading/died/update/about）",
+    "dsh-desktop/assets/onboarding.html",
+    "dsh-desktop/assets/recovery-center.html",
+    "tauri-shell/src/exit-overlay.js"
+  ],
+  "files": ["tokens.css", "controls.css"]
+}

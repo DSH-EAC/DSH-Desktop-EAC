@@ -1,8 +1,14 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="eac-shell">
 <head>
 <meta charset="utf-8" />
 <title>内置插件选择向导</title>
+<!-- 壳层皮肤包（v6 Task 1.1）：/skin/* 由 Tauri 壳回环 HTTP 伺服
+     assets/shell-skin/eac-default/，是 --eac-shell-* token 的单一事实源。
+     页面所有 var(--eac-shell-*, fallback) 的第二参数为无皮肤包环境
+     （直开文件等）的降级字面量，值与拆分前的硬编码一致。 -->
+<link rel="stylesheet" href="/skin/tokens.css" />
+<link rel="stylesheet" href="/skin/controls.css" />
 <style>
   :root { color-scheme: dark; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -10,9 +16,9 @@
   body {
     display: flex;
     flex-direction: column;
-    background: radial-gradient(1100px 500px at 50% -8%, #1b2a6b 0%, #0b1220 55%);
-    color: #e6ecff;
-    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: var(--eac-shell-bg-page, radial-gradient(1100px 500px at 50% -8%, #1b2a6b 0%, #0b1220 55%));
+    color: var(--eac-shell-text-primary, #dfe6ff);
+    font-family: var(--eac-shell-font-family, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif);
     user-select: none;
     font-size: 13px;
   }
@@ -25,93 +31,90 @@
     align-items: center;
     gap: 8px;
     padding: 0 8px 0 12px;
-    border-bottom: 1px solid rgba(255,255,255,.07);
-    background: rgba(11,18,32,.55);
+    border-bottom: 1px solid var(--eac-shell-border-weak, rgba(255,255,255,.07));
+    background: var(--eac-shell-bg-elevated, rgba(11,18,32,.55));
   }
   .bar .icon { width: 20px; height: 20px; border-radius: 6px; }
   .bar .title { font-size: 12.5px; font-weight: 600; letter-spacing: .2px; }
-  .bar .mode { font-size: 10.5px; color: #93a5d8; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; padding: 1px 8px; }
+  .bar .mode { font-size: 10.5px; color: var(--eac-shell-text-label, #93a5d8); border: 1px solid var(--eac-shell-border, rgba(255,255,255,.1)); border-radius: 999px; padding: 1px 8px; }
   .bar .spacer { flex: 1; }
   .bar button {
     width: 30px; height: 28px; border: none; border-radius: 8px; cursor: pointer;
-    background: transparent; color: #b8c5ea; display: grid; place-items: center;
+    background: transparent; color: var(--eac-shell-text-primary, #dfe6ff); display: grid; place-items: center;
   }
-  .bar button:hover { background: #e81123; color: #fff; }
+  .bar button:hover { background: var(--eac-shell-close-hover, #e81123); color: var(--eac-shell-text-on-accent, #fff); }
   .hero { flex: none; padding: 18px 24px 12px; }
   .hero h1 { font-size: 19px; font-weight: 600; }
-  .hero p { margin-top: 6px; font-size: 12.5px; line-height: 20px; color: #93a5d8; max-width: 760px; }
+  .hero p { margin-top: 6px; font-size: 12.5px; line-height: 20px; color: var(--eac-shell-text-label, #93a5d8); max-width: 760px; }
   .toolbar {
     flex: none;
     display: flex; align-items: center; gap: 10px;
     padding: 0 24px 10px;
   }
-  .toolbar .count { font-size: 12px; color: #b8c5ea; }
-  .toolbar .count b { color: #5b8cff; }
+  .toolbar .count { font-size: 12px; color: var(--eac-shell-text-primary, #b8c5ea); }
+  .toolbar .count b { color: var(--eac-shell-accent, #5b8cff); }
   .toolbar .spacer { flex: 1; }
   .toolbar .mini {
-    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.03);
-    color: #b8c5ea; border-radius: 7px; padding: 3px 12px; font: inherit; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--eac-shell-border, rgba(255,255,255,.12)); background: var(--eac-shell-surface, rgba(255,255,255,.03));
+    color: var(--eac-shell-text-primary, #b8c5ea); border-radius: 7px; padding: 3px 12px; font: inherit; font-size: 12px; cursor: pointer;
   }
-  .toolbar .mini:hover { border-color: #5b8cff; color: #e6ecff; }
+  .toolbar .mini:hover { border-color: var(--eac-shell-accent, #5b8cff); color: var(--eac-shell-text-primary, #e6ecff); }
   .toolbar .preset {
-    border: 1px solid rgba(91,140,255,.4); background: rgba(91,140,255,.1);
-    color: #a9c2ff; border-radius: 7px; padding: 3px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--eac-shell-accent-soft-border, rgba(91,140,255,.4)); background: var(--eac-shell-accent-soft-bg, rgba(91,140,255,.1));
+    color: var(--eac-shell-accent-text, #a9c2ff); border-radius: 7px; padding: 3px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
   }
-  .toolbar .preset:hover { background: rgba(91,140,255,.22); color: #e6ecff; }
+  .toolbar .preset:hover { background: var(--eac-shell-accent-soft-bg-hover, rgba(91,140,255,.22)); color: var(--eac-shell-text-primary, #e6ecff); }
   .groups { flex: 1; min-height: 0; overflow-y: auto; padding: 0 24px 16px; }
   .group-title {
-    font-size: 12px; font-weight: 600; color: #93a5d8; letter-spacing: .5px;
+    font-size: 12px; font-weight: 600; color: var(--eac-shell-text-label, #93a5d8); letter-spacing: .5px;
     margin: 14px 0 8px; display: flex; align-items: center; gap: 8px;
   }
   .group-title .badge { font-size: 10px; font-weight: 400; border-radius: 999px; padding: 1px 8px; }
-  .badge-lock { color: #ffd666; border: 1px solid rgba(255,214,102,.35); }
-  .badge-rec { color: #3ddc84; border: 1px solid rgba(61,220,132,.35); }
-  .badge-opt { color: #8b9ac4; border: 1px solid rgba(255,255,255,.12); }
+  .badge-lock { color: var(--eac-shell-warn, #ffd666); border: 1px solid var(--eac-shell-warn-border, rgba(255,214,102,.35)); }
+  .badge-rec { color: var(--eac-shell-ok, #3ddc84); border: 1px solid var(--eac-shell-ok-border, rgba(61,220,132,.35)); }
+  .badge-opt { color: var(--eac-shell-text-secondary, #8b9ac4); border: 1px solid var(--eac-shell-border, rgba(255,255,255,.12)); }
   .row {
     display: flex; align-items: flex-start; gap: 10px;
-    border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
-    background: rgba(255,255,255,.025); padding: 9px 12px; margin-bottom: 6px;
+    border: 1px solid var(--eac-shell-border-weak, rgba(255,255,255,.08)); border-radius: 10px;
+    background: var(--eac-shell-surface-weak, rgba(255,255,255,.025)); padding: 9px 12px; margin-bottom: 6px;
   }
-  .row:hover { border-color: rgba(91,140,255,.4); }
+  .row:hover { border-color: var(--eac-shell-accent-soft-border, rgba(91,140,255,.4)); }
   .row input[type=checkbox] {
     margin-top: 2px; width: 15px; height: 15px; flex: none; cursor: pointer;
-    accent-color: #5b8cff;
+    accent-color: var(--eac-shell-accent, #5b8cff);
   }
   .row input[type=checkbox]:disabled { cursor: not-allowed; }
   .row .main { flex: 1; min-width: 0; }
   .row .name { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-  .row .pkg { font-size: 10px; color: #5f6f9c; font-family: Consolas, monospace; }
-  .row .desc { font-size: 11.5px; color: #8b9ac4; margin-top: 2px; line-height: 17px; word-break: break-all; }
+  .row .pkg { font-size: 10px; color: var(--eac-shell-text-tertiary, #5f6f9c); font-family: var(--eac-shell-font-mono, Consolas, monospace); }
+  .row .desc { font-size: 11.5px; color: var(--eac-shell-text-secondary, #8b9ac4); margin-top: 2px; line-height: 17px; word-break: break-all; }
   .row .size {
-    flex: none; font-size: 10.5px; color: #5f6f9c; border: 1px solid rgba(255,255,255,.1);
+    flex: none; font-size: 10.5px; color: var(--eac-shell-text-tertiary, #5f6f9c); border: 1px solid var(--eac-shell-border, rgba(255,255,255,.1));
     border-radius: 6px; padding: 1px 7px; margin-top: 1px; white-space: nowrap;
   }
   .row .tag { flex: none; font-size: 10px; border-radius: 5px; padding: 0 6px; margin-top: 1px; white-space: nowrap; }
-  .row .tag-off { color: #e6a23c; border: 1px solid rgba(230,162,60,.4); }
+  .row .tag-off { color: var(--eac-shell-tag-warn-text, #e6a23c); border: 1px solid var(--eac-shell-tag-warn-border, rgba(230,162,60,.4)); }
   .footer {
     flex: none;
     display: flex; align-items: center; gap: 12px;
     padding: 12px 24px 16px;
-    border-top: 1px solid rgba(255,255,255,.07);
-    background: rgba(11,18,32,.6);
+    border-top: 1px solid var(--eac-shell-border-weak, rgba(255,255,255,.07));
+    background: var(--eac-shell-bg-elevated-strong, rgba(11,18,32,.6));
   }
-  .footer .note { flex: 1; font-size: 11.5px; color: #5f6f9c; line-height: 17px; }
+  .footer .note { flex: 1; font-size: 11.5px; color: var(--eac-shell-text-tertiary, #5f6f9c); line-height: 17px; }
   .footer .skip {
-    border: none; background: transparent; color: #8b9ac4; font: inherit; font-size: 12.5px;
+    border: none; background: transparent; color: var(--eac-shell-text-secondary, #8b9ac4); font: inherit; font-size: 12.5px;
     cursor: pointer; padding: 8px 10px; border-radius: 8px;
   }
-  .footer .skip:hover { color: #e6ecff; background: rgba(255,255,255,.05); }
+  .footer .skip:hover { color: var(--eac-shell-text-primary, #e6ecff); background: var(--eac-shell-surface-hover, rgba(255,255,255,.05)); }
   .footer .go {
     border: none; border-radius: 9px; padding: 9px 22px; font: inherit; font-size: 13px; font-weight: 600;
-    cursor: pointer; background: #5b8cff; color: #fff;
+    cursor: pointer; background: var(--eac-shell-accent, #5b8cff); color: var(--eac-shell-text-on-accent, #fff);
   }
-  .footer .go:hover:not(:disabled) { background: #6f9bff; }
+  .footer .go:hover:not(:disabled) { background: var(--eac-shell-accent-hover, #6f9bff); }
   .footer .go:disabled { opacity: .6; cursor: default; }
-  .status { font-size: 12px; color: #3ddc84; margin-right: 4px; }
-  .status.err { color: #ff7a85; }
-  ::-webkit-scrollbar { width: 9px; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 5px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.25); }
+  .status { font-size: 12px; color: var(--eac-shell-ok, #3ddc84); margin-right: 4px; }
+  .status.err { color: var(--eac-shell-danger, #ff7a85); }
 </style>
 </head>
 <body>
@@ -119,7 +122,7 @@
     <!-- 图标改内联 SVG：Tauri 壳按 /wizard 路由整页 serve（不是文件级静态
          目录），相对 icon.png 在该路由下 404 → 破图标。 -->
     <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-      <path fill="#5b8cff" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm-3.5 7.5h2v2h-2v-2zm5 0h2v2h-2v-2z"/>
+      <path fill="var(--eac-shell-accent, #5b8cff)" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm-3.5 7.5h2v2h-2v-2zm5 0h2v2h-2v-2z"/>
     </svg>
     <span class="title">Deepseek Harness EAC</span>
     <span class="mode" id="modeTag">首次引导</span>
