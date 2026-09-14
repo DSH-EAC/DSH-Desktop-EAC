@@ -104,7 +104,11 @@ test('dsh-compact integration: composite agent starts engine, command and pruner
 })
 
 test('dsh-compact integration: migration helper is included in packaged app', () => {
+  // v6 Task 3.1（ADR 0006）：compact 迁移面与 assets 整树装配随插件系统剥出
+  // ——该测试改为 v6 守门（装配清单不得含迁移助手、assets 改为保留项拷贝）；
+  // Task 3.3 接回插件面时恢复原断言。
   const stage = readFileSync(join(root, '..', 'tauri-shell', 'stage-resources.mjs'), 'utf8')
-  assert.match(stage, /'compact-preset-migrate\.js'/, 'ROOT_FILES 应含 compact-preset-migrate.js')
-  assert.match(stage, /cpSync\(path\.join\(dd, 'assets'\)/, 'stage 应整体装配 assets/ 目录')
+  const rootFiles = /const ROOT_FILES = \[([\s\S]*?)\]/.exec(stage)![0]
+  assert.doesNotMatch(rootFiles, /'compact-preset-migrate\.js'/, 'v6 最简本体 ROOT_FILES 不应含 compact-preset-migrate.js')
+  assert.doesNotMatch(stage, /cpSync\(path\.join\(dd, 'assets'\)/, 'v6 assets 应按保留项拷贝而非整树')
 })
