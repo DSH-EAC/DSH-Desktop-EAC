@@ -26,7 +26,7 @@ function stageLists() {
 function sidecarLocalRefs() {
   const src = [
     fs.readFileSync(join(stageRoot, 'sidecar', 'server.ts'), 'utf8'),
-    fs.readFileSync(join(stageRoot, 'sidecar', 'rescue-integration.ts'), 'utf8'),
+    fs.readFileSync(join(stageRoot, 'sidecar', 'capability-stubs.ts'), 'utf8'),
   ].join('\n');
   const refs = [];
   // mount('<name>') → lib/desktop/<name>.js
@@ -72,6 +72,8 @@ test('Tauri 资源装配不再携带 WSL 后端', () => {
 });
 
 test('generated plugin registry is included in the staged desktop runtime', () => {
+  // v6 严格模式（ADR 0006 v3）：companion-sync 剥出 → plugin-sync-registry
+  // 不再装配。守门反向：清单不得含它；Task 3.3 接回插件系统时恢复。
   const lists = stageLists();
-  assert.ok(lists.LIB_DESKTOP.includes('plugin-sync-registry.js'));
+  assert.ok(!lists.LIB_DESKTOP.includes('plugin-sync-registry.js'));
 });

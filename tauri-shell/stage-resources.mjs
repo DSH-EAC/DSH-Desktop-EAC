@@ -3,7 +3,7 @@
 // 供 tauri.conf.json 的 resources 映射进安装包。
 //
 // 布局（= main.rs resource_root() 的约定）：
-//   staged-resources/sidecar/server.js|bridge.js|rescue-integration.js
+//   staged-resources/sidecar/server.js|bridge.js|capability-stubs.js
 //   staged-resources/dsh-desktop/<Electron 时代的精确文件清单 + 生产 node_modules
 //                              + assets + vendor/node + vendor/npm>
 //
@@ -40,68 +40,43 @@ if (targetPlatform !== process.platform) {
 // 人工同步：新增根模块要加进来（Electron 时代的 main.js / preload.js 与其
 // 独享模块 error-detail / koffi-preflight / renderer-recovery / watchdog /
 // session-encoding-heal 已随壳退役，不再打包）。
+//
+// v6 Task 3.1（ADR 0006）：最简本体装配面。剥离集（插件系统/更新体系/
+// 增值功能）的代码保留在仓库原位等接回，但不再进入装配清单：
+//   - 插件系统：plugin-updater / plugin-guard / plugin-manager-state /
+//     builtin-collision / patch-row-heal / profile-module-heal /
+//     rescue-agent 之外的插件治理面、preset-sync / compact-preset-migrate /
+//     router-persona-preset-migrate（迁移面随插件选择向导剥出）
+//   - 更新体系：updater / client-updater / shortcut-maintenance（v6.1
+//     Task 8/9/10 接回）
+//   - companion-sync / plugin-ops / market / install-profile / shortcuts /
+//     junction-patrol / static-preview / feature-pack 等 lib/desktop 模块
+//   - vnext 隔离体系：supervisor / extension-host / recovery-center 中，
+//     supervisor 与 extension-host 整体剥出（ADR 0003 体系随插件系统走），
+//     恢复中心收窄保留（Rust 壳 recovery 链依赖）
 const ROOT_FILES = [
-  'updater.js', 'client-updater.js', 'logger.js', 'plugin-updater.js',
-  'balance.js', 'session-watcher.js', 'profile-module-heal.js',
-  'patch-row-heal.js', 'builtin-collision.js', 'plugin-manager-state.js', 'plugin-guard.js',
-  'rescue-agent.js', 'preset-sync.js', 'compact-preset-migrate.js',
-  'router-persona-preset-migrate.js',
+  'logger.js', 'session-watcher.js',
   'bundle-integrity.js', 'stable-port.js', 'stream-write-guard.js',
-  'shortcut-maintenance.js',
-  'host-bootstrap.js',
+  // updater.js 保留其 overlay 内核管理面（boot 失败隔离切内置内核的链路，
+  // runtime-paths/profile 消费）；更新流函数无人调用，v6.1 Task 8 拆分。
+  'updater.js',
 ];
 const LIB_DESKTOP = [
-  'file-roots.js', 'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js', 'guard-box.js',
-  'runtime-patches.js', 'companion-sync.js', 'plugin-sync-registry.js', 'plugin-ops.js', 'market.js',
-  'install-profile.js','shortcuts.js', 'junction-patrol.js', 'client-update.js', 'static-preview.js',
-  'boot-server.js', 'feature-pack.js',
+  'file-roots.js', 'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js',
+  'runtime-patches.js', 'boot-server.js',
 ];
 const SCRIPTS = [
-  'patch-session-manage.js', 'plugin-manager-patch.js',
-  'onboarding.js', 'patch-deps.js', 'feature-pack-cli.js',
+  'patch-session-manage.js', 'patch-deps.js',
 ];
 
-// vnext 隔离体系（vnext-absorb Phase 2）：sidecar require 的 lib/{state,log,
-// supervisor,extension-host,recovery-center} 编译产物 + 原生模块。
+// v6 严格模式（ADR 0006 v3）：supervisor / extension-host / recovery-center
+// 随插件系统与恢复中心动作面整体剥出；rescue-integration 同剥（rescue.*
+// 由 sidecar/capability-stubs 桩应答）。native 只留 snapshot（无消费方则
+// 一并裁撤——guard-box 剥出后快照面无运行时入口）。
 const LIB_VNEXT = [
   'state.js', 'log.js', 'plugin-copy.js', 'atomic-json.js',
-  'supervisor/registry.js', 'supervisor/state-machine.js', 'supervisor/installer.js',
-  'supervisor/permissions.js', 'supervisor/incidents.js',
-  'extension-host/manager.js', 'extension-host/bridge-server.js',
-  'extension-host/job-fence.js', 'extension-host/rpc.js', 'extension-host/sdk/index.js',
-  'recovery-center/register.js',
 ];
-const NATIVE_MODULES = ['supervisor/index.node', 'snapshot/index.node'];
-const REQUIRED_PLUGIN_ASSETS = {
-  'dsh-raw-html': [
-    'assets/vendor/katex-vd.css',
-    'assets/vendor/katex.min.js',
-    'assets/vendor/auto-render.min.js',
-    'assets/vendor/mermaid.min.js',
-    'assets/vendor/VCPColorEngine.js',
-    'assets/vendor/fonts/KaTeX_AMS-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Caligraphic-Bold.woff2',
-    'assets/vendor/fonts/KaTeX_Caligraphic-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Fraktur-Bold.woff2',
-    'assets/vendor/fonts/KaTeX_Fraktur-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Main-Bold.woff2',
-    'assets/vendor/fonts/KaTeX_Main-BoldItalic.woff2',
-    'assets/vendor/fonts/KaTeX_Main-Italic.woff2',
-    'assets/vendor/fonts/KaTeX_Main-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Math-BoldItalic.woff2',
-    'assets/vendor/fonts/KaTeX_Math-Italic.woff2',
-    'assets/vendor/fonts/KaTeX_SansSerif-Bold.woff2',
-    'assets/vendor/fonts/KaTeX_SansSerif-Italic.woff2',
-    'assets/vendor/fonts/KaTeX_SansSerif-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Script-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Size1-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Size2-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Size3-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Size4-Regular.woff2',
-    'assets/vendor/fonts/KaTeX_Typewriter-Regular.woff2',
-  ],
-};
-
+const NATIVE_MODULES = [];
 function requireFile(file, label) {
   if (!existsSync(file) || !statSync(file).isFile()) {
     throw new Error(`[stage] 缺少${label || '文件'}: ${path.relative(root, file)}`);
@@ -200,51 +175,6 @@ function healNodePtyPlugin(nodeModules, platform, arch) {
   rmSync(buildDir, { recursive: true, force: true });
 }
 
-function pluginEntrypoints(pkg) {
-  const result = [];
-  const add = (value) => {
-    if (typeof value === 'string' && value.trim()) result.push(value.replace(/^\.\//, ''));
-  };
-  add(pkg.main);
-  add(pkg.module);
-  if (typeof pkg.exports === 'string') add(pkg.exports);
-  else if (pkg.exports && typeof pkg.exports === 'object') {
-    const walk = (value) => {
-      if (typeof value === 'string') add(value);
-      else if (value && typeof value === 'object') Object.values(value).forEach(walk);
-    };
-    walk(pkg.exports);
-  }
-  return [...new Set(result)].filter((entry) => !entry.includes('*') && !/\.d\.(?:ts|mts|cts)$/i.test(entry));
-}
-
-function validatePluginTree(dir, label) {
-  const entries = readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-    const pluginDir = path.join(dir, entry.name);
-    const manifest = path.join(pluginDir, 'package.json');
-    if (!existsSync(manifest)) {
-      throw new Error(`[stage] ${label}插件目录没有 package.json: ${path.relative(root, pluginDir)}`);
-    }
-    let pkg;
-    try { pkg = JSON.parse(readFileSync(manifest, 'utf8')); }
-    catch (err) { throw new Error(`[stage] ${label}插件 manifest 无法解析: ${path.relative(root, manifest)} (${err.message})`); }
-    const points = pluginEntrypoints(pkg);
-    if (points.length === 0) throw new Error(`[stage] ${label}插件没有可校验入口: ${path.relative(root, manifest)}`);
-    for (const rel of points) requireFile(path.join(pluginDir, rel), `${label}插件入口`);
-  }
-}
-
-function validateRequiredPluginAssets(dir, label) {
-  for (const [plugin, files] of Object.entries(REQUIRED_PLUGIN_ASSETS)) {
-    const pluginDir = path.join(dir, plugin);
-    for (const rel of files) {
-      requireFile(path.join(pluginDir, rel), `${label}插件资源`);
-    }
-  }
-}
-
 console.log(`[stage] 目标平台 ${targetPlatform}；清理旧装配目录` + (skipNpm ? '（--skip-npm：保留上次的生产 node_modules）' : ''));
 // 注意：node_modules 必须在整树清空前判定并豁免，否则 --skip-npm 永远不生效
 // （先 rm 全目录再 existsSync 检查，检查对象必不存在）。
@@ -271,7 +201,9 @@ execSync('npx tsc -p tsconfig.json', { cwd: dd, stdio: 'inherit' });
 
 console.log('[stage] sidecar 产物');
 // 5.2 起 mobile-app.html 退役（手机桥 = 完整 Web UI 反向代理，见 phone-bridge.ts）。
-for (const f of ['server.js', 'bridge.js', 'rescue-integration.js', 'phone-bridge.js']) {
+// v6 严格模式：sidecar 只装 server + bridge；rescue-integration（rescue.*
+// 桩应答）与 phone-bridge（增值功能）剥出。
+for (const f of ['server.js', 'bridge.js', 'capability-stubs.js']) {
   cpSync(path.join(root, 'tauri-shell', 'sidecar', f), path.join(staged, 'sidecar', f));
 }
 
@@ -291,26 +223,18 @@ for (const f of LIB_VNEXT) {
 // shared/protocol.js：隔离体系单点协议源，extension-host/rpc.js 运行时 require
 // （../../shared/protocol.js）——漏装配会让 sidecar 启动即 MODULE_NOT_FOUND。
 copyRequired(path.join(dd, 'shared', 'protocol.js'), path.join(staged, 'dsh-desktop', 'shared', 'protocol.js'), '共享协议');
-mkdirSync(path.join(staged, 'dsh-desktop', 'native'), { recursive: true });
-for (const f of NATIVE_MODULES) {
-  copyRequired(path.join(dd, 'native', f), path.join(staged, 'dsh-desktop', 'native', f), '原生模块');
+if (NATIVE_MODULES.length) {
+  mkdirSync(path.join(staged, 'dsh-desktop', 'native'), { recursive: true });
+  for (const f of NATIVE_MODULES) {
+    copyRequired(path.join(dd, 'native', f), path.join(staged, 'dsh-desktop', 'native', f), '原生模块');
+  }
 }
 mkdirSync(path.join(staged, 'dsh-desktop', 'scripts'), { recursive: true });
 for (const f of SCRIPTS) {
   copyRequired(path.join(dd, 'scripts', f), path.join(staged, 'dsh-desktop', 'scripts', f), '脚本');
 }
-// 功能包链路自检（copyRequired 保证源存在，这里校验"成对"装配）：
-// scripts/feature-pack-cli.js 与 lib/desktop/feature-pack.js 必须同时入包 ——
-// CLI 运行时 require ../lib/desktop/feature-pack，漏一个功能包页就整体不可用
-// （市场插件只能报"功能包 CLI 不可用"）。后续新增随包 CLI 照此成对补充。
-{
-  const cli = path.join(staged, 'dsh-desktop', 'scripts', 'feature-pack-cli.js');
-  const core = path.join(staged, 'dsh-desktop', 'lib', 'desktop', 'feature-pack.js');
-  if (existsSync(cli) !== existsSync(core)) {
-    throw new Error('[stage] 功能包链路装配不完整：feature-pack-cli.js 与 feature-pack.js 必须同时入包');
-  }
-  if (existsSync(cli)) console.log('[stage] 功能包链路自检通过（CLI + 核心）');
-}
+// （v6 Task 3.1：feature-pack 链路自检随功能包面剥出——feature-pack-cli.js
+// 与 feature-pack.js 均不在最简本体装配清单，成对校验无对象。）
 // package.json + lock 原样拷贝（npm ci 要求两者一致；--omit=dev 只装生产树）。
 // .npmrc（legacy-peer-deps）必须随行：内核包互相声明 peer，staged 目录里的
 // npm ci 若不带该配置会因 lock 缺 peer 闭包直接 EUSAGE 拒装（全新打包必踩）。
@@ -322,12 +246,30 @@ copyRequired(path.join(dd, '.npmrc'), path.join(staged, 'dsh-desktop', '.npmrc')
 // 覆写为 lite（installer-hooks.nsh POSTINSTALL）。便携包保持缺省完整版。
 writeFileSync(path.join(staged, 'dsh-desktop', 'profile.txt'), 'full\n');
 
-console.log('[stage] assets（114MB：38 插件 + 10 皮肤 + 图标）');
-cpSync(path.join(dd, 'assets'), path.join(staged, 'dsh-desktop', 'assets'), { recursive: true });
-validatePluginTree(path.join(dd, 'assets', 'plugins'), '源');
-validateRequiredPluginAssets(path.join(dd, 'assets', 'plugins'), '源');
-validatePluginTree(path.join(staged, 'dsh-desktop', 'assets', 'plugins'), 'staging');
-validateRequiredPluginAssets(path.join(staged, 'dsh-desktop', 'assets', 'plugins'), 'staging');
+// v6 Task 3.1（ADR 0006）：最简本体资产面。不再整树拷贝 assets/ ——
+// plugins（102MB）与 skins（26MB）属剥离集（Task 1.2/3.2/4/5/6 接回），
+// sdk-plugins / onboarding.html 随插件系统剥出（无插件可选则无向导）。
+// 保留：图标三件（壳层窗口/托盘消费）、恢复中心页面 + preload + WS 客户端
+// （Rust 壳 recovery 链）、SOURCES.json（溯源台账随内核组件保留）、
+// skills（6KB，eac-desktop-tips 是对话内提示技能，非插件面）。
+// 壳层皮肤包（shell-skin/，ADR 0005）若存在则随行 —— 那是本体接缝。
+console.log('[stage] assets（v6 最简本体：图标 + 恢复中心 + skills + 壳层皮肤）');
+{
+  const keep = [
+    'icon.ico', 'icon.jpg', 'icon.png', 'tray-icon.png',
+    'recovery-center.html', 'recovery-center-preload.js',
+    'ws-jsonrpc-client.js', 'SOURCES.json',
+  ];
+  for (const name of keep) {
+    copyRequired(path.join(dd, 'assets', name), path.join(staged, 'dsh-desktop', 'assets', name), '本体资产');
+  }
+  cpSync(path.join(dd, 'assets', 'skills'), path.join(staged, 'dsh-desktop', 'assets', 'skills'), { recursive: true });
+  const shellSkin = path.join(dd, 'assets', 'shell-skin');
+  if (existsSync(shellSkin)) {
+    cpSync(shellSkin, path.join(staged, 'dsh-desktop', 'assets', 'shell-skin'), { recursive: true });
+    console.log('[stage] 壳层皮肤包已随行（ADR 0005 接缝）');
+  }
+}
 
 // dsh-distribution 发行版描述符（阶段 3）：组件清单来自插件来源台账
 // （assets/SOURCES.json）+ 内核钉版；协议仍为 Draft，描述符随每次打包重算。

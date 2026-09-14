@@ -348,7 +348,10 @@ export function rescueMethods(): Record<string, (p: Record<string, unknown> | un
         agentSource: H.dshVersionSource(),
         profile: H.desktopProfile(),
         logsDir: path.join(H.userDataDir, 'logs'),
-        aiReady: !!((H.mods.balance!.readApiKey as (h: string) => string)(H.dshHome)),
+        // v6 Task 3.1（ADR 0006）：balance 面随增值功能剥出，mods 可能不携带
+        // balance —— aiReady 降级为「读不到凭据」（!!undefined = false），
+        // 救援页提示用户自行配置 API Key，不阻塞救援链。
+        aiReady: !!(H.mods.balance && (H.mods.balance.readApiKey as (h: string) => string)(H.dshHome)),
         busy: rescueBusy,
         safeMode: safeModeStatus(),
         serverAlive: ((H.mods.boot!.state as () => { running: boolean })()).running,
