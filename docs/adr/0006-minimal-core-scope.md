@@ -158,6 +158,37 @@ Rust 壳（main.rs）实际调用的 sidecar 方法：`boot.start/restart/state/
   断言加注释）；基线 7 个环境性失败（vendor 缺失 + 本机 DSH 安装残留）
   与本任务无关，逐项核对过。
 
+### 第二轮复审结论（v2.2，2026-09-14，提交前审计）
+
+- **递归装配闭包审计**（产物级 .js 扫描，59 依赖边 / 34 产物）：抓出
+  21 个被引用但未装配的模块 —— companion-sync / plugin-ops / guard-box
+  是 God module，顶层 require 了 plugin-updater / plugin-guard /
+  plugin-manager-state / builtin-collision / patch-row-heal /
+  profile-module-heal / preset-sync / compact-preset-migrate /
+  router-persona-preset-migrate / onboarding.js 等。已全部补回装配清单
+  （JSON 模块共数百 KB，瘦身主体在 128MB 资产面不受影响）；Task 3.3
+  拆解 companion-sync 时按域分装。
+- **打包态资产缺失行为**：companion-sync 的 readdirSync(SKINS_DIR) 无
+  守卫（最简包无 assets/skins 会炸 syncCompanionPlugins）—— 已加
+  existsSync 守卫。SOURCES.json / agent-presets / 恢复中心页 / preload
+  核对均有守卫或已在保留清单。
+- **内核 0.1.5-rc.2 CLI 变更适配（审计 C 抓出）**：`web` 子命令硬编码
+  --profile web 且拒绝根级 --profile（`web takes none of parent
+  --profile...`，退出码 1）。桌面专属 profile（web-desktop）改为根命令
+  直启：`dsh --profile web-desktop --host ... --no-open`（帮助示例
+  `dsh --profile tui --resume` 同形态）。手工 profile 结构（package.json
+  bundles + pnpm-workspace + 空 patch 层）在 0.1.5 下实测兼容。
+  `plugin` 子命令自带 --profile 选项（`dsh plugin --profile tui add`），
+  market.ts / feature-pack.ts 无需改。
+- **纯净 boot 全链路实测**：最简 profile（仅内核官方 bundles、零 EAC
+  插件行）→ boot.start → 就绪行带 token → HTTP 303（token→dsh-auth
+  cookie）→ HTTP 200 UI 完整可达。
+- **开发态已知限制（移交 Task 3.3）**：开发态仓库 assets/plugins 仍在
+  时，companion-sync 会同步 58 插件行进 profile，其中 dsh-prompt-custom
+  import 的 PERSONA_SECTION 在 0.1.5 已改名（persona section 拆分为
+  PERSONA_PREFIX/SUFFIX_SECTION）→ 插件树加载失败、dsh web 退出码 1。
+  **打包态最简本体无此问题**（无插件可同步）；插件接回时按新 API 适配。
+
 ## 后果
 
 - 正面：本体与生态解耦，3.2/3.3/6.x 有干净挂接面；安装体积与启动路径缩短

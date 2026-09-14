@@ -750,7 +750,10 @@ export function syncCompanionPlugins(): void {
     // 内置皮肤：行 id 取皮肤包 skin.json 的 wiring.id（ui-skin-*）。
     // 禁用的皮肤黑名单（因兼容性问题或崩溃而禁用）。
     const DISABLED_SKINS = ['maid-atelier'];
-    for (const entry of fs.readdirSync(SKINS_DIR, { withFileTypes: true })) {
+    // v6 Task 3.1（ADR 0006）：最简本体不携带 assets/skins（皮肤包由
+    // Task 1.2/6.x 以包形式接入）—— 目录缺失时跳过皮肤行同步，别让
+    // readdirSync 的 ENOENT 炸掉整个 syncCompanionPlugins。
+    if (fs.existsSync(SKINS_DIR)) for (const entry of fs.readdirSync(SKINS_DIR, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       // 跳过禁用的皮肤
       if (DISABLED_SKINS.includes(entry.name)) continue;

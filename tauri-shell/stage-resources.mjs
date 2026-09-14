@@ -64,6 +64,13 @@ const ROOT_FILES = [
   //（checkLatest/applyUpdate）在最简本体上无人调用，不占运行时资源；
   // v6.1 Task 8 拆分该模块时再分离两半。
   'updater.js',
+  // v6 Task 3.1 审计修订（装配闭包实测）：恢复中心收窄三件套的传递依赖。
+  // companion-sync / plugin-ops / guard-box 是 God module，顶层 require 了
+  // 下列插件治理面模块 —— 不装配则打包态 sidecar 加载即 MODULE_NOT_FOUND。
+  // 代码原位保留；Task 3.3 拆解 companion-sync 时按域分装。
+  'plugin-updater.js', 'plugin-guard.js', 'plugin-manager-state.js',
+  'builtin-collision.js', 'patch-row-heal.js', 'profile-module-heal.js',
+  'preset-sync.js', 'compact-preset-migrate.js', 'router-persona-preset-migrate.js',
 ];
 const LIB_DESKTOP = [
   'file-roots.js', 'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js',
@@ -78,6 +85,8 @@ const LIB_DESKTOP = [
 ];
 const SCRIPTS = [
   'patch-session-manage.js', 'plugin-manager-patch.js', 'patch-deps.js',
+  // 审计修订：plugin-ops（恢复中心三件套）顶层 require onboarding.js。
+  'onboarding.js',
 ];
 
 // vnext 隔离体系（ADR 0006）：恢复中心收窄保留——supervisor（SDK 插件

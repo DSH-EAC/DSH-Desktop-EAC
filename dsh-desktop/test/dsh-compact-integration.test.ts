@@ -107,8 +107,10 @@ test('dsh-compact integration: migration helper is included in packaged app', ()
   // v6 Task 3.1（ADR 0006）：compact 迁移面与 assets 整树装配随插件系统剥出
   // ——该测试改为 v6 守门（装配清单不得含迁移助手、assets 改为保留项拷贝）；
   // Task 3.3 接回插件面时恢复原断言。
+  // v6 二轮审计修订：compact-preset-migrate 是 companion-sync 的传递依赖，
+  // 必须装配（见 preset-sync.test.ts 同款注释）；assets 整树断言改为保留项拷贝守门。
   const stage = readFileSync(join(root, '..', 'tauri-shell', 'stage-resources.mjs'), 'utf8')
   const rootFiles = /const ROOT_FILES = \[([\s\S]*?)\]/.exec(stage)![0]
-  assert.doesNotMatch(rootFiles, /'compact-preset-migrate\.js'/, 'v6 最简本体 ROOT_FILES 不应含 compact-preset-migrate.js')
+  assert.match(rootFiles, /'compact-preset-migrate\.js'/, 'companion-sync 传递依赖必须装配')
   assert.doesNotMatch(stage, /cpSync\(path\.join\(dd, 'assets'\)/, 'v6 assets 应按保留项拷贝而非整树')
 })

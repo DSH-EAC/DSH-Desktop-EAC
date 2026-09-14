@@ -239,12 +239,13 @@ test('内置 preset 仅携带 Windows shell 配置', () => {
   }
 });
 
-test('stage-resources ROOT_FILES 含 preset 同步与迁移模块（v6：随插件面剥出前的守门断言）', () => {
-  // v6 Task 3.1（ADR 0006）：preset 同步/迁移模块随插件选择向导剥出装配面
-  //（Task 3.3 接回时恢复此断言）。当前断言反向守门：装配清单不得再含它们。
+test('stage-resources ROOT_FILES 含 preset 同步与迁移模块（v6 修订：传递依赖保留）', () => {
+  // v6 Task 3.1 二轮审计（ADR 0006 v2.2）：companion-sync（恢复中心收窄
+  // 三件套）顶层 require preset-sync / compact-preset-migrate /
+  // router-persona-preset-migrate —— 不装配则打包态 sidecar 启动即
+  // MODULE_NOT_FOUND。断言恢复正向；Task 3.3 拆解 companion-sync 时随域分装。
   const stage = readFileSync(join(root, '..', 'tauri-shell', 'stage-resources.mjs'), 'utf8');
-  const rootFiles = stage.match(/const ROOT_FILES = \[([\s\S]*?)\]/)![1];
-  assert.doesNotMatch(rootFiles, /'preset-sync\.js'/);
-  assert.doesNotMatch(rootFiles, /'compact-preset-migrate\.js'/);
-  assert.doesNotMatch(rootFiles, /'router-persona-preset-migrate\.js'/);
+  assert.match(stage, /'preset-sync\.js'/);
+  assert.match(stage, /'compact-preset-migrate\.js'/);
+  assert.match(stage, /'router-persona-preset-migrate\.js'/);
 });
