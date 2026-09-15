@@ -11,7 +11,7 @@
 //   5. Rust 壳 http_serve 提供 /skin/ 路由（白名单伺服）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -19,6 +19,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p: string[]): string => readFileSync(join(root, ...p), 'utf8');
 
 const packDir = join(root, 'assets', 'shell-skin', 'eac-default');
+const aioPackDir = join(root, 'assets', 'shell-skin', 'aio');
 const mainRs = read('..', 'tauri-shell', 'src', 'main.rs');
 const overlay = read('..', 'tauri-shell', 'src', 'exit-overlay.js');
 
@@ -70,26 +71,52 @@ function stripShellVars(src: string): string {
   return src.replace(/var\(\s*--eac-shell-[\w-]+[^()]*(?:\([^()]*\)[^()]*)*\)/g, 'TOKEN');
 }
 
-test('壳层皮肤包文件存在且 skin.json 符合皮肤创作公约', () => {
+function tokenNames(src: string): string[] {
+  return [...src.matchAll(/(--eac-shell-[\w-]+)\s*:/g)]
+    .map((match) => match[1]!)
+    .sort();
+}
+
+function assertShellSkinManifest(
+  dir: string,
+  expected: { id: string; control: string; style: string },
+): Record<string, unknown> {
   for (const f of ['skin.json', 'tokens.css', 'controls.css', 'README.md']) {
-    assert.ok(existsSync(join(packDir, f)), `assets/shell-skin/eac-default/${f} missing`);
+    assert.ok(existsSync(join(dir, f)), `${dir}/${f} missing`);
   }
-  const manifest = JSON.parse(read('assets', 'shell-skin', 'eac-default', 'skin.json'));
-  assert.equal(manifest.id, 'system.default');
+  const manifest = JSON.parse(readFileSync(join(dir, 'skin.json'), 'utf8'));
+  assert.equal(manifest.id, expected.id);
   assert.equal(manifest.type, 'skin');
   assert.equal(manifest.kind, 'shell-skin');
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.match(manifest.owner, /^(?:[a-z0-9-]+\.){2,}[a-z0-9-]+$/);
   assert.equal(manifest.compatibility.profile, 'dsh-desktop-eac-ui-skin-profile@^0.3');
   assert.equal(manifest.compatibility.forceable, false);
-  assert.equal(manifest.control, 'system.shell-controls');
-  assert.equal(manifest.style, 'system.shell-style');
+  assert.equal(manifest.control, expected.control);
+  assert.equal(manifest.style, expected.style);
   assert.equal(manifest.dependencies[manifest.control], manifest.version);
   assert.equal(manifest.dependencies[manifest.style], manifest.version);
   assert.ok(Array.isArray(manifest.assets) && manifest.assets.length > 0);
   for (const f of manifest.assets) {
-    assert.ok(existsSync(join(packDir, f)), `skin.json assets 声明了不存在的 ${f}`);
+    assert.ok(existsSync(join(dir, f)), `skin.json assets 声明了不存在的 ${f}`);
   }
+  return manifest;
+}
+
+test('壳层皮肤包文件存在且 skin.json 符合皮肤创作公约', () => {
+  assertShellSkinManifest(packDir, {
+    id: 'system.default',
+    control: 'system.shell-controls',
+    style: 'system.shell-style',
+  });
+});
+
+test('AIO 壳层皮肤包声明独立的 Skin、Control 和 Style', () => {
+  assertShellSkinManifest(aioPackDir, {
+    id: 'io.github.dsh-eac.skin.aio',
+    control: 'io.github.dsh-eac.aio.shell-controls',
+    style: 'io.github.dsh-eac.aio.shell-style',
+  });
 });
 
 test('tokens.css 只定义 --eac-shell-* token（单一事实源）', () => {
@@ -102,6 +129,39 @@ test('tokens.css 只定义 --eac-shell-* token（单一事实源）', () => {
   // controls.css 的 var() 均在 fallback 内携带字面量
   const bare = stripShellVars(controls);
   assert.doesNotMatch(bare, /#[0-9a-fA-F]{6}\b/, 'controls.css fallback 之外不得出现硬编码 hex 色');
+});
+
+test('AIO token 与默认包契约兼容且不污染内核命名空间', () => {
+  const defaults = read('assets', 'shell-skin', 'eac-default', 'tokens.css');
+  const aio = read('assets', 'shell-skin', 'aio', 'tokens.css');
+  assert.deepEqual(tokenNames(aio), tokenNames(defaults), 'AIO 必须完整实现默认壳层 token 集');
+  assert.doesNotMatch(aio, /--(?:dsw|aion)-[\w-]+\s*:/, 'AIO 不得定义 dsh 内核 token');
+  assert.match(aio, /#5b8cff/i, 'AIO 强调色应保留 aio-v1 的 #5b8cff');
+  assert.match(aio, /radial-gradient\(1200px 600px at 50% -10%/i, 'AIO 应保留 aio-v1 的启动页背景');
+});
+
+test('AIO controls.css 只消费包内声明的壳层 token', () => {
+  const tokens = read('assets', 'shell-skin', 'aio', 'tokens.css');
+  const controls = read('assets', 'shell-skin', 'aio', 'controls.css');
+  const declared = new Set(tokenNames(tokens));
+  const consumers = parseShellVarConsumers(controls);
+  assert.ok(consumers.length > 0, 'AIO controls.css 必须消费 --eac-shell-* token');
+  for (const consumer of consumers) {
+    assert.ok(declared.has(consumer.name), `AIO controls.css 消费了未声明的 ${consumer.name}`);
+    assert.ok(consumer.hasFallback, `${consumer.name} 必须携带降级 fallback`);
+  }
+  assert.doesNotMatch(controls, /var\(\s*--(?:dsw|aion)-/, 'AIO controls.css 不得消费 dsh 内核 token');
+  const bare = stripShellVars(controls);
+  assert.doesNotMatch(bare, /#[0-9a-fA-F]{6}\b/, 'AIO controls.css fallback 之外不得出现硬编码 hex 色');
+});
+
+test('AIO 包只包含声明、token、控件样式和说明文档', () => {
+  const entries = readdirSync(aioPackDir, { withFileTypes: true });
+  assert.deepEqual(
+    entries.map((entry) => entry.name).sort(),
+    ['README.md', 'controls.css', 'skin.json', 'tokens.css'],
+  );
+  assert.ok(entries.every((entry) => entry.isFile()), 'AIO 包不应包含业务入口或嵌套运行时代码');
 });
 
 test('壳页 token 消费处必须带 fallback 字面量（降级契约）', () => {
@@ -149,4 +209,6 @@ test('http_serve 提供 /skin/ 白名单路由', () => {
   // 白名单：只放行包内固定文件名
   const fn = mainRs.slice(mainRs.indexOf('fn shell_skin_css'), mainRs.indexOf('async fn http_serve'));
   assert.match(fn, /matches!\(file, "tokens\.css" \| "controls\.css"\)/, '只放行 tokens.css/controls.css');
+  assert.match(fn, /\.join\("eac-default"\)/, '#363 不改变生产环境默认皮肤');
+  assert.doesNotMatch(fn, /\.join\("aio"\)/, 'AIO 运行时选择属于后续任务');
 });
