@@ -886,7 +886,9 @@ fn open_exit_dialog(app: &tauri::AppHandle) {
 }
 
 
-/// 从 sidecar 的 chrome.init 读 exitAction（settings 同源）。
+/// 从 sidecar 的 boot.state 读 exitAction（settings 同源）。
+/// v6 Task 3.1（ADR 0006 v5）：chrome.init 已随 EAC 自定义面删除，
+/// 退出策略改由 boot.state 承载（壳最小控制面的唯一信息接口）。
 async fn sidecar_exit_action(_app: &tauri::AppHandle) -> Option<String> {
     let state = BRIDGE.get_or_init(|| BridgeState {
         sidecar: Arc::new(AMutex::new(None)),
@@ -897,7 +899,7 @@ async fn sidecar_exit_action(_app: &tauri::AppHandle) -> Option<String> {
     // 只是读配置，2s 足够；失败按无配置走默认策略。
     let r = tokio::time::timeout(
         std::time::Duration::from_secs(2),
-        sc.call("chrome.init", serde_json::json!({})),
+        sc.call("boot.state", serde_json::json!({})),
     )
     .await
     .ok()?
@@ -1011,123 +1013,38 @@ async fn handle_shell_method(
             }
             Ok(None) // send 型
         }
-        "float.open" => {
-            let session = params.get("sessionId").and_then(|v| v.as_str()).unwrap_or("");
-            let r = open_float_window(app, session);
-            let ok = matches!(r, Ok(true));
-            Ok(Some(reply(serde_json::json!({"ok":ok}))))
+        "win.reload" => {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.eval("location.reload()");
+            }
+            Ok(Some(reply(serde_json::json!({"ok":true}))))
         }
-        "float.close" => {
-            let label = params.get("win").and_then(|v| v.as_str()).unwrap_or("");
-            if !label.is_empty() {
-                if let Some(w) = app.get_webview_window(label) {
-                    let _ = w.close();
+        "win.devtools" => {
+            if let Some(w) = app.get_webview_window("main") {
+                if w.is_devtools_open() {
+                    let _ = w.close_devtools();
+                } else {
+                    let _ = w.open_devtools();
                 }
             }
-            Ok(None) // send 型
+            Ok(Some(reply(serde_json::json!({"ok":true}))))
         }
-        "float.ready" => {
-            // 浮窗页面桥就绪信号 → 广播给所有 WS 连接（主窗/冒烟可观测）。
-            let _ = shell_notify().send(serde_json::json!({
-                "method": "float.ready",
-                "params": { "win": params.get("win").cloned().unwrap_or(Value::Null) }
-            }));
-            Ok(None)
-        }
-        "menu.action" => {
-            let action = params.get("action").and_then(|v| v.as_str()).unwrap_or("");
-            match action {
-                "reload" => {
-                    if let Some(w) = app.get_webview_window("main") {
-                        let _ = w.eval("location.reload()");
-                    }
-                    Ok(Some(reply(Value::Null)))
-                }
-                "devtools" => {
-                    if let Some(w) = app.get_webview_window("main") {
-                        if w.is_devtools_open() {
-                            let _ = w.close_devtools();
-                        } else {
-                            let _ = w.open_devtools();
-                        }
-                    }
-                    Ok(Some(reply(Value::Null)))
-                }
-                "fullscreen" => {
-                    if let Some(w) = app.get_webview_window("main") {
-                        let fs = w.is_fullscreen().unwrap_or(false);
-                        let _ = w.set_fullscreen(!fs);
-                    }
-                    Ok(Some(reply(Value::Null)))
-                }
-                "quit" => {
-                    app.exit(0);
-                    Ok(Some(reply(Value::Null)))
-                }
-                "open-browser" => {
-                    let result = match current_web_url() {
-                        Some(url) => open_external(&url).await,
-                        None => Err("web URL unavailable".into()),
-                    };
-                    if let Err(error) = &result {
-                        eprintln!("[shell] open browser failed: {}", error);
-                    }
-                    Ok(Some(reply(native_action_result(result))))
-                }
-                "feedback" => {
-                    let result = open_external(
-                        "https://github.com/zouyuxuan122/Deepseek-Harness-EAC/issues",
-                    )
-                    .await;
-                    if let Err(error) = &result {
-                        eprintln!("[shell] open feedback failed: {}", error);
-                    }
-                    Ok(Some(reply(native_action_result(result))))
-                }
-                _ => Err(()), // 其余菜单动作（更新/开关/导出/关于…）→ sidecar
+        "win.fullscreen" => {
+            if let Some(w) = app.get_webview_window("main") {
+                let fs = w.is_fullscreen().unwrap_or(false);
+                let _ = w.set_fullscreen(!fs);
             }
+            Ok(Some(reply(serde_json::json!({"ok":true}))))
         }
-        "shell.open-external" => {
-            let url = params.get("url").and_then(|v| v.as_str()).unwrap_or("");
-            let result = open_external(url).await;
-            Ok(Some(reply(match result {
-                Ok(()) => serde_json::json!({"ok":true}),
-                Err(error) => serde_json::json!({"ok":false,"error":error}),
-            })))
-        }
-        "clipboard.write-text" => {
-            let text = params.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            if text.is_empty() || text.len() > 2048 {
-                return Ok(Some(reply(serde_json::json!({"ok":false,"error":"invalid clipboard text"}))));
-            }
-            let result = write_clipboard_text(text).await;
-            Ok(Some(reply(match result {
-                Ok(()) => serde_json::json!({"ok":true}),
-                Err(error) => serde_json::json!({"ok":false,"error":error}),
-            })))
-        }
-        "files.open" => {
-            let state = BRIDGE.get_or_init(|| BridgeState {
-                sidecar: Arc::new(AMutex::new(None)),
-            });
-            let sidecar = state.sidecar.lock().await.clone();
-            let Some(sidecar) = sidecar else {
-                return Ok(Some(reply(serde_json::json!({"ok":false,"error":"sidecar not running"}))));
+        "win.open-browser" => {
+            let result = match current_web_url() {
+                Some(url) => open_external(&url).await,
+                None => Err("web URL unavailable".into()),
             };
-            let authorized = match sidecar.call("files.authorize-open", params.clone()).await {
-                Ok(value) => value,
-                Err(error) => return Ok(Some(reply(serde_json::json!({"ok":false,"error":error})))),
-            };
-            if authorized.get("ok").and_then(|v| v.as_bool()) != Some(true) {
-                return Ok(Some(reply(authorized)));
+            if let Err(error) = &result {
+                eprintln!("[shell] open browser failed: {}", error);
             }
-            let Some(target) = authorized.get("path").and_then(|v| v.as_str()) else {
-                return Ok(Some(reply(serde_json::json!({"ok":false,"error":"authorized path missing"}))));
-            };
-            Ok(Some(reply(match open_native_target(target).await {
-                Ok(()) => serde_json::json!({"ok":true}),
-                Err(error) => serde_json::json!({"ok":false,"error":error}),
-            })))
+            Ok(Some(reply(native_action_result(result))))
         }
         "log.renderer-heartbeat" => Ok(None), // P3 恢复状态机消费；P2 吞掉不转发
         "log.page-error" => {
@@ -1841,22 +1758,13 @@ fn died_page(log_path: &str, code: &str) -> String {
          <div style=\"display:flex;gap:10px;justify-content:center\">\
          <button onclick=\"retry()\" style=\"padding:8px 22px;border:1px solid rgba(255,255,255,.18);\
          border-radius:9px;background:rgba(91,140,255,.15);color:#dfe6ff;font-size:13px;cursor:pointer\">{6}</button>\
-         <button onclick=\"safeMode()\" style=\"padding:8px 22px;border:1px solid rgba(255,200,120,.25);\
-         border-radius:9px;background:rgba(255,180,80,.10);color:#ffd9a3;font-size:13px;cursor:pointer\">{7}</button>\
          </div>\
          </div>\
-         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{8}/ws';{9}\
+         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{7}/ws';{8}\
          function retry(){{\
-           var b=document.querySelector('button');b.textContent={10:?};b.disabled=true;\
+           var b=document.querySelector('button');b.textContent={9:?};b.disabled=true;\
            window.dshDesktop._call('boot.start',{{}}).then(function(){{location.reload();}})\
-             .catch(function(e){{b.textContent={11:?};b.disabled=false;}});\
-         }}\
-         function safeMode(){{\
-           var b=event.target;b.textContent={12:?};b.disabled=true;\
-           window.dshDesktop._call('rescue.safe-mode',{{on:true}}).then(function(){{\
-             return window.dshDesktop._call('boot.start',{{}});\
-           }}).then(function(){{location.reload();}})\
-             .catch(function(e){{b.textContent={13:?};b.disabled=false;}});\
+             .catch(function(e){{b.textContent={10:?};b.disabled=false;}});\
          }}</script></body>",
         ui_text("zh-CN", "en"),
         ui_text("服务已停止", "Service stopped"),
@@ -1865,13 +1773,10 @@ fn died_page(log_path: &str, code: &str) -> String {
         esc(code),
         esc(log_path),
         ui_text("重新启动", "Restart"),
-        ui_text("安全模式重启", "Restart in safe mode"),
         ws_port(),
         BRIDGE_JS,
         ui_text("正在重启…", "Restarting..."),
         ui_text("重启失败，请重试", "Restart failed. Try again."),
-        ui_text("进入安全模式…", "Entering safe mode..."),
-        ui_text("失败（服务可能仍在运行）", "Failed (the service may still be running)"),
     )
 }
 
@@ -1961,7 +1866,7 @@ fn update_page(version: &str, kind: &str) -> String {
     )
 }
 
-/// 关于页（menu.action 'about'；版本经 chrome.init 动态读取）。
+/// 关于页（版本经 boot.state 动态读取）。
 fn about_page() -> String {
     format!(
         "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>\
@@ -1976,7 +1881,7 @@ fn about_page() -> String {
          </div>\
          <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{6}/ws';{7}\
          var BACK=new URLSearchParams(location.search).get('back')||'';\
-         window.dshDesktop._call('chrome.init',{{}}).then(function(i){{\
+         window.dshDesktop.boot.state().then(function(i){{\
            document.getElementById('ver').textContent={8:?}+' v'+i.appVersion+' · '+{9:?}+' '+i.agentVersion+' ('+(i.agentSource||'bundled')+')';\
          }}).catch(function(){{document.getElementById('ver').textContent={10:?};}});</script></body>",
         ui_text("zh-CN", "en"),
@@ -1991,31 +1896,6 @@ fn about_page() -> String {
         ui_text("dsh 内核", "dsh core"),
         ui_text("版本信息暂不可用", "Version information is unavailable"),
     )
-}
-
-/// 向导页：serve 真实 assets/onboarding.html，注入桥 + window.onboarding shim
-/// （对齐已退役 onboarding-preload.js 的 list/submit/close 三键语义），并隐藏页面自绘标题栏
-/// （窗口控制由桥的 36px 玻璃栏承担）。
-fn wizard_page() -> String {
-    let file = resource_root().join("dsh-desktop").join("assets").join("onboarding.html");
-    let html = std::fs::read_to_string(&file).unwrap_or_else(|_| {
-        format!(
-            "<!doctype html><meta charset=utf-8><title>{0}</title><body style=\"background:#0b1220;color:#dfe6ff;font-family:sans-serif;display:grid;place-items:center;height:100vh\">{1} (assets/onboarding.html)</body>",
-            ui_text("向导", "Wizard"),
-            ui_text("向导资源缺失", "Wizard resource is missing"),
-        )
-    });
-    let injection = format!(
-        "<script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{};\
-         window.onboarding={{\
-           list:function(){{return window.dshDesktop._call('onboard.list',{{}});}},\
-           submit:function(ids){{return window.dshDesktop._call('onboard.submit',{{ids:ids}});}},\
-           close:function(){{window.dshDesktop._call('onboard.close',{{}});}}\
-         }};</script>\
-         <style>.bar{{display:none!important}}</style>",
-        ws_port(), BRIDGE_JS
-    );
-    inject_after_doctype(html, &injection)
 }
 
 /// 恢复中心页：serve 真实 assets/recovery-center.html，注入回环 WS 地址 +
@@ -2110,8 +1990,6 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
         (update_page(&version, &kind), "text/html; charset=utf-8")
     } else if path.starts_with("/about") {
         (about_page(), "text/html; charset=utf-8")
-    } else if path.starts_with("/wizard") {
-        (wizard_page(), "text/html; charset=utf-8")
     } else if path.starts_with("/died") {
         // /died?code=..&log=..（查询参数由 boot.server-died 处理方拼好）
         let mut code = "unknown".to_string();
@@ -2176,11 +2054,6 @@ fn run_bridge_test() -> i32 {
                 "profile.name",
                 serde_json::json!({}),
                 Box::new(|r: &Value| r.get("name") == Some(&serde_json::json!("web-desktop"))),
-            ),
-            (
-                "plugins.removedIds",
-                serde_json::json!({}),
-                Box::new(|r: &Value| r.get("ids").map(|v| v.is_object()).unwrap_or(false)),
             ),
         ];
         let mut ok = 0;
@@ -2303,16 +2176,6 @@ fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {    let method = v.
         "shell.about" => {
             let back = current_web_url().map(|u| encode_back(&u)).unwrap_or_default();
             navigate_main(app, format!("http://127.0.0.1:{}/about?back={}", ws_port(), back));
-        }
-        "wizard.show" => {
-            println!("[shell] wizard show mode={:?}", params.get("mode"));
-            let back = current_web_url().map(|u| encode_back(&u)).unwrap_or_default();
-            navigate_main(app, format!("http://127.0.0.1:{}/wizard?back={}", ws_port(), back));
-        }
-        "wizard.close" => {
-            if let Some(url) = current_web_url() {
-                navigate_main(app, url);
-            }
         }
         "shell.relaunch" => {
             // agent 更新完成后整壳重启（Tauri restart 会退出并重新拉起自身）。

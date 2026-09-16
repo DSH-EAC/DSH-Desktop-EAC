@@ -44,9 +44,13 @@ test('log export archives Unicode and spaced paths without a shell', async () =>
   }
 });
 
-test('Tauri bridge surfaces structured menu failures', () => {
+test('Tauri bridge exposes only the official contract + shell controls (v6 B-plan)', () => {
+  // v6 Task 3.1（ADR 0006 v5）：菜单面随 EAC 自定义接口删除（导出日志等
+  // 更新链能力已剥出）；桥只剩官方 dshDesktop 契约 + 窗口控制 + boot。
   const bridge = fs.readFileSync(path.join(testDir, '..', '..', 'tauri-shell', 'sidecar', 'bridge.ts'), 'utf8');
-  assert.match(bridge, /result\.ok === false/);
-  assert.match(bridge, /showMenuStatus\(error, true\)/);
-  assert.match(bridge, /日志已导出/);
+  assert.match(bridge, /protocolVersion:\s*1/);
+  assert.match(bridge, /windowControls:/);
+  assert.match(bridge, /boot:\s*\{/);
+  assert.doesNotMatch(bridge, /showMenuStatus/);
+  assert.doesNotMatch(bridge, /menu:\s*\{/);
 });

@@ -56,7 +56,6 @@ const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const pathsMod = mount('runtime-paths');
 const profileMod = mount('profile');
 const runtimePatchesMod = mount('runtime-patches');
-const fileRootsMod = mount('file-roots');
 const bootMod = mount('boot-server');
 
 // v6 Task 3.1（ADR 0006 v3 · 严格模式）：插件治理三件套（companion-sync /
@@ -66,7 +65,7 @@ const bootMod = mount('boot-server');
 // Task 3.3/3.5 接回时替换桩即可，插口契约见该文件头注释）。
 import stubs = require('./capability-stubs');
 
-const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'runtime-patches', 'file-roots', 'boot-server'];
+const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'runtime-patches', 'boot-server'];
 
 // 打包态判定 + 资源根：Rust 壳 spawn sidecar 时注入 DSH_SHELL_EXE /
 // DSH_RESOURCE_ROOT（main.rs Sidecar::spawn）。DSH_RESOURCE_ROOT 存在即打包态；
@@ -272,7 +271,7 @@ interface RpcReq { id: number | null; method: string; params?: Record<string, un
 type RpcResult = Record<string, unknown>;
 type RpcParams = Record<string, unknown> | undefined;
 
-// 图标 dataUri 模块级缓存：bridge openMenu 每次开菜单都调 chrome.init。
+// 图标 dataUri 模块级缓存：壳栏（bridge injectChrome）与关于页经 boot.state 读取。
 let chromeIconDataUri: string | null = null;
 function chromeIcon(): string {
   if (chromeIconDataUri !== null) return chromeIconDataUri;
@@ -286,23 +285,16 @@ function chromeIcon(): string {
 }
 
 const methods: Record<string, (p: RpcParams) => unknown> = {
+  // 壳自检（--bridge-test）与排障用：只暴露身份与挂载面，不含业务能力。
   'shell.info': (): RpcResult => ({
     sidecar: 'server.ts',
     node: process.version,
     platform: process.platform,
     pid: process.pid,
-    dshHome,
-    userDataDir,
-    capabilities: desktopPlatform.capabilities(),
     version: pkgVersion,
     modules: MOUNTED,
   }),
   'profile.name': (): RpcResult => ({ name: desktopProfileFn() }),
-  'profile.dir': (): RpcResult => ({ dir: (profileMod.desktopProfileDir as () => string)() }),
-  'runtime.nodeExe': (): RpcResult => ({ exe: (pathsMod.nodeExe as () => string)() }),
-  'runtime.dshBin': (): RpcResult => ({ bin: (pathsMod.dshBin as () => string)() }),
-  // （v6 严格模式：plugins.removedIds / guard.ensure 随插件治理面剥出 ——
-  //  guard.ensure 已由 capability-stubs 桩注册。）
   // ---- boot.*（P2：dsh web 服务编排，Rust 壳的启动主链路） ----
   'boot.start': async (p): Promise<RpcResult> => {
     const overlays = Array.isArray(p && p.overlays) ? (p!.overlays as string[]) : [];
@@ -342,160 +334,31 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
     await (bootMod.stopServer as () => Promise<void>)();
     return { ok: true };
   },
-  'boot.state': (): RpcResult => (bootMod.state as () => unknown)() as RpcResult,
-  // ---- chrome.init（getInfo；字段集对齐 main.js chrome:init handler） ----
-  'chrome.init': (): RpcResult => {
+  // v6 Task 3.1（ADR 0006 v5）：boot.state 是壳最小控制面的唯一信息接口
+  //（chrome.init 已删）—— 在服务状态之上承载壳栏/关于页所需的版本与图标，
+  // 以及关窗策略 exitAction（Rust 壳 apply_exit_policy 读取）。
+  'boot.state': (): RpcResult => {
+    const base = (bootMod.state as () => Record<string, unknown>)();
     const s = loadSettings() as {
-      closeToTray?: boolean; exitAction?: string; shortcutPolicy?: string;
-      notifyOnTurnEnd?: boolean; repos?: { github?: string; gitee?: string };
+      closeToTray?: boolean; exitAction?: string; notifyOnTurnEnd?: boolean;
     };
-    const iconDataUri = chromeIcon();
     const exitAction = s.exitAction === 'ask' || s.exitAction === 'minimize' || s.exitAction === 'quit'
       ? s.exitAction
       : s.closeToTray === false ? 'quit' : s.closeToTray === true ? 'minimize' : 'ask';
     return {
+      ...base,
       appVersion: pkgVersion,
       agentVersion: (pathsMod.dshVersion as () => string)(),
       agentSource: (pathsMod.dshVersionSource as () => string)(),
-      notifyOnTurnEnd: s.notifyOnTurnEnd !== false,
-      closeToTray: s.closeToTray !== false,
+      iconDataUri: chromeIcon(),
       exitAction,
-      shortcutPolicy: s.shortcutPolicy === 'never' ? 'never' : 'auto',
-      capabilities: desktopPlatform.capabilities(),
-      iconDataUri,
-      repoUrls: { github: '', gitee: '' }, // v6：更新源区随更新体系剥出（v6.1 Task 8 接回）
-      staticPort: 0, // v6：预览静态服务随插件面剥出；0 = 客户端回退宿主路由（降级契约）
     };
   },
   // 原地重启 Web 服务核心。
   'boot.restart': async (): Promise<RpcResult> => restartWebServiceCore(),
-  // bridge.ts 的 restartService() 调 service.restart：与 boot.restart 同一核心。
-  'service.restart': async (): Promise<RpcResult> => restartWebServiceCore(),
   // （v6 严格模式：rc.action / rc.close 由 capability-stubs 桩注册 ——
   //  恢复中心动作面剥出，方法面与参数形态不变，接回见插口契约。）
-  // ---- 文件树基础能力（files.*：会话工作区围栏，内核文件树 UI 消费） ----
-  'files.revert': (p): Record<string, unknown> => {
-    const changes = (p && p.changes) as Array<{ path?: string; oldText?: string; newText?: string }>;
-    if (!Array.isArray(changes) || changes.length === 0 || changes.length > 300) return { results: [] };
-    const results: Record<string, unknown>[] = [];
-    for (const c of changes) {
-      const fp = String((c && c.path) || '');
-      const oldText = String((c && c.oldText) ?? '');
-      const newText = String((c && c.newText) ?? '');
-      if (!path.isAbsolute(fp) || oldText.length > 400000 || newText.length > 400000) {
-        results.push({ path: fp, status: 'invalid' });
-        continue;
-      }
-      if (!(fileRootsMod.isUnderFileRoots as (x: string) => boolean)(fp)) {
-        results.push({ path: fp, status: 'forbidden' });
-        continue;
-      }
-      try {
-        const exists = fs.existsSync(fp);
-        const content = exists ? fs.readFileSync(fp, 'utf8') : null;
-        if (oldText === '' && newText !== '') {
-          if (content !== null && content === newText) { fs.rmSync(fp); results.push({ path: fp, status: 'reverted' }); }
-          else results.push({ path: fp, status: content === null ? 'missing' : 'conflict' });
-        } else if (newText === '' && oldText !== '') {
-          if (content === null) { fs.writeFileSync(fp, oldText, 'utf8'); results.push({ path: fp, status: 'reverted' }); }
-          else results.push({ path: fp, status: 'conflict' });
-        } else {
-          if (content !== null && content.includes(newText)) {
-            const occurrences = content.split(newText).length - 1;
-            fs.writeFileSync(fp, content.replace(newText, () => oldText), 'utf8');
-            results.push(occurrences > 1
-              ? { path: fp, status: 'reverted', occurrences, note: 'oldText 多处匹配，仅回滚第一处' }
-              : { path: fp, status: 'reverted' });
-          } else if (content !== null && content === oldText) {
-            results.push({ path: fp, status: 'skipped' });
-          } else {
-            results.push({ path: fp, status: content === null ? 'missing' : 'conflict' });
-          }
-        }
-      } catch (err) {
-        results.push({ path: fp, status: 'failed', error: String(((err as Error).message) || err) });
-      }
-    }
-    log('file-revert', JSON.stringify(results.slice(0, 20)));
-    return { results };
-  },
-  'files.authorize-open': (p): Record<string, unknown> => {
-    let fp = (p && p.path) as string;
-    if (typeof fp !== 'string' || !path.isAbsolute(fp)) return { ok: false, error: 'path must be absolute' };
-    // 归一化必须先于前缀比对：原始串可携带 `..`/大小写变体/符号链接骗过
-    // 字面前缀命中。realPath 跟随符号链接与 ..；叶子不存在时用已解析的
-    // 父目录拼回（随后 existsSync 把关）。
-    try {
-      fp = fs.realpathSync(fp);
-    } catch {
-      try {
-        fp = path.resolve(fs.realpathSync(path.dirname(fp)), path.basename(fp));
-      } catch { /* 连父目录都不可解析：保持原串，交给下方围栏判定 */ }
-    }
-    const lower = (x: string): string => (process.platform === 'win32' ? x.toLowerCase() : x);
-    const skillsRoots = [
-      path.join(dshHome, 'skills'),
-      path.join(process.env.DSH_AGENTS_HOME || path.join(os.homedir(), '.agents'), 'skills'),
-    ].map((r) => lower(path.resolve(r)));
-    const fpL = lower(fp);
-    const underSkillsRoot = skillsRoots.some((r) => fpL === r || fpL.startsWith(r + path.sep));
-    if (!underSkillsRoot && !(fileRootsMod.isUnderFileRoots as (x: string) => boolean)(fp)) {
-      return { ok: false, error: 'path outside session workspace' };
-    }
-    if ((fileRootsMod.DANGEROUS_EXT as RegExp).test(fp)) {
-      return { ok: false, error: 'executable files are not openable from the file view' };
-    }
-    if (!fs.existsSync(fp)) return { ok: false, error: 'file not found' };
-    return { ok: true, path: fp };
-  },
-  // ---- 粘贴/拖放保存（v6 严格模式：plugin-ops 剥出，方法面转桩）----
-  'image-paste.save': stubs.stubMethod('plugin-ops', 'image-paste.save', log),
-  'file-drop.save': stubs.stubMethod('plugin-ops', 'file-drop.save', log),
   // （v6 严格模式：guard.action 由 capability-stubs 桩注册。）
-  'menu.action': async (p): Promise<Record<string, unknown> | null> => {
-    const action = String((p && p.action) || '');
-    const s = loadSettings() as { notifyOnTurnEnd?: boolean; shortcutPolicy?: string; exitAction?: string; closeToTray?: boolean };
-    switch (action) {
-      case 'toggle-notify': {
-        s.notifyOnTurnEnd = s.notifyOnTurnEnd === false;
-        saveSettings(s as Record<string, unknown>);
-        return { notifyOnTurnEnd: s.notifyOnTurnEnd, exitAction: s.exitAction || 'ask' };
-      }
-      case 'toggle-shortcut-policy': {
-        s.shortcutPolicy = s.shortcutPolicy === 'never' ? 'auto' : 'never';
-        saveSettings(s as Record<string, unknown>);
-        return { shortcutPolicy: s.shortcutPolicy, exitAction: s.exitAction || 'ask' };
-      }
-      case 'set-exit-action': {
-        const v = String((p && p.value) || '');
-        if (v !== 'ask' && v !== 'minimize' && v !== 'quit') return null;
-        s.exitAction = v;
-        s.closeToTray = v !== 'quit';
-        saveSettings(s as Record<string, unknown>);
-        return { notifyOnTurnEnd: s.notifyOnTurnEnd !== false, closeToTray: s.closeToTray !== false, exitAction: v };
-      }
-      case 'restart-service': {
-        const r = await (methods['boot.restart'] as (p2?: unknown) => Promise<Record<string, unknown>>)({} as Record<string, unknown>);
-        return r;
-      }
-      // ---- P4 更新链（v6：更新体系剥出，返回 noop；v6.1 Task 8/9 接回） ----
-      case 'check-client-update':
-      case 'check-agent-update': {
-        say('[update] 更新体系已随 v6 最简本体剥出（menu no-op）');
-        return { ok: true, noop: true };
-      }
-      case 'export-logs': {
-        const f = methods['recovery.export-logs'] as () => Promise<Record<string, unknown>>;
-        return typeof f === 'function' ? await f() : { ok: false, error: 'unavailable' };
-      }
-      case 'about': {
-        notify('shell.about', {});
-        return { ok: true };
-      }
-      default:
-        return null;
-    }
-  },
 };
 
 // ---- 救援链 + 能力桩注册（v6 严格模式）-----------------------------------

@@ -79,6 +79,10 @@ test('childEnv 注入 DSH_PERMISSION_MODE=danger-full-access（issue #196）', (
 });
 
 test('childEnv 未设置完全访问时不注入 DSH_PERMISSION_MODE（保持默认 workspace-write）', () => {
+  // childEnv 会先展开 process.env，故断言前必须清掉宿主的同名变量
+  //（在已设 DSH_PERMISSION_MODE 的终端里跑测试时，继承值会掩盖本用例）。
+  const saved = process.env.DSH_PERMISSION_MODE;
+  delete process.env.DSH_PERMISSION_MODE;
   const temp = mkdtempSync(join(tmpdir(), 'dsh-perm-'));
   try {
     writeFileSync(
@@ -94,6 +98,7 @@ test('childEnv 未设置完全访问时不注入 DSH_PERMISSION_MODE（保持默
     const env = childEnv();
     assert.equal(env.DSH_PERMISSION_MODE, undefined);
   } finally {
+    if (saved !== undefined) process.env.DSH_PERMISSION_MODE = saved;
     rmSync(temp, { recursive: true, force: true });
   }
 });

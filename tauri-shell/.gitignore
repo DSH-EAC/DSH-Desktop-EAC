@@ -5,3 +5,4 @@ sidecar/rescue-integration.js
 staged-resources/
 sidecar/ping.js
 sidecar/phone-bridge.js
+sidecar/capability-stubs.js

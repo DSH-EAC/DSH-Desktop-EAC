@@ -1,7 +1,7 @@
 # ADR 0006 — 最简本体范围界定（Task 3.1 解耦本体）
 
-日期：2026-09-14（v4 同日修订：剥离文件连同源码删除，见文末「源码删除」节）
-状态：Accepted（v6 Task 3.1；v4 = 严格模式 + 源码删除版）
+日期：2026-09-14（v5 同日修订：接口面收敛到官方契约；应用版本号升至 6.0.0）
+状态：Accepted（v6 Task 3.1；v5 = 严格模式 + 源码删除 + 接口面收敛 + 6.0.0）
 
 ## 背景
 
@@ -271,3 +271,68 @@ Rust 壳 /died 页（服务停止时）的「重启服务」按钮走 boot.start
 - 严格 boot 全链路：web-ready 带 token → 303 → **200 UI 完整可达**；
 - 插口（capability-stubs.ts）不受影响 —— 接回路径改为
   「git 历史恢复模块 + 覆盖桩 + 装配清单补条目」。
+
+## 接口面收敛（v5，2026-09-14 看板主人裁决「B 方案」）
+
+**裁决**：仅保留官方保留的接口 —— 对外契约用官方 `dshDesktop` 定义，
+外加壳自身必需的最小控制面（窗口控制 + dsh web 编排）。
+
+### 官方契约依据
+
+内核 `apps/desktop/src/ipc.ts` 定义的 `DshDesktopApi`（经 `preload.ts`
+以 `contextBridge` 暴露为 `window.dshDesktop`）：
+
+```
+protocolVersion: 1
+locale(): Promise<DesktopLocale>
+plugins: { list(), add(spec), remove(name), update(name, version) }
+updates: { check(), install(), subscribe(listener) }
+```
+
+### 收敛后的 `window.dshDesktop`（bridge.ts）
+
+```
+window.dshDesktop = {
+  // ---- 官方契约 ----
+  protocolVersion: 1,
+  locale(),                                  // 读 navigator.language
+  plugins: { list → [], add/remove/update → unavailable },   // 能力随本体剥出
+  updates: { check → {phase:'idle'}, install → unavailable, subscribe → noop },
+  // ---- 壳最小控制面（主窗 decorations(false)，自绘标题栏必需）----
+  windowControls: { minimize, toggleMaximize, close, isMaximized,
+                    reload, toggleDevtools, toggleFullscreen,
+                    openInBrowser, onMaximizeChange },
+  boot: { start, stop, state, restart, onStateChange },
+  // ---- 内省（壳页/冒烟用，非对外契约）----
+  _call, _send, _onNotify, _onReady,
+}
+```
+
+**删除的 EAC 自造面**（20 个方法族）：menu / getInfo / refreshBalance /
+restartService / floatWindow / phoneBridge / guard / pluginWizard /
+pluginManager / pluginUpdates / imagePaste / fileDrop / balancePrices /
+balanceModels / revertFiles / openPath / openExternal / copyText /
+getPathForFile / recovery / rescue。
+
+### 联动改动
+
+| 位置 | 改动 |
+|---|---|
+| `bridge.ts` | 838 → 约 400 行：菜单 DOM / 状态栏 / 浮窗栏 / 余额事件推送 / 内核模块兼容垫片全部移除 |
+| `main.rs` | `menu.action` 的纯壳动作迁为 `win.reload` / `win.devtools` / `win.fullscreen` / `win.open-browser`；`files.open` / `clipboard.write-text` / `float.*` 分支与 `/wizard` 页（含 wizard.show/close 通知）删除；`/died` 页去掉安全模式按钮（能力随救援链剥出）；退出策略与关于页改读 `boot.state` |
+| `server.ts` | 删 `chrome.init` / `menu.action` / `service.restart` / `files.*` / `image-paste.save` / `file-drop.save`；`boot.state` 增补 appVersion / agentVersion / agentSource / iconDataUri / exitAction；`shell.info` 精简为自检身份面 |
+| `proc.ts` | 修 presetCache 命中键（补文件路径）：不同 DSH_HOME 的 settings.yaml 可能落在同一 mtime 刻度（Windows 时间粒度粗，实测两临时目录逐位相同），原实现会把上一个 home 的权限判定串到当前 home |
+| 应用版本 | 5.5.0/5.4.1/0.1.0 → **6.0.0**（package.json / package-lock / tauri.conf.json / Cargo.toml 四处同步） |
+
+### v5 验证（2026-09-14 实测）
+
+- Rust：`cargo build --release` 通过（crate v6.0.0）、`cargo test` 5/5；
+- TS：tsc 全绿；全量测试 **180/178/0 失败**（+2 skip）；
+- 隔离实测（`H:\DSHEAC-v6-iso`，独立 DSH_HOME / AppData）：
+  壳启动 → dsh web 就绪 → UI 带 token 303 / 无 token 401；
+  profile 仅官方 `@deepseek-ai/dsh-base` + `dsh-web-app`（零插件行）；
+  壳页 `/about` 200、`/died` 200；
+  **WS 直读 `boot.state`：`appVersion=6.0.0`、`agentVersion=0.1.5-rc.2`、
+  `agentSource=内置`、`exitAction=ask`、`iconDataUri` 195KB 正常透出**；
+  隔离性：用户真实 `~/.dsh` 零改动。
+
