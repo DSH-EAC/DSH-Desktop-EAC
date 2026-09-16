@@ -1,0 +1,92 @@
+/* AIO 壳层控件样式
+ *
+ * 作用域和控件 class 沿用 system.default，只改变视觉。所有颜色均由
+ * tokens.css 提供；fallback 保证皮肤资源缺失时控件仍然可读。
+ */
+
+.eac-shell body {
+  background: var(--eac-shell-bg-page, radial-gradient(1200px 600px at 50% -10%, #1b2a6b 0%, #0b1220 55%));
+  color: var(--eac-shell-text-primary, #e6ecff);
+  font-family: var(--eac-shell-font-family, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif);
+}
+
+.eac-shell ::-webkit-scrollbar {
+  width: 9px;
+}
+
+.eac-shell ::-webkit-scrollbar-thumb {
+  background: var(--eac-shell-scrollbar-thumb, rgba(122, 150, 255, .22));
+  border-radius: 5px;
+}
+
+.eac-shell ::-webkit-scrollbar-thumb:hover {
+  background: var(--eac-shell-scrollbar-thumb-hover, rgba(138, 178, 255, .38));
+}
+
+.eac-shell .eac-btn {
+  border: 1px solid var(--eac-shell-border-strong, rgba(255, 255, 255, .16));
+  background: var(--eac-shell-surface, rgba(255, 255, 255, .06));
+  color: var(--eac-shell-text-primary, #e6ecff);
+  border-radius: 9px;
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(16px) saturate(1.5);
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.eac-shell .eac-btn:hover {
+  border-color: var(--eac-shell-accent-soft-border, rgba(122, 150, 255, .38));
+  background: var(--eac-shell-surface-hover, rgba(255, 255, 255, .12));
+}
+
+.eac-shell .eac-btn:focus-visible {
+  outline: 2px solid var(--eac-shell-accent, #5b8cff);
+  outline-offset: 2px;
+}
+
+.eac-shell .eac-card {
+  border: 1px solid var(--eac-shell-border, rgba(255, 255, 255, .09));
+  border-radius: 12px;
+  background: var(--eac-shell-surface-weak, rgba(255, 255, 255, .03));
+  backdrop-filter: blur(16px) saturate(1.35);
+}
+
+.eac-shell .eac-card-solid {
+  border: 1px solid var(--eac-shell-border, rgba(255, 255, 255, .09));
+  border-radius: 14px;
+  background: var(--eac-shell-card-bg, rgba(17, 26, 48, .92));
+  box-shadow: var(--eac-shell-card-shadow, 0 12px 40px rgba(0, 0, 0, .50));
+  backdrop-filter: blur(20px) saturate(1.5);
+}
+
+.eac-shell .eac-tag {
+  border: 1px solid var(--eac-shell-border, rgba(255, 255, 255, .09));
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--eac-shell-bg-elevated, rgba(11, 18, 32, .66));
+  color: var(--eac-shell-text-label, #93a5d8);
+  font-size: 10.5px;
+}
+
+.eac-shell .eac-tag-ok {
+  border-color: var(--eac-shell-ok-border, rgba(61, 220, 132, .38));
+  color: var(--eac-shell-ok, #3ddc84);
+}
+
+.eac-shell .eac-tag-warn {
+  border-color: var(--eac-shell-warn-border, rgba(255, 214, 102, .38));
+  color: var(--eac-shell-warn, #ffd666);
+}
+
+.eac-shell .eac-tag-danger {
+  border-color: var(--eac-shell-danger-border, rgba(255, 122, 133, .50));
+  color: var(--eac-shell-danger, #ff7a85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eac-shell .eac-btn {
+    transition: none;
+  }
+}

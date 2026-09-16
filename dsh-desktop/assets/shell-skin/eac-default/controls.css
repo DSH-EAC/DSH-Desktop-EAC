@@ -1,0 +1,70 @@
+/* EAC 本体默认皮肤 — 壳层控件类样式
+ *
+ * 只消费 --eac-shell-* token（见 tokens.css），不写死颜色。
+ * 适用于以 class 组织的壳层页面（onboarding / recovery-center）；
+ * Rust 内嵌壳页为短生命周期单元素布局，直接在 style 属性里消费 token。
+ */
+
+/* —— 基底：壳页统一在 <html> 挂 .eac-shell —— */
+.eac-shell body {
+  background: var(--eac-shell-bg-base, #0b1220);
+  color: var(--eac-shell-text-primary, #dfe6ff);
+  font-family: var(--eac-shell-font-family, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif);
+}
+
+/* —— 滚动条 —— */
+.eac-shell ::-webkit-scrollbar { width: 9px; }
+.eac-shell ::-webkit-scrollbar-thumb {
+  background: var(--eac-shell-scrollbar-thumb, rgba(255, 255, 255, .14));
+  border-radius: 5px;
+}
+.eac-shell ::-webkit-scrollbar-thumb:hover {
+  background: var(--eac-shell-scrollbar-thumb-hover, rgba(255, 255, 255, .25));
+}
+
+/* —— 按钮 —— */
+.eac-shell .eac-btn {
+  border: 1px solid var(--eac-shell-border-strong, rgba(255, 255, 255, .18));
+  background: var(--eac-shell-accent-soft-bg-strong, rgba(91, 140, 255, .15));
+  color: var(--eac-shell-text-primary, #dfe6ff);
+  border-radius: 9px;
+  padding: 8px 22px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.eac-shell .eac-btn:hover { background: var(--eac-shell-accent-soft-bg-hover, rgba(91, 140, 255, .22)); }
+
+/* —— 卡片 —— */
+.eac-shell .eac-card {
+  border: 1px solid var(--eac-shell-border-weak, rgba(255, 255, 255, .08));
+  border-radius: 10px;
+  background: var(--eac-shell-surface-weak, rgba(255, 255, 255, .025));
+}
+.eac-shell .eac-card-solid {
+  background: var(--eac-shell-card-bg, #1e1e2e);
+  border: 1px solid var(--eac-shell-border, rgba(255, 255, 255, .1));
+  border-radius: 14px;
+  box-shadow: var(--eac-shell-card-shadow, 0 12px 48px rgba(0, 0, 0, .6));
+}
+
+/* —— 标签 / 徽章 —— */
+.eac-shell .eac-tag {
+  font-size: 10.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--eac-shell-border, rgba(255, 255, 255, .1));
+  color: var(--eac-shell-text-secondary, #8b9ac4);
+}
+.eac-shell .eac-tag-ok {
+  color: var(--eac-shell-ok, #3ddc84);
+  border-color: var(--eac-shell-ok-border, rgba(61, 220, 132, .35));
+}
+.eac-shell .eac-tag-warn {
+  color: var(--eac-shell-warn, #ffd666);
+  border-color: var(--eac-shell-warn-border, rgba(255, 214, 102, .35));
+}
+.eac-shell .eac-tag-danger {
+  color: var(--eac-shell-danger, #ff7a85);
+  border-color: var(--eac-shell-danger-border, rgba(255, 122, 133, .4));
+}
