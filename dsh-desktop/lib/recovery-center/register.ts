@@ -30,6 +30,7 @@ import {
   pluginManagerCollect, pluginManagerSetEnabled, pluginManagerSetRemoved,
 } from '../desktop/plugin-ops.js';
 import { COMPANION_PLUGINS } from '../desktop/companion-sync.js';
+import { DISTRIBUTION_BUILTIN_PLUGIN_IDS } from '../desktop/plugin-sync-registry.js';
 import { desktopProfileDir } from '../desktop/profile.js';
 import { state as bootState } from '../desktop/boot-server.js';
 import {
@@ -237,21 +238,24 @@ export async function handleRcAction(action: string, value?: unknown): Promise<R
 // ---------------------------------------------------------------------------
 
 /**
- * 为全部已装插件建档：内置配套表（source=builtin）+ patch 行里的其余插件
- * （source=market，市场/手工安装均走 dsh plugin add）。风险等级统一为
+ * 为全部已装插件建档：distribution builtin 标记 source=builtin，其余迁移期
+ * vendored 与市场/手工安装项标记 source=market。风险等级统一为
  * legacy-cordis（SDK 插件出现后由安装器写 isolated-sdk）。
  */
 export function archivePluginProfiles(): void {
   try {
     // 批量建档（一次读 + 一次写）：逐插件 upsert = 40+ 插件 80 次 IO /
     // 40 次原子写，都在 boot 热路径上。
-    const batch: { id: string; source: 'builtin' | 'market' }[] =
-      COMPANION_PLUGINS.map((p) => ({ id: p.id, source: 'builtin' as const }));
-    // patch 行中登记、但不在内置表里的 = 市场/手工安装插件。
-    const builtin = new Set(COMPANION_PLUGINS.map((p) => p.id));
+    const builtin = new Set<string>(DISTRIBUTION_BUILTIN_PLUGIN_IDS);
+    const known = new Set(COMPANION_PLUGINS.map((p) => p.id));
+    const batch: { id: string; source: 'builtin' | 'market' }[] = COMPANION_PLUGINS.map((p) => ({
+      id: p.id,
+      source: builtin.has(p.id) ? 'builtin' : 'market',
+    }));
+    // patch 行中登记、但不在 vendored inventory 里的 = 市场/手工安装插件。
     const rows = pluginManagerCollect() as { id: string; core?: boolean }[];
     for (const r of rows) {
-      if (builtin.has(r.id) || r.core) continue;
+      if (known.has(r.id) || r.core) continue;
       batch.push({ id: r.id, source: 'market' });
     }
     upsertLegacyPlugins(batch);

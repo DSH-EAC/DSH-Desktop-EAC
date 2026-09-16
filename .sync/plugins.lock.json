@@ -1077,7 +1077,7 @@
         "packageName": "dsh-plugin-wizard",
         "packageVersion": "0.1.0",
         "path": "dsh-desktop/assets/plugins/dsh-plugin-wizard",
-        "treeSha256": "5b1e5ea52a6d9ea116be768662260341f8b255246bd80176c7573db47faec7b6"
+        "treeSha256": "9324a2d9f92e8eec52c3caac01ab3d2eb5de961a44984ce7aa482db0fea9cde9"
       },
       "manifestEntrySha256": "dee87795f561f230c6cc713ccfd28c8e3f71dc2431e41b8af53e190647d52200",
       "patchFiles": [],
@@ -1087,7 +1087,7 @@
       "runtimeUpdate": "disabled",
       "source": {
         "kind": "unknown",
-        "sha256": "5b1e5ea52a6d9ea116be768662260341f8b255246bd80176c7573db47faec7b6",
+        "sha256": "9324a2d9f92e8eec52c3caac01ab3d2eb5de961a44984ce7aa482db0fea9cde9",
         "version": "0.1.0"
       },
       "sourceCommit": null

@@ -28,11 +28,11 @@ test('composer dynamic island is a registered and recommended EAC companion plug
     /\{ id: 'composer-dynamic-island', name: 'dsh-composer-dynamic-island', dir: 'dsh-composer-dynamic-island' \}/,
   );
 
-  const onboarding = text(ROOT, 'scripts', 'onboarding.js');
-  const recommendedStart = onboarding.indexOf('const RECOMMENDED_PLUGIN_IDS');
-  const recommendedEnd = onboarding.indexOf(']);', recommendedStart);
-  assert.ok(recommendedStart >= 0 && recommendedEnd > recommendedStart);
-  assert.match(onboarding.slice(recommendedStart, recommendedEnd), /'composer-dynamic-island'/);
+  const distributionRegistry = text(ROOT, 'lib', 'desktop', 'plugin-sync-registry.ts');
+  const marker = distributionRegistry.match(/plugin-sync:distribution\s+([^\n]+)/);
+  assert.ok(marker);
+  const distribution = JSON.parse(marker[1]);
+  assert.ok(distribution.recommendedPluginIds.includes('composer-dynamic-island'));
 });
 
 test('vendored package exposes the EAC Web loader contract without changing the upstream runtime id', () => {

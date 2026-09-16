@@ -120,3 +120,9 @@ test('安全模式：非核心插件强制禁用（companion-sync 守卫 + 恢�
   assert.ok(/safeModePatch/.test(rcSrc), 'recovery-center safe-mode must patch to core-only rows');
   assert.ok(/safe-mode\.json/.test(rcSrc), 'safe-mode must persist state file');
 });
+
+test('恢复档案按 distribution builtin registry 分类，而不是把所有 vendored 资产视为内置', () => {
+  const rcSrc = read('lib', 'recovery-center', 'register.ts');
+  assert.match(rcSrc, /DISTRIBUTION_BUILTIN_PLUGIN_IDS/);
+  assert.doesNotMatch(rcSrc, /COMPANION_PLUGINS\.map\(\(p\) => \(\{ id: p\.id, source: 'builtin'/);
+});

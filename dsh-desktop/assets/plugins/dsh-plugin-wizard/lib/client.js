@@ -1,9 +1,9 @@
 /**
  * dsh-plugin-wizard — browser half: the 插件 → 选择向导 settings section.
  *
- * One button re-opens the built-in plugin selection wizard (the same
+ * One button re-opens the plugin distribution wizard (the same
  * onboarding.html shown on first launch) in "rerun" mode, letting users
- * enable / disable built-in plugins at any time. All actions ride the
+ * choose recommended-pack features while builtin plugins stay enabled. All actions ride the
  * window.dshDesktop.pluginWizard IPC bridge (desktop shell).
  *
  * Hand-written ModuleLoader bundle — no build step required.
@@ -37,7 +37,7 @@ window.__ModuleLoader__.load({
     var NS = "pluginWizard";
     var zh = {
       nav: "选择向导",
-      intro: "内置插件（随客户端分发）默认按首启向导的选择启用。需要重新调整时，从这里再次打开选择向导：勾选 = 启用，取消勾选 = 停用（插件包不会被卸载，「插件 → 管理」里仍可单独操作）。",
+      intro: "内置插件保持启用；推荐插件包中的功能可按需选择。迁移期间这里只调整启停状态，不会卸载插件包，「插件 → 管理」里仍可单独操作。",
       open: "重新打开插件选择向导",
       busy: "已打开向导窗口…",
       noBridge: "此功能需要 Deepseek Harness EAC 桌面端运行（浏览器/CLI 模式下不可用）。",
@@ -45,7 +45,7 @@ window.__ModuleLoader__.load({
     };
     var en = {
       nav: "Plugin wizard",
-      intro: "Built-in plugins (shipped with the client) are enabled per the first-run wizard's selection. Re-open the wizard here anytime: checked = enabled, unchecked = disabled (packages are kept; fine-grained toggles stay in Plugins → Manage).",
+      intro: "Built-in plugins stay enabled. Choose features from the recommended plugin pack; during migration this changes enabled state without uninstalling packages.",
       open: "Re-open plugin wizard",
       busy: "Wizard window opened…",
       noBridge: "This requires the Deepseek Harness EAC desktop shell (unavailable in browser/CLI mode).",

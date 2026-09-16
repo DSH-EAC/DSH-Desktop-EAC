@@ -83,6 +83,7 @@ function fixture() {
   };
   const policies = JSON.parse(readFileSync(join(root, '.sync', 'policies.json'), 'utf8'));
   policies.runtimeUpdates.legacySourceCount = 0;
+  policies.pluginDistribution.enabled = false;
   writeFileSync(join(root, '.sync', 'policies.json'), JSON.stringify(policies, null, 2) + '\n');
   writeFileSync(join(root, '.sync', 'plugins.json'), JSON.stringify(manifest, null, 2) + '\n');
   const generated = runRegistryGenerator(['--root', root]);

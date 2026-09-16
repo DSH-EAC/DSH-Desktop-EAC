@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<title>内置插件选择向导</title>
+<title>插件分发选择向导</title>
 <style>
   :root { color-scheme: dark; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -128,8 +128,8 @@
   </div>
 
   <div class="hero">
-    <h1>内置插件选择向导</h1>
-    <p id="intro">选择要在 DeepSeek Harness 中默认启用的内置插件。未勾选的插件也会安装，但会处于停用状态，之后可在「设置 → 插件 → 管理」或重新打开本向导随时启用。</p>
+    <h1>插件分发选择向导</h1>
+    <p id="intro">内置插件保持启用；可在此选择推荐插件包中的功能。迁移期间未勾选项会保持停用，之后可在「设置 → 插件 → 管理」或重新打开本向导调整。</p>
   </div>
 
   <div class="toolbar">
@@ -147,7 +147,7 @@
   <div class="footer">
     <span class="note" id="footerNote">停用不等于卸载：插件包与「插件管理」页保持完整，随时可一键启用。</span>
     <button class="skip" id="skipBtn" hidden>跳过（保持全部启用）</button>
-    <button class="go" id="goBtn" disabled>安装所选插件</button>
+    <button class="go" id="goBtn" disabled>应用选择</button>
   </div>
 
 <script>
@@ -181,8 +181,8 @@
     $('modeTag').textContent = 'First run';
     $('closeBtn').title = 'Close (skip)';
     $('closeBtn').setAttribute('aria-label', 'Close');
-    document.querySelector('.hero h1').textContent = 'Built-in plugin wizard';
-    $('intro').textContent = 'Choose the built-in plugins enabled by default. Unselected packages remain installed and can be enabled later under Settings > Plugins > Manage or by reopening this wizard.';
+    document.querySelector('.hero h1').textContent = 'Plugin distribution wizard';
+    $('intro').textContent = 'Built-in plugins stay enabled. Choose features from the recommended plugin pack; migration-period packages can be adjusted later under Settings > Plugins > Manage.';
     var count = document.querySelector('.count');
     count.childNodes[0].nodeValue = 'Selected ';
     count.childNodes[count.childNodes.length - 1].nodeValue = ' total';
@@ -192,7 +192,7 @@
     $('fullBtn').title = 'Select every plugin, including optional enhancements';
     $('footerNote').textContent = 'Disabling is not uninstalling: plugin packages remain available in Plugin management and can be enabled anytime.';
     $('skipBtn').textContent = 'Skip (keep all enabled)';
-    $('goBtn').textContent = 'Install selected plugins';
+    $('goBtn').textContent = 'Apply selection';
   }
 
   function fmtSize(bytes) {
@@ -215,12 +215,12 @@
     selCountEl.textContent = String(state.selected.size);
     goBtn.disabled = state.busy;
     goBtn.textContent = english
-      ? (state.busy ? 'Applying...' : (state.mode === 'rerun' ? 'Apply changes' : 'Install selected plugins'))
-      : (state.busy ? '正在应用…' : (state.mode === 'rerun' ? '应用更改' : '安装所选插件'));
+      ? (state.busy ? 'Applying...' : 'Apply selection')
+      : (state.busy ? '正在应用…' : '应用选择');
 
     var html = '';
     html += section(english ? 'Required core' : '核心必装', 'badge-lock', english ? 'Always enabled (UI foundation)' : '始终启用（主界面/设置页底座）', core);
-    html += section(english ? 'Recommended' : '推荐', 'badge-rec', english ? 'Common enhancements' : '常用功能增强', rec);
+    html += section(english ? 'Recommended pack' : '推荐插件包', 'badge-rec', english ? 'Common enhancements' : '常用功能增强', rec);
     html += section(english ? 'Optional' : '可选增强', 'badge-opt', english ? 'Enable as needed' : '按需启用', opt);
     groupsEl.innerHTML = html;
 
