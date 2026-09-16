@@ -74,4 +74,7 @@ test('Tauri 资源装配不再携带 WSL 后端', () => {
 test('generated plugin registry is included in the staged desktop runtime', () => {
   const lists = stageLists();
   assert.ok(lists.LIB_DESKTOP.includes('plugin-sync-registry.js'));
+  const registry = fs.readFileSync(join(root, 'lib', 'desktop', 'plugin-sync-registry.ts'), 'utf8');
+  assert.match(registry, /DISTRIBUTION_BUILTIN_PLUGIN_IDS/);
+  assert.match(registry, /RECOMMENDED_PACK_PLUGIN_IDS/);
 });

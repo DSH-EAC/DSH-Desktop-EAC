@@ -126,9 +126,11 @@ test('compat translator leaves conversation, code, terminal, editor, and user-in
 
 test('compat plugin is registered as a required core plugin', () => {
   const sync = readFileSync(join(root, 'lib', 'desktop', 'companion-sync.ts'), 'utf8');
-  const onboarding = readFileSync(join(root, 'scripts', 'onboarding.js'), 'utf8');
+  const registry = readFileSync(join(root, 'lib', 'desktop', 'plugin-sync-registry.ts'), 'utf8');
   assert.match(sync, /id: 'eac-locale-compat'.*name: 'dsh-eac-locale-compat'/);
-  assert.match(onboarding, /CORE_PLUGIN_IDS[\s\S]*'eac-locale-compat'/);
+  const marker = registry.match(/plugin-sync:distribution\s+([^\n]+)/);
+  assert.ok(marker);
+  assert.ok(JSON.parse(marker[1]).builtinPluginIds.includes('eac-locale-compat'));
 });
 
 test('shell-owned HTML includes an English branch for non-Chinese browser languages', () => {
@@ -139,7 +141,7 @@ test('shell-owned HTML includes an English branch for non-Chinese browser langua
     assert.match(html, /split\('-'\)\[0\] === 'zh'/);
     assert.match(html, /document\.documentElement\.lang = english \? 'en' : 'zh-CN'/);
   }
-  assert.match(onboarding, /Built-in plugin wizard/);
+  assert.match(onboarding, /Plugin distribution wizard/);
   assert.match(recovery, /Recovery Center/);
 });
 

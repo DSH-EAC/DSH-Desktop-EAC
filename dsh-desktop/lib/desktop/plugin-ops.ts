@@ -151,7 +151,7 @@ export function pluginManagerResolveName(id: string): string {
 
 // 恢复单个配套插件：立即复制包 + 补写 patch 行（与 syncCompanionPlugins
 // 的写入规则一致），重启服务后生效。源目录走「覆盖层优先」（V4.3）：
-// 被恢复的内置插件若是已更新版本，恢复回来的就是更新版。
+// 被恢复的配套插件若是已更新版本，恢复回来的就是更新版。
 function restoreCompanionPlugin(p: CompanionPlugin): { ok: boolean; error?: string } {
   const profileDirP = desktopProfileDir();
   const dirName = p.dir || (p.name.includes('/') ? p.name.split('/').pop() as string : p.name);
@@ -185,7 +185,7 @@ function restoreCompanionPlugin(p: CompanionPlugin): { ok: boolean; error?: stri
 // removed=true 移除（卸载语义）；removed=false 恢复。核心插件拒绝移除。
 export function pluginManagerSetRemoved(id: string, removed: boolean): { ok: boolean; error?: string; restartRequired?: boolean } {
   const p = COMPANION_PLUGINS.find((x) => x.id === id);
-  if (!p) return { ok: false, error: '未知内置插件: ' + String(id) };
+  if (!p) return { ok: false, error: '未知配套插件: ' + String(id) };
   if (onboardingLogic.CORE_PLUGIN_IDS.has(id)) {
     return { ok: false, error: '核心插件不可移除: ' + String(id) };
   }

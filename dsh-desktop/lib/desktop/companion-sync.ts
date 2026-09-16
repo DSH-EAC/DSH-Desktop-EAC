@@ -15,7 +15,10 @@ import { ensureGuard } from './guard-box';
 import { applySessionManageFix } from './runtime-patches';
 import { pluginCapabilityDetails } from './platform';
 import { writeFileAtomic } from '../atomic-json.js';
-import { PLUGIN_UPDATE_SOURCES as GENERATED_PLUGIN_UPDATE_SOURCES } from './plugin-sync-registry';
+import {
+  DISTRIBUTION_BUILTIN_PLUGIN_IDS,
+  PLUGIN_UPDATE_SOURCES as GENERATED_PLUGIN_UPDATE_SOURCES,
+} from './plugin-sync-registry';
 // 未类型化依赖（Wave 3 收编），先以窄签名消费。
 const updater = require('../../updater') as {
   loadSettings(c: ReturnType<typeof updCtx>): { removedPlugins?: unknown };
@@ -496,6 +499,16 @@ export const RETIRED_BUILTIN_PLUGINS = [
   // 会重复注入内容并让官方图片遮罩停留。由 file-drop-eac 完整取代。
   { id: 'file-drop', name: 'dsh-file-drop' },
 ];
+
+function assertBuiltinDistributionRegistry(): void {
+  const companionIds = new Set(COMPANION_PLUGINS.map((plugin) => plugin.id));
+  const retiredIds = new Set(RETIRED_BUILTIN_PLUGINS.map((plugin) => plugin.id));
+  for (const id of DISTRIBUTION_BUILTIN_PLUGIN_IDS) {
+    if (!companionIds.has(id)) throw new Error(`builtin distribution id is not vendored: ${id}`);
+    if (retiredIds.has(id)) throw new Error(`builtin distribution id is retired: ${id}`);
+  }
+}
+assertBuiltinDistributionRegistry();
 
 // 清理退役内置插件在 profile 的所有残留（patch 行 / 包副本 / 依赖项）。
 // 内部函数：外部一律走带版本对齐门控的 retireRemovedBuiltinPluginsGated

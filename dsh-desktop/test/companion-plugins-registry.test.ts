@@ -29,6 +29,9 @@ const syncRoot = join(root, '..', '.sync');
 // ADR 0002：COMPANION_PLUGINS / RETIRED_BUILTIN_PLUGINS 已迁至 L2 模块。
 const main = readFileSync(join(root, 'lib', 'desktop', 'companion-sync.ts'), 'utf8');
 const generatedRegistry = readFileSync(join(root, 'lib', 'desktop', 'plugin-sync-registry.ts'), 'utf8');
+const distribution = JSON.parse(readFileSync(join(syncRoot, 'plugin-distribution.json'), 'utf8')) as {
+  plugins: { id: string; distributionClass: 'builtin' | 'recommended' | 'external' }[];
+};
 const manifest = JSON.parse(readFileSync(join(syncRoot, 'plugins.json'), 'utf8')) as {
   schemaVersion: number;
   generatedRegistry: string;
@@ -236,6 +239,37 @@ test('companion-sync exports the generated source map without a second hand-main
   assert.match(main, /from ['"]\.\/plugin-sync-registry['"]/);
   assert.match(main, /export const PLUGIN_UPDATE_SOURCES[^=]*=\s*GENERATED_PLUGIN_UPDATE_SOURCES/);
   assert.doesNotMatch(main, /['"]picturereader['"]\s*:\s*\{\s*npm:/);
+});
+
+test('runtime distribution registries are generated from the machine-readable ledgers', () => {
+  const builtin = distribution.plugins
+    .filter((entry) => entry.distributionClass === 'builtin')
+    .map((entry) => entry.id)
+    .sort();
+  const recommended = distribution.plugins
+    .filter((entry) => entry.distributionClass === 'recommended')
+    .map((entry) => entry.id)
+    .sort();
+  const marker = generatedRegistry.match(/plugin-sync:distribution\s+([^\n]+)/);
+  assert.ok(marker, 'generated registry must contain the distribution marker');
+  const runtime = JSON.parse(marker[1]) as { builtinPluginIds: string[]; recommendedPluginIds: string[] };
+  assert.deepEqual(runtime.builtinPluginIds, builtin);
+  assert.deepEqual(runtime.recommendedPluginIds, recommended);
+});
+
+test('CORE plugin ids equal distribution builtin ids and never overlap retired ids', async () => {
+  const onboarding = await import('../scripts/onboarding.js');
+  const builtin = distribution.plugins
+    .filter((entry) => entry.distributionClass === 'builtin')
+    .map((entry) => entry.id)
+    .sort();
+  assert.deepEqual([...onboarding.default.CORE_PLUGIN_IDS].sort(), builtin);
+
+  const retiredStart = main.indexOf('const RETIRED_BUILTIN_PLUGINS');
+  const retiredSlice = main.slice(retiredStart, main.indexOf('];', retiredStart));
+  const retired = new Set([...retiredSlice.matchAll(/id:\s*'([^']+)'/g)].map((match) => match[1]));
+  assert.deepEqual(builtin.filter((id) => retired.has(id)), []);
+  assert.equal(onboarding.default.CORE_PLUGIN_IDS.has('dsh-market-plugin'), false);
 });
 
 test('pluginUpdateSources keeps the companion boundary and filters unavailable platforms', () => {

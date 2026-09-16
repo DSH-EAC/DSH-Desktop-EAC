@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   CORE_PLUGIN_IDS,
   RECOMMENDED_PLUGIN_IDS,
+  onboardingPlugins,
   needsPluginOnboarding,
   pluginCurrentState,
   buildSelectionOps,
@@ -17,7 +18,7 @@ const REGISTRY = [
   { id: 'file-changes', name: '@deepseek-ai/dsh-file-changes' },
   { id: 'client-file-changes', name: '@deepseek-ai/dsh-client-file-changes' },
   { id: 'terminal', name: '@deepseek-ai/dsh-terminal' },
-  { id: 'dsh-market-plugin', name: '@sanqi-normal/dsh-webui-market-plugin', dir: 'dsh-webui-market' },
+  { id: 'unified-market', name: 'dsh-unified-market', dir: 'dsh-unified-market' },
   { id: 'plugin-manager', name: '@deepseek-ai/dsh-plugin-manager' },
   { id: 'plugin-shield', name: 'dsh-plugin-shield', dir: 'dsh-plugin-shield' },
   { id: 'plugin-wizard', name: 'dsh-plugin-wizard', dir: 'dsh-plugin-wizard' },
@@ -114,6 +115,16 @@ test('sanitizeSelection：非数组输入退化为仅核心', () => {
   assert.deepEqual([...want].sort(), [...CORE_PLUGIN_IDS].sort());
 });
 
+test('onboardingPlugins：目录只消费 distribution builtin 与推荐 pack registry', () => {
+  const registry = [
+    ...REGISTRY,
+    { id: 'skin-switch', name: '@deepseek-ai/dsh-skin-switch' },
+    { id: 'external-only', name: 'external-only' },
+  ];
+  const visible = onboardingPlugins(registry, new Set(['balance', 'skin-switch']), new Set(['better-sidebar']));
+  assert.deepEqual(visible.map((plugin) => plugin.id), ['balance', 'better-sidebar', 'skin-switch']);
+});
+
 test('sanitizeSelection：平台 unavailable 插件即使被提交也不会启用', () => {
   const unavailable = new Set(['computer-user', 'dsh-dafeiyu']);
   const registry = [...REGISTRY, { id: 'computer-user', name: 'computer-user' }];
@@ -127,41 +138,44 @@ test('sanitizeSelection：平台 unavailable 插件即使被提交也不会启�
 // 操作清单（首次 normalize / 二次差集）
 // ---------------------------------------------------------------------------
 
-test('buildSelectionOps：首次向导（current=null）→ 所有非核心都写显式状态', () => {
-  const want = sanitizeSelection([], REGISTRY, CORE_PLUGIN_IDS);
+test('buildSelectionOps：首次向导停用未选择的推荐与 external 目标项', () => {
+  const visible = onboardingPlugins(REGISTRY, CORE_PLUGIN_IDS, RECOMMENDED_PLUGIN_IDS);
+  const want = sanitizeSelection([], visible, CORE_PLUGIN_IDS);
   const ops = buildSelectionOps(REGISTRY, CORE_PLUGIN_IDS, want, null);
   const byId = new Map(ops.map((o) => [o.id, o]));
   for (const p of REGISTRY) {
     if (CORE_PLUGIN_IDS.has(p.id)) {
       assert.ok(!byId.has(p.id), '核心插件不得产生操作: ' + p.id);
     } else {
-      assert.ok(byId.has(p.id), '非核心插件必须产生操作: ' + p.id);
+      assert.ok(byId.has(p.id), '首次向导的非 builtin 项必须产生操作: ' + p.id);
       assert.equal(byId.get(p.id).enable, false);
     }
   }
 });
 
 test('buildSelectionOps：首次向导选中项 → enable', () => {
-  const want = sanitizeSelection(['dsh-pet', 'offpeak'], REGISTRY, CORE_PLUGIN_IDS);
+  const visible = onboardingPlugins(REGISTRY, CORE_PLUGIN_IDS, RECOMMENDED_PLUGIN_IDS);
+  const want = sanitizeSelection(['dsh-pet', 'offpeak'], visible, CORE_PLUGIN_IDS);
   const ops = buildSelectionOps(REGISTRY, CORE_PLUGIN_IDS, want, null);
-  assert.equal(ops.find((o) => o.id === 'dsh-pet').enable, true);
+  assert.equal(ops.find((o) => o.id === 'dsh-pet').enable, false, 'external 项不接受向导提交');
   assert.equal(ops.find((o) => o.id === 'offpeak').enable, true);
   assert.equal(ops.find((o) => o.id === 'zat-market').enable, false);
 });
 
-test('buildSelectionOps：二次向导只切换与当前不同的插件', () => {
+test('buildSelectionOps：二次向导只切换可见项并保留 external 用户状态', () => {
   const current = {
     balance: true, 'file-changes': true, 'client-file-changes': true, terminal: true,
-    'dsh-market-plugin': true, 'plugin-manager': true, 'plugin-shield': true, 'plugin-wizard': true,
+    'unified-market': true, 'plugin-manager': true, 'plugin-shield': true, 'plugin-wizard': true,
     'dsh-pet': false, 'dsh-dafeiyu': false, 'zat-market': true, offpeak: true, 'better-sidebar': true,
   };
-  // 用户新勾选 dsh-pet，取消 zat-market / offpeak / better-sidebar
-  const want = sanitizeSelection(['dsh-pet'], REGISTRY, CORE_PLUGIN_IDS);
-  const ops = buildSelectionOps(REGISTRY, CORE_PLUGIN_IDS, want, current);
+  const visible = onboardingPlugins(REGISTRY, CORE_PLUGIN_IDS, RECOMMENDED_PLUGIN_IDS);
+  // external dsh-pet 即使被提交也会丢弃；只取消推荐项 offpeak/better-sidebar。
+  const want = sanitizeSelection(['dsh-pet'], visible, CORE_PLUGIN_IDS);
+  const ops = buildSelectionOps(visible, CORE_PLUGIN_IDS, want, current);
   const byId = new Map(ops.map((o) => [o.id, o]));
-  assert.equal(ops.length, 4, '应有 4 个变更（pet 启用、zat/offpeak/better-sidebar 停用）');
-  assert.deepEqual(byId.get('dsh-pet'), { id: 'dsh-pet', enable: true });
-  assert.deepEqual(byId.get('zat-market'), { id: 'zat-market', enable: false });
+  assert.equal(ops.length, 2, '只应停用两个推荐项');
+  assert.equal(byId.has('dsh-pet'), false);
+  assert.equal(byId.has('zat-market'), false);
   assert.deepEqual(byId.get('offpeak'), { id: 'offpeak', enable: false });
   assert.deepEqual(byId.get('better-sidebar'), { id: 'better-sidebar', enable: false });
 });
@@ -178,7 +192,7 @@ test('buildCatalog：核心/推荐/体积/描述标记正确', () => {
     dirSize: (dir) => ({ 'dsh-pet': 15728640, 'dsh-dafeiyu': 60817408 }[dir] || 0),
   });
   const byId = new Map(catalog.map((c) => [c.id, c]));
-  assert.equal(byId.get('dsh-market-plugin').core, true);
+  assert.equal(byId.get('unified-market').core, true);
   assert.equal(byId.get('plugin-wizard').core, true);
   assert.equal(byId.get('better-sidebar').core, false);
   assert.equal(byId.get('better-sidebar').recommended, true);

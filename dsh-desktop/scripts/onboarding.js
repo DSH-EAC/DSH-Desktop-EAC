@@ -1,52 +1,23 @@
 'use strict';
 // ---------------------------------------------------------------------------
-// 首次启动「内置插件选择向导」—— 纯逻辑层（无 fs / electron 依赖，可直接
+// 首次启动「插件分发选择向导」—— 纯逻辑层（无 fs / electron 依赖，可直接
 // 被 node --test 单元测试）。
 //
-// 背景：38 个内置插件（COMPANION_PLUGINS，另有 10 个内置皮肤）每次启动被
-// syncCompanionPlugins 无条件全量复制 + 注册到 web profile，对只需要其中
-// 一部分的用户显得臃肿。本模块只负责「判定 / 目录 / 状态 / 操作清单」四件
-// 纯函数事，写盘与 IPC 由 main.js 完成。
+// COMPANION_PLUGINS 在迁移期仍覆盖全部 vendored 资产；向导目录只消费生成的
+// distribution builtin 与推荐 pack registry，避免把外部按需资产误称为内置。
 // ---------------------------------------------------------------------------
 
-// 核心必装插件（向导中锁定，不可取消勾选）：主界面 / 设置页的底座，卸载会
-// 破坏界面。其中 plugin-wizard 是设置页「重新打开向导」的入口，永远在场。
-const CORE_PLUGIN_IDS = new Set([
-  'balance',
-  'file-changes',
-  'client-file-changes',
-  'terminal',
-  'dsh-market-plugin',
-  'plugin-manager',
-  'plugin-shield',
-  'plugin-wizard',
-  'eac-locale-compat',
-  // EAC 内置 agent preset 直接引用 dsh-compact/engine；允许移除会让这些
-  // preset 在创建会话时因 MODULE_NOT_FOUND 失效。
-  'compact',
-]);
+const {
+  DISTRIBUTION_BUILTIN_PLUGIN_IDS,
+  RECOMMENDED_PACK_PLUGIN_IDS,
+} = require('../lib/desktop/plugin-sync-registry');
 
-// 向导默认勾选（推荐）：核心之外保留常用增强；重/冷门项（桌宠、第二市场、
-// 外观微调、ClawBot 桥、会话浮窗等）默认不勾，用户按需勾选。
-const RECOMMENDED_PLUGIN_IDS = new Set([
-  'skin-switch',
-  'easy-setup',
-  'picturereader',
-  'soul-md',
-  'mobile-fix',
-  'better-sidebar',
-  'composer-dynamic-island',
-  'message-rewind',
-  'dock-settings',
-  'change-review',
-  'dsh-navbar',
-  'dsh-session-manager',
-  'conversation-tweaks',
-  'prompt-custom',
-  'offpeak',
-  // VCP 视觉通感协议（dsh-raw-html）：消息 HTML 渲染为界面，默认勾选。
-  'dsh-raw-html',
-]);
+const CORE_PLUGIN_IDS = new Set(DISTRIBUTION_BUILTIN_PLUGIN_IDS);
+const RECOMMENDED_PLUGIN_IDS = new Set(RECOMMENDED_PACK_PLUGIN_IDS);
+
+function onboardingPlugins(registry, coreIds = CORE_PLUGIN_IDS, recommendedIds = RECOMMENDED_PLUGIN_IDS) {
+  return (registry || []).filter((plugin) => coreIds.has(plugin.id) || recommendedIds.has(plugin.id));
+}
 
 /**
  * 新老用户判定（纯函数）：
@@ -166,6 +137,7 @@ function buildCatalog(plugins, { coreIds, recommendedIds, describe, dirSize, cap
 module.exports = {
   CORE_PLUGIN_IDS,
   RECOMMENDED_PLUGIN_IDS,
+  onboardingPlugins,
   needsPluginOnboarding,
   pluginCurrentState,
   buildSelectionOps,

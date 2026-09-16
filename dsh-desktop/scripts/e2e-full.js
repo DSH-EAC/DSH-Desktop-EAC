@@ -207,7 +207,7 @@ async function main() {
     pluginOnboardingDone: true,
     builtinPluginSelection: [
       'balance', 'file-changes', 'client-file-changes', 'terminal',
-      'dsh-market-plugin', 'skin-switch', 'easy-setup', 'plugin-shield',
+      'unified-market', 'skin-switch', 'easy-setup', 'plugin-shield',
       'plugin-manager', 'plugin-wizard',
     ],
     webPort: 0,

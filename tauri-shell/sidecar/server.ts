@@ -1267,11 +1267,12 @@ const updater = require(path.join(DSH_DESKTOP_ROOT, 'updater.js')) as {
   confirmPreviousAgentHealthy(c: unknown): Promise<boolean>;
 };
 const onboardingLogic = require(path.join(DSH_DESKTOP_ROOT, 'scripts', 'onboarding.js')) as {
-  CORE_PLUGIN_IDS: string[];
-  RECOMMENDED_PLUGIN_IDS: string[];
+  CORE_PLUGIN_IDS: Set<string>;
+  RECOMMENDED_PLUGIN_IDS: Set<string>;
+  onboardingPlugins(plugins: unknown[], coreIds: Set<string>, recommendedIds: Set<string>): unknown[];
   pluginCurrentState(entries: unknown[], plugins: unknown[]): Record<string, boolean>;
-  buildSelectionOps(plugins: unknown[], coreIds: string[], want: Set<string>, current: Record<string, boolean> | null): Array<{ id: string; enable: boolean }>;
-  sanitizeSelection(ids: unknown, plugins: unknown[], coreIds: string[]): Set<string>;
+  buildSelectionOps(plugins: unknown[], coreIds: Set<string>, want: Set<string>, current: Record<string, boolean> | null): Array<{ id: string; enable: boolean }>;
+  sanitizeSelection(ids: unknown, plugins: unknown[], coreIds: Set<string>, unavailableIds: Set<string>): Set<string>;
   buildCatalog(plugins: unknown[], o: unknown): unknown[];
 };
 let agentUpdateBusy = false;
@@ -1358,6 +1359,11 @@ const companionPlugins = () => {
   const select = companionSyncMod.companionPluginsForPlatform as ((platform: NodeJS.Platform) => unknown[]) | undefined;
   return select ? select(process.platform) : (companionSyncMod.COMPANION_PLUGINS as unknown[]) || [];
 };
+const onboardingPlugins = () => onboardingLogic.onboardingPlugins(
+  companionPlugins(),
+  onboardingLogic.CORE_PLUGIN_IDS,
+  onboardingLogic.RECOMMENDED_PLUGIN_IDS,
+);
 const onboardingCapabilities = platformMod.pluginCapabilityDetails(process.platform);
 const unavailablePluginIds = new Set(Object.entries(onboardingCapabilities)
   .filter(([, capability]) => capability.status === 'unavailable')
@@ -1377,7 +1383,7 @@ function pluginDirSize(dirName: string): number {
   return total;
 }
 function buildOnboardingCatalog(): unknown[] {
-  return (onboardingLogic.buildCatalog as (p: unknown[], o: unknown) => unknown[])(companionPlugins(), {
+  return (onboardingLogic.buildCatalog as (p: unknown[], o: unknown) => unknown[])(onboardingPlugins(), {
     coreIds: onboardingLogic.CORE_PLUGIN_IDS,
     recommendedIds: onboardingLogic.RECOMMENDED_PLUGIN_IDS,
     describe: (name: string) => ((pluginOpsMod.pluginManagerPackageDescription as (n: string) => string)(name)),
@@ -1407,17 +1413,19 @@ Object.assign(methods, {
     const ids = p && Array.isArray(p.ids) ? p.ids : [];
     try {
       (profileMod.ensureDesktopProfileInit as () => void)();
-      const want = (onboardingLogic.sanitizeSelection as (i: unknown, p: unknown[], c: string[], u: Set<string>) => Set<string>)(ids, companionPlugins(), onboardingLogic.CORE_PLUGIN_IDS, unavailablePluginIds);
+      const visiblePlugins = onboardingPlugins();
+      const want = onboardingLogic.sanitizeSelection(ids, visiblePlugins, onboardingLogic.CORE_PLUGIN_IDS, unavailablePluginIds);
       const current = wizardMode === 'rerun' ? pluginCurrentState() : null;
-      const ops = (onboardingLogic.buildSelectionOps as unknown as (
-        p: unknown[], c: string[], w: Set<string>, cur: Record<string, boolean> | null,
-      ) => Array<{ id: string; enable: boolean }>)(companionPlugins(), onboardingLogic.CORE_PLUGIN_IDS, want, current);
+      // 首启时隐藏的 external 目标项应显式停用；重开向导只管理可见的
+      // builtin + recommended 集合，保留老用户对 external 项的既有启停状态。
+      const operationPlugins = wizardMode === 'first' ? companionPlugins() : visiblePlugins;
+      const ops = onboardingLogic.buildSelectionOps(operationPlugins, onboardingLogic.CORE_PLUGIN_IDS, want, current);
       const errors: string[] = [];
       for (const op of ops) {
         try {
           const res = (pluginOpsMod.pluginManagerSetEnabled as (id: string, en: boolean) => { ok: boolean; error?: string })(op.id, op.enable);
           if (!res.ok) errors.push(op.id + ': ' + (res.error || 'unknown'));
-          else log('plugin-manager', '向导已' + (op.enable ? '启用' : '停用') + '内置插件 ' + op.id);
+          else log('plugin-manager', '向导已' + (op.enable ? '启用' : '停用') + '插件 ' + op.id);
         } catch (err) {
           errors.push(op.id + ': ' + String(((err as Error).message) || err));
         }
