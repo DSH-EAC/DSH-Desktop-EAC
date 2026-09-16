@@ -154,6 +154,20 @@ Assert-Fixture -Name 'desktop-package-classification' -Condition (
     @($desktopManifest.data.unmatchedCodeFiles).Count -eq 0
 ) -Failure ($desktopManifest.raw)
 
+$shellSkin = Invoke-JsonFixture -Script 'classify-change.ps1' -Arguments @(
+    '-RepoPath', $repoRoot,
+    '-FilesJsonBase64',
+    (ConvertTo-FilesJsonBase64 '["dsh-desktop/assets/shell-skin/aio/skin.json","dsh-desktop/assets/shell-skin/aio/tokens.css","dsh-desktop/assets/shell-skin/aio/controls.css"]')
+)
+Assert-Fixture -Name 'shell-skin-classification' -Condition (
+    $shellSkin.exitCode -eq 0 -and
+    $shellSkin.data.status -eq 'ready' -and
+    $shellSkin.data.minimumValidation -eq 'targeted' -and
+    'shell-skins' -in @($shellSkin.data.matchedRules) -and
+    'test/shell-skin-pack.test.ts' -in @($shellSkin.data.suggestedTests) -and
+    @($shellSkin.data.unmatchedCodeFiles).Count -eq 0
+) -Failure ($shellSkin.raw)
+
 $tauriPackaging = Invoke-JsonFixture -Script 'classify-change.ps1' -Arguments @(
     '-RepoPath', $repoRoot,
     '-FilesJsonBase64',
