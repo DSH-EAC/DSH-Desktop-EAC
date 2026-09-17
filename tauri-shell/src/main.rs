@@ -1725,20 +1725,31 @@ async fn handle_conn(stream: TcpStream, state: BridgeState, app: tauri::AppHandl
 }
 
 /// 内联壳页（loading/died/update/about）共享的 body 主题样式（暗色底 + 居中栅格）。
+/// 颜色/字体消费壳层皮肤包 token（v6 Task 1.1）；皮肤包缺失时 fallback 保证可读。
 const SHELL_BODY_STYLE: &str = concat!(
-    "margin:0;height:100vh;display:grid;place-items:center;background:#0b1220;",
-    "color:#dfe6ff;font-family:'Segoe UI','Microsoft YaHei',system-ui,sans-serif",
+    "margin:0;height:100vh;display:grid;place-items:center;",
+    "background:var(--eac-shell-bg-base,#0b1220);",
+    "color:var(--eac-shell-text-primary,#dfe6ff);",
+    "font-family:var(--eac-shell-font-family,'Segoe UI','Microsoft YaHei',system-ui,sans-serif)",
+);
+
+/// 壳层皮肤包 <link> 注入（/skin/* 由 http_serve 伺服 assets/shell-skin/）。
+/// 内联壳页无磁盘文件可挂 <link> 进 <head>，统一在 body 前置此片段。
+const SHELL_SKIN_LINKS: &str = concat!(
+    "<link rel=stylesheet href=\"/skin/tokens.css\">",
+    "<link rel=stylesheet href=\"/skin/controls.css\">",
 );
 
 fn loading_page() -> String {
     format!(
-        "<!doctype html><meta charset=utf-8><title>Deepseek Harness EAC</title>\
+        "<!doctype html><meta charset=utf-8><title>Deepseek Harness EAC</title>{SHELL_SKIN_LINKS}\
          <body style=\"{SHELL_BODY_STYLE}\">\
          <div style=\"text-align:center\">\
          <div style=\"font-size:20px;font-weight:600;margin-bottom:14px\">Deepseek Harness EAC</div>\
-         <div style=\"font-size:13px;color:#8b9ac4\">{}</div>\
+         <div style=\"font-size:13px;color:var(--eac-shell-text-secondary,#8b9ac4)\">{}</div>\
          <div style=\"margin-top:18px;width:34px;height:34px;margin-left:auto;margin-right:auto;\
-         border:3px solid rgba(255,255,255,.12);border-top-color:#5b8cff;border-radius:50%;\
+         border:3px solid var(--eac-shell-border,rgba(255,255,255,.12));\
+         border-top-color:var(--eac-shell-accent,#5b8cff);border-radius:50%;\
          animation:dshspin 1s linear infinite\"></div></div>\
          <style>@keyframes dshspin{{to{{transform:rotate(360deg)}}}}</style>\
          <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{}</script>",
@@ -1749,12 +1760,12 @@ fn loading_page() -> String {
 fn died_page(log_path: &str, code: &str) -> String {
     let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
     format!(
-        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>\
+        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>{SHELL_SKIN_LINKS}\
          <body style=\"{SHELL_BODY_STYLE}\">\
          <div style=\"text-align:center;max-width:560px\">\
          <div style=\"font-size:20px;font-weight:600;margin-bottom:10px\">{2}</div>\
-         <div style=\"font-size:13px;color:#8b9ac4;margin-bottom:6px\">{3} {4}</div>\
-         <div style=\"font-size:12px;color:#5f6f9c;font-family:Consolas,monospace;margin-bottom:20px\">{5}</div>\
+         <div style=\"font-size:13px;color:var(--eac-shell-text-secondary,#8b9ac4);margin-bottom:6px\">{3} {4}</div>\
+         <div style=\"font-size:12px;color:var(--eac-shell-text-tertiary,#5f6f9c);font-family:var(--eac-shell-font-mono,Consolas,monospace);margin-bottom:20px\">{5}</div>\
          <div style=\"display:flex;gap:10px;justify-content:center\">\
          <button onclick=\"retry()\" style=\"padding:8px 22px;border:1px solid rgba(255,255,255,.18);\
          border-radius:9px;background:rgba(91,140,255,.15);color:#dfe6ff;font-size:13px;cursor:pointer\">{6}</button>\
@@ -1824,14 +1835,14 @@ fn update_page(version: &str, kind: &str) -> String {
         "Deepseek Harness EAC"
     };
     format!(
-        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>\
+        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>{SHELL_SKIN_LINKS}\
          <body style=\"{SHELL_BODY_STYLE}\">\
          <div style=\"text-align:center;max-width:520px;width:82%\">\
          <div style=\"font-size:19px;font-weight:600;margin-bottom:8px\">{2} {3}</div>\
-         <div style=\"font-size:12.5px;color:#8b9ac4;margin-bottom:22px\">v{4} · {5}</div>\
-         <div style=\"height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden\">\
-         <div id=fill style=\"height:100%;width:0%;border-radius:6px;background:#5b8cff;transition:width .3s\"></div></div>\
-         <div id=status style=\"margin-top:14px;font-size:12.5px;color:#8b9ac4;font-family:Consolas,monospace\">{6}</div>\
+         <div style=\"font-size:12.5px;color:var(--eac-shell-text-secondary,#8b9ac4);margin-bottom:22px\">v{4} · {5}</div>\
+         <div style=\"height:8px;border-radius:6px;background:var(--eac-shell-border-weak,rgba(255,255,255,.08));overflow:hidden\">\
+         <div id=fill style=\"height:100%;width:0%;border-radius:6px;background:var(--eac-shell-accent,#5b8cff);transition:width .3s\"></div></div>\
+         <div id=status style=\"margin-top:14px;font-size:12.5px;color:var(--eac-shell-text-secondary,#8b9ac4);font-family:var(--eac-shell-font-mono,Consolas,monospace)\">{6}</div>\
          </div>\
          <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{7}/ws';{8}\
          var EN={9};\
@@ -1869,15 +1880,15 @@ fn update_page(version: &str, kind: &str) -> String {
 /// 关于页（版本经 boot.state 动态读取）。
 fn about_page() -> String {
     format!(
-        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>\
+        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>{SHELL_SKIN_LINKS}\
          <body style=\"{SHELL_BODY_STYLE}\">\
-         <div style=\"text-align:center;max-width:460px;padding:30px 38px;border:1px solid rgba(255,255,255,.08);\
-         border-radius:16px;background:color-mix(in srgb,#0b1220 92%,white)\">\
+         <div style=\"text-align:center;max-width:460px;padding:30px 38px;border:1px solid var(--eac-shell-border-weak,rgba(255,255,255,.08));\
+         border-radius:16px;background:var(--eac-shell-card-raised,color-mix(in srgb,#0b1220 92%,white))\">\
          <div style=\"font-size:20px;font-weight:600;margin-bottom:6px\">Deepseek Harness EAC</div>\
-         <div id=ver style=\"font-size:13px;color:#8b9ac4;margin-bottom:14px\">{2}</div>\
-         <div style=\"font-size:12px;color:#5f6f9c;line-height:1.8\">{3}<br/>{4}</div>\
-         <button onclick=\"if(BACK)location.replace(BACK)\" style=\"margin-top:20px;padding:8px 26px;border:1px solid rgba(255,255,255,.18);\
-         border-radius:9px;background:rgba(91,140,255,.15);color:#dfe6ff;font-size:13px;cursor:pointer\">{5}</button>\
+         <div id=ver style=\"font-size:13px;color:var(--eac-shell-text-secondary,#8b9ac4);margin-bottom:14px\">{2}</div>\
+         <div style=\"font-size:12px;color:var(--eac-shell-text-tertiary,#5f6f9c);line-height:1.8\">{3}<br/>{4}</div>\
+         <button onclick=\"if(BACK)location.replace(BACK)\" style=\"margin-top:20px;padding:8px 26px;border:1px solid var(--eac-shell-border-strong,rgba(255,255,255,.18));\
+         border-radius:9px;background:var(--eac-shell-accent-soft-bg-strong,rgba(91,140,255,.15));color:var(--eac-shell-text-primary,#dfe6ff);font-size:13px;cursor:pointer\">{5}</button>\
          </div>\
          <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{6}/ws';{7}\
          var BACK=new URLSearchParams(location.search).get('back')||'';\
@@ -1906,7 +1917,7 @@ fn recovery_center_page() -> String {
     let file = resource_root().join("dsh-desktop").join("assets").join("recovery-center.html");
     let html = std::fs::read_to_string(&file).unwrap_or_else(|_| {
         format!(
-            "<!doctype html><meta charset=utf-8><title>{0}</title><body style=\"background:#0b1220;color:#dfe6ff;font-family:sans-serif;display:grid;place-items:center;height:100vh\">{1} (assets/recovery-center.html)</body>",
+            "<!doctype html><meta charset=utf-8><title>{0}</title>{SHELL_SKIN_LINKS}<body style=\"background:var(--eac-shell-bg-base,#0b1220);color:var(--eac-shell-text-primary,#dfe6ff);font-family:sans-serif;display:grid;place-items:center;height:100vh\">{1} (assets/recovery-center.html)</body>",
             ui_text("恢复中心", "Recovery Center"),
             ui_text("恢复中心资源缺失", "Recovery Center resource is missing"),
         )
@@ -1943,6 +1954,25 @@ fn inject_after_doctype(html: String, injection: &str) -> String {
     format!("{}{}", injection, html)
 }
 
+/// 壳层皮肤包 CSS（assets/shell-skin/eac-default/，v6 Task 1.1）：
+/// /skin/tokens.css 与 /skin/controls.css 经回环 HTTP 伺服给壳页。
+/// 只放行包内固定的两个文件名（无路径穿越面）；皮肤包缺失时返回
+/// 空体 —— 壳页 token 消费处带 fallback 字面量，降级可读。
+fn shell_skin_css(file: &str) -> String {
+    if !matches!(file, "tokens.css" | "controls.css") {
+        return String::new();
+    }
+    std::fs::read_to_string(
+        resource_root()
+            .join("dsh-desktop")
+            .join("assets")
+            .join("shell-skin")
+            .join("eac-default")
+            .join(file),
+    )
+    .unwrap_or_default()
+}
+
 async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
     eprintln!("[http] serve {}", path);
     // 真正消费请求头（读到空行）：未读数据残留会让连接以 RST 而非 FIN 收尾，
@@ -1967,6 +1997,13 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
     }
     let (body, ctype) = if path.starts_with("/inject/bridge.js") {
         (BRIDGE_JS.to_string(), "application/javascript")
+    } else if let Some(file) = path
+        .split('?')
+        .next()
+        .unwrap_or("")
+        .strip_prefix("/skin/")
+    {
+        (shell_skin_css(file), "text/css; charset=utf-8")
     } else if path.starts_with("/recovery-center") {
         (recovery_center_page(), "text/html; charset=utf-8")
     } else if path.starts_with("/loading") {
@@ -2009,8 +2046,8 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
         (died_page(&log, &code), "text/html; charset=utf-8")
     } else {
         let page = format!(
-            "<!doctype html><meta charset=utf-8><title>DSH EAC Shell</title>\
-             <body style=\"font-family:Consolas,monospace;background:#0b1220;color:#dfe6ff\">\
+            "<!doctype html><meta charset=utf-8><title>DSH EAC Shell</title>{SHELL_SKIN_LINKS}\
+             <body style=\"font-family:var(--eac-shell-font-mono,Consolas,monospace);background:var(--eac-shell-bg-base,#0b1220);color:var(--eac-shell-text-primary,#dfe6ff)\">\
              <h3>DSH EAC — Tauri ShellHost</h3><pre id=out>connecting…</pre>\
              <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{}</script>",
             ws_port(), BRIDGE_JS

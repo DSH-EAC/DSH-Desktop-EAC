@@ -342,6 +342,9 @@ function projectPaths(root) {
     schema: path.join(root, '.sync', 'plugins.schema.json'),
     policies: path.join(root, '.sync', 'policies.json'),
     lock: path.join(root, '.sync', 'plugins.lock.json'),
+    distribution: path.join(root, '.sync', 'plugin-distribution.json'),
+    distributionSchema: path.join(root, '.sync', 'plugin-distribution.schema.json'),
+    sources: path.join(root, 'dsh-desktop', 'assets', 'SOURCES.json'),
     registry: path.join(root, 'dsh-desktop', 'lib', 'desktop', 'plugin-sync-registry.ts'),
   };
 }
@@ -469,6 +472,190 @@ function validateSchema(value, schema, label) {
 
   visit(value, schema, '$');
   return errors.map((error) => `${label}: ${error}`);
+}
+
+export function validateDistribution(project, inventoryEntries) {
+  const policy = project.policies?.pluginDistribution;
+  if (policy?.enabled === false) return [];
+
+  const errors = [];
+  const manifestPath = path.join(project.paths.root, policy?.manifest || '.sync/plugin-distribution.json');
+  const schemaPath = path.join(project.paths.root, policy?.schema || '.sync/plugin-distribution.schema.json');
+  const historyPath = path.join(
+    project.paths.root,
+    policy?.inventoryHistory || '.sync/plugin-inventory-history.json',
+  );
+  const sourcesPath = path.join(project.paths.root, policy?.sources || 'dsh-desktop/assets/SOURCES.json');
+  const distribution = readJson(manifestPath, 'plugin distribution manifest');
+  const distributionSchema = readJson(schemaPath, 'plugin distribution schema');
+  const history = readJson(historyPath, 'plugin inventory history');
+  const sources = readJson(sourcesPath, 'plugin source ledger');
+
+  errors.push(...validateSchema(distribution, distributionSchema, 'plugin distribution'));
+  const distributionEntries = Array.isArray(distribution?.plugins) ? distribution.plugins : [];
+  const inventoryPlugins = inventoryEntries.filter((entry) => entry?.kind === 'plugin');
+  const inventoryById = new Map(inventoryPlugins.map((entry) => [entry.id, entry]));
+  if (history?.schemaVersion !== 1) {
+    pushError(errors, 'plugin inventory history: schemaVersion must be 1');
+  }
+  if (!Array.isArray(history?.plugins)) {
+    pushError(errors, 'plugin inventory history: plugins must be an array');
+  }
+  const historyEntries = Array.isArray(history?.plugins) ? history.plugins : [];
+  const historyById = new Map();
+  for (const entry of historyEntries) {
+    const pointer = `plugin inventory history entry ${entry?.id || '<missing>'}`;
+    if (typeof entry?.id !== 'string' || !entry.id) {
+      pushError(errors, `${pointer}: id is missing`);
+      continue;
+    }
+    if (historyById.has(entry.id)) {
+      pushError(errors, `${pointer}: duplicate id`);
+      continue;
+    }
+    if (typeof entry.path !== 'string' || !entry.path) {
+      pushError(errors, `${pointer}: path is missing`);
+    }
+    if (typeof entry.patched !== 'boolean') {
+      pushError(errors, `${pointer}: patched must be boolean`);
+    }
+    historyById.set(entry.id, entry);
+  }
+  const distributionIds = new Set();
+  const classCounts = { builtin: 0, recommended: 0, external: 0 };
+
+  for (const entry of distributionEntries) {
+    const pointer = `plugin distribution entry ${entry?.id || '<missing>'}`;
+    if (distributionIds.has(entry?.id)) pushError(errors, `${pointer}: duplicate id`);
+    else distributionIds.add(entry?.id);
+    if (Object.hasOwn(classCounts, entry?.distributionClass)) classCounts[entry.distributionClass] += 1;
+
+    const historical = historyById.get(entry?.id);
+    if (!historical) {
+      pushError(errors, `${pointer}: id is not present in plugin inventory history`);
+      continue;
+    }
+    const inventory = inventoryById.get(entry?.id);
+    const offInventoryState = (entry?.migration?.state === 'migrated'
+      || entry?.migration?.state === 'retired')
+      && entry?.migration?.current !== 'bundled';
+    if (!inventory && !offInventoryState) {
+      pushError(errors, `${pointer}: id is not present in the current plugin inventory`);
+      continue;
+    }
+    if (inventory && inventory.path !== historical.path) {
+      pushError(errors, `${pointer}: current inventory path does not match plugin inventory history`);
+    }
+    const sourceReadyState = entry?.migration?.state === 'source-ready'
+      || entry?.migration?.state === 'removal-ready'
+      || entry?.migration?.state === 'migrated';
+    if (sourceReadyState && entry?.sourceRef?.startsWith('npm:')) {
+      const exactSemver = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+      if (!exactSemver.test(entry?.version || '')) {
+        pushError(errors, `${pointer}: npm source requires an exact semver version`);
+      }
+    }
+    const removalState = entry?.migration?.state === 'removal-ready'
+      || entry?.migration?.state === 'migrated';
+    if (removalState) {
+      if (historical.patched === true && entry.patchConclusion === 'not-patched') {
+        pushError(errors, `${pointer}: patched asset requires upstream-absorbed or eac-fork-published`);
+      }
+    }
+    const sourceMatches = Array.isArray(sources?.components)
+      ? sources.components.filter(
+        (component) => component?.type === 'plugin' && component?.path === historical.path,
+      )
+      : [];
+    if (sourceMatches.length !== 1) {
+      pushError(
+        errors,
+        `${pointer}: historical inventory path must resolve to exactly one plugin in SOURCES.json`,
+      );
+    } else {
+      const source = sourceMatches[0];
+      if (typeof source.origin !== 'string' || !source.origin) pushError(errors, `${pointer}: source origin is missing`);
+      if (!isObject(source.audit)) pushError(errors, `${pointer}: source audit evidence is missing`);
+    }
+  }
+
+  for (const entry of inventoryPlugins) {
+    if (!distributionIds.has(entry.id)) pushError(errors, `plugin distribution: inventory id ${entry.id} is missing`);
+  }
+  for (const entry of historyEntries) {
+    if (entry?.id && !distributionIds.has(entry.id)) {
+      pushError(errors, `plugin distribution: inventory history id ${entry.id} is unknown`);
+    }
+  }
+  const expectedCounts = policy?.expectedCounts || {};
+  for (const distributionClass of Object.keys(classCounts)) {
+    if (classCounts[distributionClass] !== expectedCounts[distributionClass]) {
+      pushError(
+        errors,
+        `plugin distribution: ${distributionClass} count ${classCounts[distributionClass]} does not match policy ${expectedCounts[distributionClass]}`,
+      );
+    }
+  }
+
+  if (policy?.recommendedPack) {
+    errors.push(...validateRecommendedPack(project, distributionEntries));
+  }
+  return errors;
+}
+
+export function packPluginFromDistribution(entry) {
+  if (entry.sourceRef?.startsWith('npm:')) {
+    return { ref: entry.sourceRef.slice('npm:'.length), version: entry.version };
+  }
+  const github = /^github:([^@]+)@([a-f0-9]{40})$/.exec(entry.sourceRef || '');
+  if (github) return { ref: `github:${github[1]}`, version: github[2] };
+  return { ref: entry.sourceRef, version: entry.version };
+}
+
+export function validateRecommendedPack(project, distributionEntries, options = {}) {
+  const policy = project.policies?.pluginDistribution || {};
+  const packPath = path.join(
+    project.paths.root,
+    policy.recommendedPack || '.sync/packs/desktop-recommended.pack.json',
+  );
+  const schemaPath = path.join(
+    project.paths.root,
+    policy.packSchema || 'docs/schemas/feature-pack-pack.json',
+  );
+  const pack = readJson(packPath, 'recommended pack draft');
+  const schema = readJson(schemaPath, 'feature pack schema');
+  const errors = validateSchema(pack, schema, 'recommended pack draft');
+  const recommended = distributionEntries.filter((entry) => entry?.distributionClass === 'recommended');
+  const readyStates = new Set(['source-ready', 'removal-ready', 'migrated']);
+  const ready = recommended.filter((entry) => readyStates.has(entry?.migration?.state));
+  const intendedIds = Array.isArray(pack?.['x-eac']?.intendedPluginIds)
+    ? [...pack['x-eac'].intendedPluginIds].sort()
+    : [];
+  const recommendedIds = recommended.map((entry) => entry.id).sort();
+  if (stableJson(intendedIds) !== stableJson(recommendedIds)) {
+    pushError(errors, 'recommended pack draft: intendedPluginIds must equal the recommended distribution set');
+  }
+  const expectedPlugins = ready.map(packPluginFromDistribution);
+  if (stableJson(pack?.plugins || []) !== stableJson(expectedPlugins)) {
+    pushError(errors, 'recommended pack draft: plugins must equal the source-ready recommended set');
+  }
+  for (const plugin of pack?.plugins || []) {
+    if (plugin?.ref?.startsWith('builtin:')) pushError(errors, 'recommended pack draft: builtin refs are prohibited');
+    if (plugin?.ref === 'latest' || plugin?.version === 'latest') pushError(errors, 'recommended pack draft: latest is prohibited');
+  }
+  if (ready.length !== recommended.length && pack?.['x-eac']?.status !== 'draft') {
+    pushError(errors, 'recommended pack draft: incomplete source set must remain draft');
+  }
+  if (options.forPublish && ready.length !== recommended.length) {
+    pushError(errors, `recommended pack publish blocked: ${ready.length}/${recommended.length} recommended plugins are source-ready`);
+  }
+  if (options.forPublish && pack?.['x-eac']?.status !== 'publishable') {
+    pushError(errors, 'recommended pack publish blocked: draft status is not publishable');
+  }
+  if (options.forPublish && pack?.['x-eac']?.conflictsPending !== false) {
+    pushError(errors, 'recommended pack publish blocked: conflict analysis is pending');
+  }
+  return errors;
 }
 
 function allManifestEntries(manifest) {
@@ -706,6 +893,8 @@ function validateManifestInternal(project, { checkRuntimeRegistry = true } = {})
     }
   }
 
+  errors.push(...validateDistribution(project, entries));
+
   const updates = sourceMap(paths);
   if (checkRuntimeRegistry && updates === null) {
     pushError(errors, 'runtime source registry is missing from generated registry');
@@ -759,7 +948,27 @@ export function validateManifest(root = DEFAULT_ROOT, options = {}) {
   };
 }
 
-function registryPayload(manifest) {
+function runtimeDistributionPayload(project) {
+  const policy = project.policies?.pluginDistribution;
+  if (policy?.enabled === false) return { builtinPluginIds: [], recommendedPluginIds: [] };
+  const distribution = readJson(
+    path.join(project.paths.root, policy?.manifest || '.sync/plugin-distribution.json'),
+    'plugin distribution manifest',
+  );
+  const pack = readJson(
+    path.join(project.paths.root, policy?.recommendedPack || '.sync/packs/desktop-recommended.pack.json'),
+    'recommended pack draft',
+  );
+  return {
+    builtinPluginIds: (distribution.plugins || [])
+      .filter((entry) => entry?.distributionClass === 'builtin')
+      .map((entry) => entry.id)
+      .sort(byteCompare),
+    recommendedPluginIds: [...(pack?.['x-eac']?.intendedPluginIds || [])].sort(byteCompare),
+  };
+}
+
+function registryPayload(manifest, distribution = { builtinPluginIds: [], recommendedPluginIds: [] }) {
   const entries = {};
   const updates = {};
   for (const entry of allManifestEntries(manifest).sort((a, b) => byteCompare(a.id, b.id))) {
@@ -782,20 +991,24 @@ function registryPayload(manifest) {
   return {
     schemaVersion: manifest?.schemaVersion,
     manifest: '.sync/plugins.json',
+    distribution,
     entries,
     updateSources: updates,
   };
 }
 
-export function generateRegistryText(manifest) {
-  const payload = registryPayload(manifest);
+export function generateRegistryText(manifest, distribution) {
+  const payload = registryPayload(manifest, distribution);
   return [
     '// GENERATED FILE — do not edit by hand.',
-    '// Source: .sync/plugins.json (run generate-plugin-registry.mjs).',
+    '// Sources: .sync/plugins.json, plugin-distribution.json, and recommended pack registry (run generate-plugin-registry.mjs).',
     `// plugin-sync:update-sources ${JSON.stringify(payload.updateSources)}`,
+    `// plugin-sync:distribution ${JSON.stringify(payload.distribution)}`,
     '',
     `export const PLUGIN_SYNC_REGISTRY = ${prettyJson(payload).replace(/\n$/, '')} as const;`,
     'export const PLUGIN_UPDATE_SOURCES = PLUGIN_SYNC_REGISTRY.updateSources;',
+    'export const DISTRIBUTION_BUILTIN_PLUGIN_IDS = PLUGIN_SYNC_REGISTRY.distribution.builtinPluginIds;',
+    'export const RECOMMENDED_PACK_PLUGIN_IDS = PLUGIN_SYNC_REGISTRY.distribution.recommendedPluginIds;',
     'export default PLUGIN_SYNC_REGISTRY;',
     '',
   ].join('\n');
@@ -806,8 +1019,9 @@ export function generateRegistry(root = DEFAULT_ROOT, { check = false } = {}) {
   // or stale registry must not prevent generation. --check remains strict and
   // validates the currently checked-in source map before reporting drift.
   const result = validateManifest(root, { checkRuntimeRegistry: check });
-  const file = projectPaths(path.resolve(root)).registry;
-  const expected = generateRegistryText(result.manifest);
+  const project = loadProject(root);
+  const file = project.paths.registry;
+  const expected = generateRegistryText(result.manifest, runtimeDistributionPayload(project));
   const current = existsSync(file) ? readFileSync(file, 'utf8') : null;
   if (check) {
     if (current !== expected) {

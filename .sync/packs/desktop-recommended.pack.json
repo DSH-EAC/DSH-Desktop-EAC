@@ -1,0 +1,34 @@
+{
+  "formatVersion": 1,
+  "id": "dev.dsh-eac.desktop-recommended",
+  "name": "DSH Desktop Recommended Plugins",
+  "version": "0.0.0-draft",
+  "description": "Draft manifest for the DSH Desktop recommended plugin set. Not publishable until every intended member has an immutable verified source.",
+  "license": "MIT",
+  "requires": {
+    "dsh": "0.1.3-alpha.1"
+  },
+  "plugins": [],
+  "conflicts": [],
+  "overrides": [],
+  "x-eac": {
+    "status": "draft",
+    "intendedPluginIds": [
+      "better-sidebar",
+      "change-review",
+      "composer-dynamic-island",
+      "conversation-tweaks",
+      "dock-settings",
+      "dsh-navbar",
+      "dsh-raw-html",
+      "dsh-session-manager",
+      "message-rewind",
+      "mobile-fix",
+      "offpeak",
+      "picturereader",
+      "prompt-custom",
+      "soul-md"
+    ],
+    "conflictsPending": true
+  }
+}
