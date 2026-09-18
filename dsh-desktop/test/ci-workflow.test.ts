@@ -13,6 +13,12 @@ function triggerBlock(event: 'pull_request' | 'push'): string {
   return match[1];
 }
 
+function jobBlock(jobName: string): string {
+  const start = workflow.indexOf(`  ${jobName}:\n`);
+  assert.notEqual(start, -1, `CI 缺少 ${jobName} job`);
+  return workflow.slice(start).split(/\n  [a-z][\w-]*:\n/)[0];
+}
+
 test('单元与构建 CI 在 PR 到 dev/main 及 push 到 dev/main 时触发', () => {
   for (const event of ['pull_request', 'push'] as const) {
     const block = triggerBlock(event);
@@ -24,9 +30,7 @@ test('单元与构建 CI 在 PR 到 dev/main 及 push 到 dev/main 时触发', (
 
 test('构建、Rust 与 staged runtime 在四个平台架构上运行并隔离产物', () => {
   for (const jobName of ['source-and-unit', 'rust-shell', 'staged-runtime']) {
-    const start = workflow.indexOf(`  ${jobName}:\n`);
-    assert.notEqual(start, -1, `CI 缺少 ${jobName} job`);
-    const job = workflow.slice(start).split(/\n  [a-z][\w-]*:\n/)[0];
+    const job = jobBlock(jobName);
     assert.match(job, /runs-on: \$\{\{ matrix\.runner \}\}/);
     assert.match(job, /runner: ubuntu-22\.04\n\s+os: linux\n\s+arch: x64/);
     assert.match(job, /runner: ubuntu-22\.04-arm\n\s+os: linux\n\s+arch: arm64/);
@@ -38,6 +42,11 @@ test('构建、Rust 与 staged runtime 在四个平台架构上运行并隔离�
   assert.match(workflow, /generated-bridge-\$\{\{ matrix\.os \}\}-\$\{\{ matrix\.arch \}\}/);
   assert.match(workflow, /key: \$\{\{ runner\.os \}\}-\$\{\{ matrix\.arch \}\}-kernel/);
   assert.match(workflow, /Prepare Tauri resource directory for Rust tests/);
+  const rustJob = jobBlock('rust-shell');
+  assert.match(rustJob, /Fetch Windows Cargo dependencies[\s\S]*?cargo fetch --locked/);
+  assert.match(rustJob, /Prepare Windows WebView2Loader resource[\s\S]*?prepare-webview2-loader\.mjs --arch=\$\{\{ matrix\.arch \}\}/);
+  const stagedJob = jobBlock('staged-runtime');
+  assert.match(stagedJob, /Fetch Windows Cargo dependencies[\s\S]*?cargo fetch --locked[\s\S]*?Assemble staged runtime/);
 });
 
 // CodeQL `actions/missing-workflow-permissions`（CWE-275）：没有显式

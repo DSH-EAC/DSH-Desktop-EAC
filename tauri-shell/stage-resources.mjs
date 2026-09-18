@@ -24,6 +24,7 @@ import {
   pruneNonLinuxPrebuilds,
 } from './stage-platform-prune.mjs';
 import { genDistributionDescriptor } from './gen-distribution-descriptor.mjs';
+import { prepareWebView2Loader } from './prepare-webview2-loader.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dd = path.join(root, 'dsh-desktop');
@@ -380,42 +381,14 @@ rmSync(
 
 console.log('[stage] 完成：' + staged);
 
-// WebView2Loader.dll：webview2-com-sys 提供的 x64 loader，必须与壳 exe 同级
+// WebView2Loader.dll：webview2-com-sys 提供的当前架构 loader，必须与壳 exe 同级
 // （否则 dsh-eac-shell.exe 启动即 0xC0000135 崩）。从 cargo registry 的
 // webview2-com-sys 包定位（tauri build 不再重新生成该文件）。
 // 约束：仅 win32 装配 —— 只有 tauri.windows.conf.json 引用该 DLL，linux/darwin
 // 的 cargo registry 里根本没有 webview2-com-sys，整块跳过（否则必然误杀 exit(1)）。
 if (targetPlatform === 'win32') {
-  const loader = (() => {
-    const homeDir = process.env.USERPROFILE || process.env.HOME || '';
-    const roots = [
-      path.join(process.env.CARGO_HOME || path.join(homeDir, '.cargo'), 'registry', 'src'),
-      path.join(homeDir, '.cargo', 'registry', 'src'),
-    ];
-    for (const base of roots) {
-      if (!existsSync(base)) continue;
-      const hits = readdirSync(base).sort().reverse();
-      for (const bucket of hits) {
-        const webview2Dir = path.join(base, bucket);
-        if (!existsSync(webview2Dir)) continue;
-        const subdirs = readdirSync(webview2Dir);
-        for (const dir of subdirs) {
-          if (!dir.startsWith('webview2-com-sys-')) continue;
-          const cand = path.join(webview2Dir, dir, 'x64', 'WebView2Loader.dll');
-          if (existsSync(cand)) return cand;
-        }
-      }
-    }
-    return '';
-  })();
-  const dest = path.join(staged, 'WebView2Loader.dll');
-  if (loader && existsSync(loader)) {
-    cpSync(loader, dest);
-    console.log('[stage] WebView2Loader.dll 已装配: ' + path.relative(root, dest));
-  } else {
-    // fail-fast：缺 loader 的安装包启动即 0xC0000135 崩，绝不能让坏包流出炉。
-    console.error('[stage] 未找到 WebView2Loader.dll（webview2-com-sys）——中止打包');
-    console.error('[stage] 提示：先跑一次 npx tauri build 让 cargo 拉取 webview2-com-sys，或设置 CARGO_HOME 指向含该包的目录');
-    process.exit(1);
-  }
+  const homeDir = process.env.USERPROFILE || process.env.HOME || '';
+  const cargoHome = process.env.CARGO_HOME || path.join(homeDir, '.cargo');
+  const dest = prepareWebView2Loader({ cargoHome, arch: process.arch, staged });
+  console.log('[stage] WebView2Loader.dll 已装配: ' + path.relative(root, dest));
 }
