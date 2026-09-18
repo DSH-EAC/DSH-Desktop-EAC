@@ -36,15 +36,34 @@ env:
 
 jobs:
   source-and-unit:
-    name: Node source and unit tests
-    runs-on: ubuntu-22.04
+    name: Node source and unit tests (${{ matrix.os }}/${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            os: linux
+            arch: x64
+          - runner: ubuntu-22.04-arm
+            os: linux
+            arch: arm64
+          - runner: windows-latest
+            os: windows
+            arch: x64
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
     defaults:
       run:
         working-directory: dsh-desktop
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('expected ${{ matrix.arch }}, got ' + process.arch)"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -60,7 +79,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dsh-desktop/vendor/kernel
-          key: ${{ runner.os }}-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
 
       - name: Prepare vendored kernel
         run: node scripts/fetch-kernel.js
@@ -84,25 +103,38 @@ jobs:
       - name: Upload generated Rust build input
         uses: actions/upload-artifact@v4
         with:
-          name: generated-bridge
+          name: generated-bridge-${{ matrix.os }}-${{ matrix.arch }}
           path: tauri-shell/sidecar/bridge.js
           if-no-files-found: error
           retention-days: 1
 
   rust-shell:
-    name: Rust shell (${{ matrix.os }})
+    name: Rust shell (${{ matrix.os }}/${{ matrix.arch }})
     needs: source-and-unit
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-22.04
-          - windows-latest
+        include:
+          - runner: ubuntu-22.04
+            os: linux
+            arch: x64
+          - runner: ubuntu-22.04-arm
+            os: linux
+            arch: arm64
+          - runner: windows-latest
+            os: windows
+            arch: x64
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('expected ${{ matrix.arch }}, got ' + process.arch)"
 
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
@@ -111,8 +143,12 @@ jobs:
       - name: Download generated Rust build input
         uses: actions/download-artifact@v4
         with:
-          name: generated-bridge
+          name: generated-bridge-${{ matrix.os }}-${{ matrix.arch }}
           path: tauri-shell/sidecar
+
+      - name: Prepare Tauri resource directory for Rust tests
+        working-directory: ${{ github.workspace }}
+        run: node -e "const fs=require('node:fs'); fs.mkdirSync('tauri-shell/staged-resources/sidecar',{recursive:true}); fs.mkdirSync('tauri-shell/staged-resources/dsh-desktop',{recursive:true}); fs.copyFileSync('tauri-shell/sidecar/bridge.js','tauri-shell/staged-resources/sidecar/bridge.js')"
 
       - name: Set up stable Rust
         uses: dtolnay/rust-toolchain@stable
@@ -123,7 +159,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: tauri-shell -> target
-          key: ${{ matrix.os }}-minimal-core
+          key: ${{ matrix.os }}-${{ matrix.arch }}-minimal-core
 
       - name: Check formatting
         working-directory: tauri-shell
@@ -138,7 +174,7 @@ jobs:
         run: cargo check --locked
 
   staged-runtime:
-    name: Staged runtime and isolated boot smoke (${{ matrix.arch }})
+    name: Staged runtime and isolated boot smoke (${{ matrix.os }}/${{ matrix.arch }})
     needs: source-and-unit
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
@@ -147,9 +183,21 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-22.04
+            os: linux
             arch: x64
+            target: linux
           - runner: ubuntu-22.04-arm
+            os: linux
             arch: arm64
+            target: linux
+          - runner: windows-latest
+            os: windows
+            arch: x64
+            target: win32
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
+            target: win32
     defaults:
       run:
         working-directory: dsh-desktop
@@ -185,9 +233,9 @@ jobs:
       - name: Fetch bundled Node and npm runtimes
         run: npm run fetch-runtime
 
-      - name: Assemble Linux staged runtime
+      - name: Assemble staged runtime
         working-directory: ${{ github.workspace }}
-        run: node tauri-shell/stage-resources.mjs --target=linux
+        run: node tauri-shell/stage-resources.mjs --target=${{ matrix.target }}
 
       - name: Verify staged closure and bundle integrity
         working-directory: ${{ github.workspace }}

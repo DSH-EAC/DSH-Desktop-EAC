@@ -22,14 +22,22 @@ test('单元与构建 CI 在 PR 到 dev/main 及 push 到 dev/main 时触发', (
   assert.match(workflow, /^  staged-runtime:/m);
 });
 
-test('staged runtime 在原生 x64 与 arm64 runner 上构建并验证架构', () => {
-  const job = workflow.match(/^  staged-runtime:\n([\s\S]*)$/m)?.[1] ?? '';
-  assert.match(job, /runs-on: \$\{\{ matrix\.runner \}\}/);
-  assert.match(job, /runner: ubuntu-22\.04\n\s+arch: x64/);
-  assert.match(job, /runner: ubuntu-22\.04-arm\n\s+arch: arm64/);
-  assert.match(job, /process\.arch/);
-  assert.match(job, /matrix\.arch/);
-  assert.match(job, /key:.*matrix\.arch/);
+test('构建、Rust 与 staged runtime 在四个平台架构上运行并隔离产物', () => {
+  for (const jobName of ['source-and-unit', 'rust-shell', 'staged-runtime']) {
+    const start = workflow.indexOf(`  ${jobName}:\n`);
+    assert.notEqual(start, -1, `CI 缺少 ${jobName} job`);
+    const job = workflow.slice(start).split(/\n  [a-z][\w-]*:\n/)[0];
+    assert.match(job, /runs-on: \$\{\{ matrix\.runner \}\}/);
+    assert.match(job, /runner: ubuntu-22\.04\n\s+os: linux\n\s+arch: x64/);
+    assert.match(job, /runner: ubuntu-22\.04-arm\n\s+os: linux\n\s+arch: arm64/);
+    assert.match(job, /runner: windows-latest\n\s+os: windows\n\s+arch: x64/);
+    assert.match(job, /runner: windows-11-arm\n\s+os: windows\n\s+arch: arm64/);
+    assert.match(job, /process\.arch/);
+    assert.match(job, /matrix\.arch/);
+  }
+  assert.match(workflow, /generated-bridge-\$\{\{ matrix\.os \}\}-\$\{\{ matrix\.arch \}\}/);
+  assert.match(workflow, /key: \$\{\{ runner\.os \}\}-\$\{\{ matrix\.arch \}\}-kernel/);
+  assert.match(workflow, /Prepare Tauri resource directory for Rust tests/);
 });
 
 // CodeQL `actions/missing-workflow-permissions`（CWE-275）：没有显式

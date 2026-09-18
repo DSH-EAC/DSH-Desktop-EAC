@@ -33,6 +33,7 @@ function makeTree() {
   mk('commander', ['package.json', 'index.js', 'lib/program.js']);
   mk('@deepseek-ai/dsh', ['package.json', 'lib/bin.js']);
   mk('@img/sharp-win32-x64', ['package.json', 'lib/sharp.node']);
+  mk('.bin', ['dsh']);
   return root;
 }
 
@@ -43,6 +44,7 @@ test('buildBundleManifest records per-package file counts for scoped and unscope
     assert.equal(m.packages['commander'].files, 3);
     assert.equal(m.packages['@deepseek-ai/dsh'].files, 2);
     assert.equal(m.packages['@img/sharp-win32-x64'].files, 2);
+    assert.equal(m.packages['.bin'], undefined);
     assert.equal(m.version, 1);
   } finally {
     rmSync(root, { recursive: true, force: true });
