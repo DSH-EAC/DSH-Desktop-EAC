@@ -1,7 +1,7 @@
 /* EAC 本体默认皮肤 — 壳层控件类样式
  *
  * 只消费 --eac-shell-* token（见 tokens.css），不写死颜色。
- * 适用于以 class 组织的壳层页面（onboarding / recovery-center）；
+ * 保留给以 class 组织的壳层对象复用；
  * Rust 内嵌壳页为短生命周期单元素布局，直接在 style 属性里消费 token。
  */
 

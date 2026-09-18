@@ -1,7 +1,7 @@
 /* AIO 壳层控件样式
  *
- * 作用域和控件 class 沿用 system.default，只改变视觉。所有颜色均由
- * tokens.css 提供；fallback 保证皮肤资源缺失时控件仍然可读。
+ * 作用域和通用控件 class 沿用 system.default，只改变视觉，不绑定专属页面。
+ * 所有颜色均由 tokens.css 提供；fallback 保证皮肤资源缺失时控件仍然可读。
  */
 
 .eac-shell body {

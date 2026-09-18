@@ -39,20 +39,54 @@ function pickRuntime(): { exe: string; major: number } {
   return self;
 }
 
-const rt = pickRuntime();
-if (rt.major < 24) {
-  console.error(`[test-runner] 需要 Node >= 24（type-stripping 直跑 .test.ts），当前 ${rt.exe} 为 v${process.versions.node}`);
-  console.error('[test-runner] 请先运行 npm run fetch-node 获取随包 Node，或升级系统 Node 至 24+');
-  process.exit(2);
+export function buildTestArguments(
+  rawArgs: readonly string[],
+  expand: (pattern: string) => string[] = (pattern) => fs.globSync(pattern, {
+    cwd: path.join(__dirname, '..'),
+  }),
+): string[] {
+  const requested = [...rawArgs];
+  if (!requested.some((arg) => !arg.startsWith('-'))) requested.unshift('test/*.test.ts');
+  const files: string[] = [];
+  const options: string[] = [];
+
+  for (const arg of requested) {
+    if (arg.startsWith('-')) options.push(arg);
+    else files.push(...expand(arg));
+  }
+
+  if (files.length === 0) {
+    throw new Error(`[test-runner] 没有匹配到任何测试文件：${requested.filter((arg) => !arg.startsWith('-')).join(', ')}`);
+  }
+
+  return ['--test', ...files.sort(), ...options];
 }
 
-const args = ['--test', ...(process.argv.length > 2 ? process.argv.slice(2) : ['test/*.test.ts'])];
-const testEnv = { ...process.env };
-if (process.platform !== 'win32' && !testEnv.TMPDIR) testEnv.TMPDIR = '/tmp';
-const r = cp.spawnSync(rt.exe, args, {
-  stdio: 'inherit',
-  windowsHide: true,
-  cwd: path.join(__dirname, '..'),
-  env: testEnv,
-});
-process.exit(r.status === null ? 1 : r.status);
+function main(): void {
+  const rt = pickRuntime();
+  if (rt.major < 24) {
+    console.error(`[test-runner] 需要 Node >= 24（type-stripping 直跑 .test.ts），当前 ${rt.exe} 为 v${process.versions.node}`);
+    console.error('[test-runner] 请先运行 npm run fetch-node 获取随包 Node，或升级系统 Node 至 24+');
+    process.exit(2);
+  }
+
+  let args: string[];
+  try {
+    args = buildTestArguments(process.argv.slice(2));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+
+  const testEnv = { ...process.env };
+  if (process.platform !== 'win32' && !testEnv.TMPDIR) testEnv.TMPDIR = '/tmp';
+  const result = cp.spawnSync(rt.exe, args, {
+    stdio: 'inherit',
+    windowsHide: true,
+    cwd: path.join(__dirname, '..'),
+    env: testEnv,
+  });
+  process.exit(result.status === null ? 1 : result.status);
+}
+
+if (require.main === module) main();

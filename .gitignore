@@ -45,6 +45,8 @@ updates/
 
 # Reasonix 工具元数据（勿提交）
 .reasonix/
+/.hermes/
+/.worktrees/
 /tmp-p2boot/
 /tmp-ui-verify-installed/
 

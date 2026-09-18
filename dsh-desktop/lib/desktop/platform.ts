@@ -5,44 +5,7 @@ import path = require('node:path');
 
 export interface DesktopCapabilities {
   clipboard: 'supported' | 'external-dependency' | 'unavailable';
-  clientSelfUpdate: 'supported' | 'external-handoff';
-  computerUser: 'supported' | 'unavailable';
   processFence: 'job-object' | 'degraded';
-  plugins: {
-    computerUser: 'supported' | 'unavailable';
-    ocr: 'supported' | 'external-dependency';
-    dafeiyu: 'supported' | 'unavailable';
-  };
-}
-
-export interface PluginCapability {
-  status: 'supported' | 'external-dependency' | 'unavailable';
-  reason: string;
-}
-
-export function pluginCapabilityDetails(platform: NodeJS.Platform = process.platform): Record<string, PluginCapability> {
-  if (platform === 'win32') {
-    return {
-      'computer-user': { status: 'supported', reason: 'Windows PowerShell and SendInput adapter' },
-      picturereader: { status: 'supported', reason: 'Windows OCR and bundled image backends' },
-      'dsh-dafeiyu': { status: 'supported', reason: 'Bundled Windows helper' },
-      'dsh-stt': { status: 'supported', reason: 'sherpa-onnx engine installed per-platform at build time' },
-    };
-  }
-  if (platform === 'darwin') {
-    return {
-      'computer-user': { status: 'unavailable', reason: 'macOS v1.5 计划：CGEvent + TCC 授权' },
-      picturereader: { status: 'external-dependency', reason: 'OCR 需 Python (paddle/rapid)，v1.5 计划 Vision 后端' },
-      'dsh-dafeiyu': { status: 'unavailable', reason: '无 macOS helper 产物' },
-      'dsh-stt': { status: 'supported', reason: 'CI 在 darwin runner 安装 sherpa-onnx darwin 原生包' },
-    };
-  }
-  return {
-    'computer-user': { status: 'unavailable', reason: 'Linux/Wayland has no transparent SendInput equivalent' },
-    picturereader: { status: 'external-dependency', reason: 'OCR requires a separately installed Linux backend' },
-    'dsh-dafeiyu': { status: 'unavailable', reason: 'No Linux helper payload has passed the required smoke test' },
-    'dsh-stt': { status: 'supported', reason: 'CI installs the linux sherpa-onnx native package at build time' },
-  };
 }
 
 export interface DesktopPlatform {
@@ -111,12 +74,7 @@ export function createDesktopPlatform(options: DesktopPlatformOptions = {}): Des
         : platform === 'darwin'
           ? 'supported' // pbcopy/pbpaste 为 macOS 内置
           : platform === 'linux' ? 'external-dependency' : 'unavailable',
-    clientSelfUpdate: platform === 'win32' ? 'supported' : 'external-handoff',
-    computerUser: platform === 'win32' ? 'supported' : 'unavailable',
     processFence: platform === 'win32' ? 'job-object' : 'degraded',
-    plugins: platform === 'win32'
-      ? { computerUser: 'supported', ocr: 'supported', dafeiyu: 'supported' }
-      : { computerUser: 'unavailable', ocr: 'external-dependency', dafeiyu: 'unavailable' },
   });
 
   return {

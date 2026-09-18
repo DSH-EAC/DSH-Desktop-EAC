@@ -13,8 +13,8 @@ v6 Task 1.1 交付物。EAC 桌面壳层（本体）UI 的视觉皮肤包，把�
   `dsh-desktop-eac-ui-skin-profile@^0.3`；
 - 控件层 `system.shell-controls` 与样式层 `system.shell-style` 分别声明，
   版本依赖记录在 `dependencies`，允许后续宿主选择机制按层替换；
-- loading / died / update / about / 向导 / 恢复中心 / 退出确认均为独立窗口
-  或弹层实例，按公约第 8 节不进入区块 Binding Table。
+- loading / died 与退出确认均为独立窗口或弹层实例，按公约第 8 节不进入
+  区块 Binding Table。
 
 `kind: "shell-skin"` 是 L1 壳路由使用的扩展分类，不替代公约的
 `type: "skin"`。当前目录名保留为 `eac-default`，包身份以 manifest 的
@@ -37,13 +37,11 @@ eac-default/
 1. Rust 壳（`tauri-shell/src/main.rs` 的 `http_serve`）提供回环路由
    `/skin/tokens.css`、`/skin/controls.css`，从本目录伺服
    （白名单固定两个文件名，缺失时返回空体）。
-2. 壳层页面引用：
-   - Rust 内嵌页（loading / died / update / about / 资源缺失降级页）：
-     经 `SHELL_SKIN_LINKS` 常量在 body 前注入 `<link>`；
-   - 磁盘壳页（`onboarding.html` / `recovery-center.html`）：`<head>` 内
-     `<link rel="stylesheet" href="/skin/...">`，`<html>` 挂 `.eac-shell`；
-   - `exit-overlay.js`：注入在主窗 Web UI 上下文，无法保证 `/skin/` 可达，
-     以 `var(--eac-shell-*, fallback)` 消费，fallback 即原值。
+2. 壳层对象引用：
+   - `tauri-shell/src/main.rs` 的 loading / died / 资源缺失降级页经
+     `SHELL_SKIN_LINKS` 常量在 body 前注入 `<link>`；
+   - `tauri-shell/src/exit-overlay.js` 注入主窗口 Web UI，使用同一 token
+     命名空间，并为皮肤资源不可达场景保留 fallback；
 3. 打包：`stage-resources.mjs` 整树拷贝 `assets/`，本目录自动随行。
 
 ## Token 消费契约
@@ -61,17 +59,16 @@ eac-default/
 | 基底背景 | `bg-base`、`bg-page`、`bg-elevated(-strong)`、`bg-overlay` |
 | 文本层级 | `text-primary/secondary/tertiary/label`、`text-on-accent` |
 | 强调蓝 | `accent`、`accent-hover`、`accent-soft-bg(-strong/-hover)`、`accent-soft-border`、`accent-text` |
-| 语义色 | `ok(-border/-text)`、`warn(-border)`、`danger(-border/-text/-soft-*)`、`close-hover`、`safe-mode-*` |
-| 表面与边框 | `surface(-hover/-weak)`、`border(-weak/-strong)`、`card-bg/-shadow/-raised` |
-| 恢复中心面板 | `panel-*`、`log-bg`、`banner-err/ok-*`、`risk-*`、`danger-btn-border`、`warn-btn-*` |
+| 语义色 | `ok(-border/-text)`、`warn(-border)`、`danger(-border/-text/-soft-*)`、`close-hover` |
+| 表面与边框 | `surface(-hover/-weak)`、`border(-weak/-strong)`、`card-bg/-shadow` |
 | 字体 | `font-family`、`font-mono` |
 | 滚动条 | `scrollbar-thumb(-hover)` |
 
 新增视觉值时先进 `tokens.css` 再消费；专项测试
 `dsh-desktop/test/shell-skin-pack.test.ts` 会拦截裸色值回归。
 
-## 后续衔接（v6）
+## 当前边界
 
-- Task 1.2：AIO 视觉拆解可产出并列的第二个 shell-skin 包；
-- Task 3.2：最简本体接入内置皮肤包，即消费本包；
-- Task 6.2：外部样式包复用同一 token 契约（只覆盖 token 值）。
+- AIO 是实现相同 token 接口的并列内置包；
+- 当前 Rust 静态路由固定加载本包；
+- 外部样式包可复用同一 token 契约，只覆盖视觉值。

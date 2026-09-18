@@ -26,7 +26,7 @@ function stageLists() {
 function sidecarLocalRefs() {
   const src = [
     fs.readFileSync(join(stageRoot, 'sidecar', 'server.ts'), 'utf8'),
-    fs.readFileSync(join(stageRoot, 'sidecar', 'rescue-integration.ts'), 'utf8'),
+    fs.readFileSync(join(stageRoot, 'sidecar', 'capability-stubs.ts'), 'utf8'),
   ].join('\n');
   const refs = [];
   // mount('<name>') → lib/desktop/<name>.js
@@ -55,6 +55,38 @@ test('sidecar 引用/挂载的每个本地模块都在 stage-resources 装配清
     '以下模块被 sidecar 引用但未装配，会导致启动即闪退: ' + missing.join(', '));
 });
 
+test('装配清单只包含当前运行闭包与构建期职责', () => {
+  const lists = stageLists();
+  assert.deepEqual(lists.ROOT_FILES, [
+    'session-watcher.js',
+    'bundle-integrity.js',
+    'stable-port.js',
+    'stream-write-guard.js',
+    'updater.js',
+  ]);
+  assert.deepEqual(lists.LIB_DESKTOP, [
+    'proc.js',
+    'platform.js',
+    'runtime-paths.js',
+    'profile.js',
+    'runtime-patches.js',
+    'boot-server.js',
+  ]);
+  assert.deepEqual(lists.LIB_VNEXT, ['atomic-json.js']);
+  assert.deepEqual(lists.SCRIPTS, ['patch-session-manage.js', 'patch-deps.js']);
+});
+
+test('sidecar 产物只装配 server、bridge 与内部 boot helper', () => {
+  const stageScript = fs.readFileSync(join(stageRoot, 'stage-resources.mjs'), 'utf8');
+  const match = stageScript.match(/for \(const f of \[([^\]]+)\]\) \{\n\s*cpSync\(path\.join\(root, 'tauri-shell', 'sidecar'/);
+  assert.ok(match, 'sidecar 产物清单解析失败');
+  assert.deepEqual([...match[1].matchAll(/'([^']+)'/g)].map((x) => x[1]), [
+    'server.js',
+    'bridge.js',
+    'capability-stubs.js',
+  ]);
+});
+
 test('装配清单不再携带 Electron 冻结壳独享模块', () => {
   const lists = stageLists();
   for (const dead of ['error-detail.js', 'koffi-preflight.js', 'renderer-recovery.js',
@@ -71,10 +103,14 @@ test('Tauri 资源装配不再携带 WSL 后端', () => {
   assert.ok(!fs.existsSync(join(root, 'wsl-backend.ts')));
 });
 
+test('Tauri 资源装配不再依赖已从内核移除的 fs-ext', () => {
+  const stageScript = fs.readFileSync(join(stageRoot, 'stage-resources.mjs'), 'utf8');
+  assert.doesNotMatch(stageScript, /fs[-_]ext/i);
+});
+
 test('generated plugin registry is included in the staged desktop runtime', () => {
+  // v6 严格模式（ADR 0006 v3）：companion-sync 剥出 → plugin-sync-registry
+  // 不再装配。守门反向：清单不得含它；Task 3.3 接回插件系统时恢复。
   const lists = stageLists();
-  assert.ok(lists.LIB_DESKTOP.includes('plugin-sync-registry.js'));
-  const registry = fs.readFileSync(join(root, 'lib', 'desktop', 'plugin-sync-registry.ts'), 'utf8');
-  assert.match(registry, /DISTRIBUTION_BUILTIN_PLUGIN_IDS/);
-  assert.match(registry, /RECOMMENDED_PACK_PLUGIN_IDS/);
+  assert.ok(!lists.LIB_DESKTOP.includes('plugin-sync-registry.js'));
 });

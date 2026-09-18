@@ -5,7 +5,7 @@ import fsMod from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 // 项目约定：测试 import 编译产物 .js（tsc 就地产物）。
-import { writeFileAtomic } from '../lib/atomic-json.js'
+import { readJsonFile, writeFileAtomic } from '../lib/atomic-json.js'
 
 // ---------------------------------------------------------------------------
 // writeFileAtomic 两步换入回归：旧实现在 rename 瞬时失败（EPERM，Windows 杀软
@@ -91,6 +91,32 @@ test('writeFileAtomic：支持 Buffer 内容（restore 快照路径逐字节保�
     writeFileAtomic(file, buf)
     assert.ok(Buffer.from(readFileSync(file)).equals(buf), 'Buffer 内容必须逐字节一致')
     assert.ok(existsSync(file))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readJsonFile：读取合法对象且不修改源文件', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atomic-read-'))
+  try {
+    const file = join(dir, 'settings.json')
+    const source = '{\n  "enabled": true,\n  "count": 2\n}\n'
+    writeFileSync(file, source, 'utf8')
+    assert.deepEqual(readJsonFile(file), { enabled: true, count: 2 })
+    assert.equal(readFileSync(file, 'utf8'), source)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readJsonFile：文件缺失或 JSON 损坏时返回 null', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atomic-read-bad-'))
+  try {
+    assert.equal(readJsonFile(join(dir, 'missing.json')), null)
+    const file = join(dir, 'broken.json')
+    writeFileSync(file, '{ broken', 'utf8')
+    assert.equal(readJsonFile(file), null)
+    assert.equal(readFileSync(file, 'utf8'), '{ broken')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

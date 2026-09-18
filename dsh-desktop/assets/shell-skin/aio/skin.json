@@ -16,11 +16,9 @@
     "io.github.dsh-eac.aio.shell-controls": "1.0.0",
     "io.github.dsh-eac.aio.shell-style": "1.0.0"
   },
-  "description": "从 DSHEAC AIO v1 壳层视觉中提取的内置皮肤包。tokens.css 复用 --eac-shell-* 契约并提供 AIO 深蓝玻璃视觉，controls.css 只负责壳层控件外观，不包含窗口、bridge 或插件业务逻辑。",
+  "description": "从 DSHEAC AIO v1 壳层视觉中提取的内置皮肤包。tokens.css 复用 --eac-shell-* 契约并提供 AIO 深蓝玻璃视觉，controls.css 只负责通用壳层控件外观，不包含窗口、bridge 或插件业务逻辑。",
   "consumers": [
-    "tauri-shell/src/main.rs（内嵌壳页）",
-    "dsh-desktop/assets/onboarding.html",
-    "dsh-desktop/assets/recovery-center.html",
+    "tauri-shell/src/main.rs",
     "tauri-shell/src/exit-overlay.js"
   ],
   "assets": ["tokens.css", "controls.css"]

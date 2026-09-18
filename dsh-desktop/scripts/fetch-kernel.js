@@ -14,14 +14,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 //      均不把 `D:\...` 当远程 tape 主机，避免依赖 --force-local。
 //
 // 前置：pnpm 版本必须等于内核 packageManager 钉住的版本（脚本自校验）。
-// 用法：npm run fetch-kernel [-- <tag>]（默认 dsh-v0.1.2-alpha.1）
+// 用法：npm run fetch-kernel [-- <tag>]（默认 dsh-v0.1.5-rc.2）
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const os = require("node:os");
 const path = require("node:path");
 const cp = require("node:child_process");
 const REPO = 'deepseek-ai/deepseek-harness';
-const DEFAULT_TAG = 'dsh-v0.1.3-alpha.1';
+const DEFAULT_TAG = 'dsh-v0.1.5-rc.2';
 const ROOT = path.resolve(__dirname, '..');
 const WORK = path.join(ROOT, 'vendor', 'kernel', '.build');
 const TMP = path.join(os.tmpdir(), 'dsh-kernel-build');
@@ -155,32 +155,46 @@ function main() {
     if (src === undefined)
         throw new Error('解包后找不到源码目录');
     // 补丁 1：pack.ts 走 pnpmInvocation（Windows spawn('pnpm') ENOENT）。
+    // 0.1.5-rc.2 起上游官方化了这两个补丁（pack.ts 自带 pnpmInvocation、
+    // tarball.ts 相对路径）——锚点缺失即上游已修，跳过；旧内核 tag 仍按
+    // 锚点打补丁（否则 Windows 下构建必挂）。
     const packTs = path.join(src, 'scripts', 'release', 'pack.ts');
     let pack = fs.readFileSync(packTs, 'utf8');
     const packAnchor = "await runConcurrent('pnpm', ['--dir', member.directory, 'pack', '--pack-destination', destination])";
-    if (!pack.includes(packAnchor))
-        throw new Error('pack.ts 锚点未命中，上游脚本已变化，需人工评估补丁');
-    pack = pack.replace("import { isEntry, runConcurrent } from './process.ts'", "import { pnpmInvocation } from '../pnpm-invocation.ts'\nimport { isEntry, runConcurrent } from './process.ts'").replace(packAnchor, "const invocation = pnpmInvocation(['--dir', member.directory, 'pack', '--pack-destination', destination])\n  await runConcurrent(invocation.command, invocation.args)");
-    fs.writeFileSync(packTs, pack);
+    if (pack.includes(packAnchor)) {
+        pack = pack.replace("import { isEntry, runConcurrent } from './process.ts'", "import { pnpmInvocation } from '../pnpm-invocation.ts'\nimport { isEntry, runConcurrent } from './process.ts'").replace(packAnchor, "const invocation = pnpmInvocation(['--dir', member.directory, 'pack', '--pack-destination', destination])\n  await runConcurrent(invocation.command, invocation.args)");
+        fs.writeFileSync(packTs, pack);
+    }
+    else if (pack.includes("pnpmInvocation(['--dir', member.directory, 'pack'")) {
+        console.log('fetch-kernel: pack.ts 已官方化 pnpmInvocation（0.1.5-rc.2+），跳过补丁 1');
+    }
+    else {
+        throw new Error('pack.ts 锚点未命中且未检测到官方化写法，上游脚本已变化，需人工评估补丁');
+    }
     // 补丁 2：tarball.ts 的 tar 盘符问题（相对路径，GNU tar / bsdtar 通用）。
     const tarballTs = path.join(src, 'scripts', 'release', 'tarball.ts');
     let tarball = fs.readFileSync(tarballTs, 'utf8');
-    const tarImport = "import { readFileSync } from 'node:fs'";
-    if (!tarball.includes(tarImport))
-        throw new Error('tarball.ts 锚点未命中: import');
-    tarball = tarball.replace(tarImport, "import { readFileSync } from 'node:fs'\nimport { relative } from 'node:path'").replace("import { capture } from './process.ts'", "import { capture } from './process.ts'\n\nfunction tarCmd(tarball: string, ...rest: string[]): string[] {\n  return [...rest, relative(process.cwd(), tarball)]\n}");
     const tarAnchorList = [
         "capture('tar', ['-tzf', tarball])",
         "capture('tar', ['-xOzf', tarball, 'package/package.json'])",
     ];
-    for (const anchor of tarAnchorList) {
-        if (!tarball.includes(anchor))
-            throw new Error(`tarball.ts 锚点未命中: ${anchor}`);
+    if (tarball.includes(tarAnchorList[0])) {
+        const tarImport = "import { readFileSync } from 'node:fs'";
+        if (!tarball.includes(tarImport))
+            throw new Error('tarball.ts 锚点未命中: import');
+        tarball = tarball.replace(tarImport, "import { readFileSync } from 'node:fs'\nimport { relative } from 'node:path'").replace("import { capture } from './process.ts'", "import { capture } from './process.ts'\n\nfunction tarCmd(tarball: string, ...rest: string[]): string[] {\n  return [...rest, relative(process.cwd(), tarball)]\n}");
+        for (const anchor of tarAnchorList) {
+            if (!tarball.includes(anchor))
+                throw new Error(`tarball.ts 锚点未命中: ${anchor}`);
+        }
+        tarball = tarball
+            .replace(tarAnchorList[0], "capture('tar', tarCmd(tarball, '-tzf'))")
+            .replace(tarAnchorList[1], "capture('tar', tarCmd(tarball, '-xOzf', 'package/package.json'))");
+        fs.writeFileSync(tarballTs, tarball);
     }
-    tarball = tarball
-        .replace(tarAnchorList[0], "capture('tar', tarCmd(tarball, '-tzf'))")
-        .replace(tarAnchorList[1], "capture('tar', tarCmd(tarball, '-xOzf', 'package/package.json'))");
-    fs.writeFileSync(tarballTs, tarball);
+    else {
+        console.log('fetch-kernel: tarball.ts 已官方化相对路径（0.1.5-rc.2+），跳过补丁 2');
+    }
     // git init：lefthook postinstall 等 git 探针在无仓库目录会失败。
     cp.spawnSync('git', ['init', '-q'], { cwd: src });
     // commit hash：构建元数据要求 7 位以上十六进制；tarball 无 .git，取 tag 指向的 commit。
