@@ -1175,17 +1175,23 @@ async fn handle_shell_method(
             });
             let sidecar = state.sidecar.lock().await.clone();
             let Some(sidecar) = sidecar else {
-                return Ok(Some(reply(serde_json::json!({"ok":false,"error":"sidecar not running"}))));
+                return Ok(Some(reply(
+                    serde_json::json!({"ok":false,"error":"sidecar not running"}),
+                )));
             };
             let authorized = match sidecar.call("files.authorize-open", params.clone()).await {
                 Ok(value) => value,
-                Err(error) => return Ok(Some(reply(serde_json::json!({"ok":false,"error":error})))),
+                Err(error) => {
+                    return Ok(Some(reply(serde_json::json!({"ok":false,"error":error}))))
+                }
             };
             if authorized.get("ok").and_then(|v| v.as_bool()) != Some(true) {
                 return Ok(Some(reply(authorized)));
             }
             let Some(target) = authorized.get("path").and_then(|v| v.as_str()) else {
-                return Ok(Some(reply(serde_json::json!({"ok":false,"error":"authorized path missing"}))));
+                return Ok(Some(reply(
+                    serde_json::json!({"ok":false,"error":"authorized path missing"}),
+                )));
             };
             Ok(Some(reply(match open_native_target(target).await {
                 Ok(()) => serde_json::json!({"ok":true}),
@@ -2022,7 +2028,10 @@ fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {
         // v6 Task 3.3：sidecar 内部请求打开外链（如更新流程）。
         // 与 handle_shell_method 的同名 arm 区分：这里是 notify 帧（无 id）。
         "shell.open-external" => {
-            let url = params.get("url").and_then(|value| value.as_str()).unwrap_or("");
+            let url = params
+                .get("url")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
             let url = url.to_string();
             tauri::async_runtime::spawn(async move {
                 if let Err(error) = open_external(&url).await {
