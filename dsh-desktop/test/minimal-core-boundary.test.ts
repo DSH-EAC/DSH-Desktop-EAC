@@ -60,7 +60,6 @@ test('staging excludes retired recovery and isolation modules', () => {
     'recovery-center-preload.js',
     'state.js',
     'log.js',
-    'file-roots.js',
     'logger.js',
     'shared/protocol.js',
   ]) {
@@ -69,7 +68,7 @@ test('staging excludes retired recovery and isolation modules', () => {
     assert.doesNotMatch(stage, new RegExp(`(^|[^-\\w])${escaped}`));
   }
   // 接回项必须真实进入装配清单，反向锁住 Task 3.3 不被回退。
-  for (const revived of ['plugin-copy.js', 'companion-sync.js', 'guard-box.js', 'plugin-ops.js']) {
+  for (const revived of ['plugin-copy.js', 'companion-sync.js', 'guard-box.js', 'plugin-ops.js', 'file-roots.js']) {
     assert.match(stage, new RegExp(revived.replaceAll('.', '\\.')));
   }
 });

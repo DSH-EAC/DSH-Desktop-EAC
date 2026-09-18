@@ -80,6 +80,8 @@ const LIB_DESKTOP = [
   // Task 3.3 插件治理三件套 + 其 lib/desktop 依赖
   'guard-box.js', 'companion-sync.js', 'plugin-ops.js',
   'install-profile.js', 'plugin-sync-registry.js',
+  // Task 3.3 阶段 3：files.revert 的白名单根
+  'file-roots.js',
 ];
 const SCRIPTS = [
   'patch-session-manage.js', 'patch-deps.js',
@@ -266,6 +268,11 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills +
     'dsh-settings-scroll-fix',
     'dsh-skin-switch',
     'dsh-unified-market',
+    // 阶段 3：服务端 RPC / bridge 面已随本批接回
+    'dsh-plugin-manager',
+    'dsh-plugin-shield',
+    'dsh-file-drop-eac',
+    'dsh-client-file-changes',
   ];
   for (const dir of BUILTIN_PLUGIN_DIRS) {
     const from = path.join(dd, 'assets', 'plugins', dir);

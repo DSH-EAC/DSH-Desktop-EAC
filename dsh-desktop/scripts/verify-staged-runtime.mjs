@@ -37,6 +37,8 @@ const REQUIRED_FILES = [
   'dsh-desktop/lib/desktop/plugin-ops.js',
   'dsh-desktop/lib/desktop/install-profile.js',
   'dsh-desktop/lib/desktop/plugin-sync-registry.js',
+  // v6 Task 3.3 阶段 3：files.revert 的白名单根
+  'dsh-desktop/lib/desktop/file-roots.js',
   'dsh-desktop/scripts/onboarding.js',
   'dsh-desktop/scripts/plugin-manager-patch.js',
 ];
@@ -49,11 +51,10 @@ const RETIRED_PATHS = [
   'dsh-desktop/lib/recovery-center',
   'dsh-desktop/lib/state.js',
   'dsh-desktop/lib/log.js',
-  'dsh-desktop/lib/desktop/file-roots.js',
   'dsh-desktop/logger.js',
   'dsh-desktop/shared/protocol.js',
-  // v6 Task 3.3：plugin-copy.js 随插件治理闭包接回，自退役清单移除
-  //（改列入 REQUIRED_FILES）。
+  // v6 Task 3.3：plugin-copy.js（治理闭包）与 file-roots.js（files.* 白名单根）
+  // 已随接回移出退役面，均改列入 REQUIRED_FILES。
 ];
 
 function requireRegularFile(root, relative) {

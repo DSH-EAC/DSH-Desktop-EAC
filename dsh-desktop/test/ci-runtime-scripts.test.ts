@@ -30,7 +30,9 @@ function createStageFixture(): string {
   }
   for (const file of ['proc.js', 'platform.js', 'runtime-paths.js', 'profile.js', 'runtime-patches.js', 'boot-server.js',
     // v6 Task 3.3：插件治理三件套 + lib/desktop 依赖
-    'guard-box.js', 'companion-sync.js', 'plugin-ops.js', 'install-profile.js', 'plugin-sync-registry.js']) {
+    'guard-box.js', 'companion-sync.js', 'plugin-ops.js', 'install-profile.js', 'plugin-sync-registry.js',
+    // v6 Task 3.3 阶段 3：files.* 白名单根
+    'file-roots.js']) {
     writeFileSync(join(desktop, 'lib', 'desktop', file), 'module.exports = {};\n');
   }
   // v6 Task 3.3：companion-sync 顶层 require 的根模块闭包
@@ -53,8 +55,8 @@ test('staged runtime verifier accepts the minimal runtime closure', () => {
   try {
     const result = verifyStagedRuntime(root);
     assert.equal(result.bundle.ok, true);
-    // v6 Task 3.3：插件治理闭包使必需文件由 15 增至 32。
-    assert.equal(result.requiredFiles, 32);
+    // v6 Task 3.3：治理闭包（32）+ 阶段 3 的 file-roots（33）。
+    assert.equal(result.requiredFiles, 33);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -63,12 +63,14 @@ const bootMod = mount('boot-server');
 const guardBoxMod = mount('guard-box');
 const companionSyncMod = mount('companion-sync');
 const pluginOpsMod = mount('plugin-ops');
+// v6 Task 3.3：files.* 白名单根（files.revert / files.authorize-open 消费）。
+const fileRootsMod = mount('file-roots');
 
 // v6 Task 3.1（ADR 0006 v3 · 严格模式）：本体只保留对 dsh 的最简包装。
 // capability-stubs 仅提供内部 boot glue，不注册公开降级方法。
 import stubs = require('./capability-stubs');
 
-const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'guard-box', 'runtime-patches', 'companion-sync', 'plugin-ops', 'boot-server'];
+const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'guard-box', 'runtime-patches', 'companion-sync', 'plugin-ops', 'file-roots', 'boot-server'];
 
 // 打包态判定 + 资源根：Rust 壳 spawn sidecar 时注入 DSH_SHELL_EXE /
 // DSH_RESOURCE_ROOT（main.rs Sidecar::spawn）。DSH_RESOURCE_ROOT 存在即打包态；
@@ -432,6 +434,94 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
         return { ok: true, ...(g.repairJunctions as () => Record<string, unknown>)() };
       default:
         return { ok: false, error: 'unsupported guard action: ' + action };
+    }
+  },
+  // ---- 文件能力（v6 Task 3.3 接回；dsh-client-file-changes 消费）----
+  // files.open 走 Rust L1 的 ShellExecuteW；本方法只做「授权判定」，返回
+  // 归一化后的绝对路径供壳层打开（授权必须先于打开，见 main.rs files.open）。
+  'files.authorize-open': (p): RpcResult => {
+    let fp = (p && p.path) as string;
+    if (typeof fp !== 'string' || !path.isAbsolute(fp)) return { ok: false, error: 'path must be absolute' };
+    // 归一化必须先于前缀比对：原始串可携带 `..`/大小写变体/符号链接骗过
+    // 字面前缀命中。realPath 跟随符号链接与 ..；叶子不存在时用已解析的父
+    // 目录拼回（随后 existsSync 把关）。
+    try {
+      fp = fs.realpathSync(fp);
+    } catch {
+      try {
+        fp = path.resolve(fs.realpathSync(path.dirname(fp)), path.basename(fp));
+      } catch { /* 父目录也不可解析：保持原串，交给下方围栏判定 */ }
+    }
+    const lower = (x: string): string => (process.platform === 'win32' ? x.toLowerCase() : x);
+    const skillsRoots = [
+      path.join(dshHome, 'skills'),
+      path.join(process.env.DSH_AGENTS_HOME || path.join(os.homedir(), '.agents'), 'skills'),
+    ].map((r) => lower(path.resolve(r)));
+    const fpL = lower(fp);
+    const underSkillsRoot = skillsRoots.some((r) => fpL === r || fpL.startsWith(r + path.sep));
+    if (!underSkillsRoot && !(fileRootsMod.isUnderFileRoots as (x: string) => boolean)(fp)) {
+      return { ok: false, error: 'path outside session workspace' };
+    }
+    if ((fileRootsMod.DANGEROUS_EXT as RegExp).test(fp)) {
+      return { ok: false, error: 'executable files are not openable from the file view' };
+    }
+    if (!fs.existsSync(fp)) return { ok: false, error: 'file not found' };
+    return { ok: true, path: fp };
+  },
+  // 文件逐项还原（内容精确匹配后替换；上限与 v5 一致）。
+  'files.revert': (p): RpcResult => {
+    const changes = (p && p.changes) as Array<{ path?: string; oldText?: string; newText?: string }>;
+    if (!Array.isArray(changes) || changes.length === 0 || changes.length > 300) return { results: [] };
+    const results: Record<string, unknown>[] = [];
+    for (const c of changes) {
+      const fp = String((c && c.path) || '');
+      const oldText = String((c && c.oldText) ?? '');
+      const newText = String((c && c.newText) ?? '');
+      if (!path.isAbsolute(fp) || oldText.length > 400000 || newText.length > 400000) {
+        results.push({ path: fp, status: 'invalid' });
+        continue;
+      }
+      if (!(fileRootsMod.isUnderFileRoots as (x: string) => boolean)(fp)) {
+        results.push({ path: fp, status: 'forbidden' });
+        continue;
+      }
+      try {
+        const exists = fs.existsSync(fp);
+        const content = exists ? fs.readFileSync(fp, 'utf8') : null;
+        if (oldText === '' && newText !== '') {
+          if (content !== null && content === newText) { fs.rmSync(fp); results.push({ path: fp, status: 'reverted' }); }
+          else results.push({ path: fp, status: content === null ? 'missing' : 'conflict' });
+        } else if (newText === '' && oldText !== '') {
+          if (content === null) { fs.writeFileSync(fp, oldText, 'utf8'); results.push({ path: fp, status: 'reverted' }); }
+          else results.push({ path: fp, status: 'conflict' });
+        } else {
+          if (content !== null && content.includes(newText)) {
+            const occurrences = content.split(newText).length - 1;
+            fs.writeFileSync(fp, content.replace(newText, () => oldText), 'utf8');
+            results.push(occurrences > 1
+              ? { path: fp, status: 'reverted', occurrences, note: 'oldText 多处匹配，仅回滚第一处' }
+              : { path: fp, status: 'reverted' });
+          } else {
+            results.push({ path: fp, status: content === null ? 'missing' : 'conflict' });
+          }
+        }
+      } catch (e) {
+        results.push({ path: fp, status: 'error', error: String(((e as Error).message) || e) });
+      }
+    }
+    return { results };
+  },
+  // 注：shell.open-external 与 files.open 属 L1 域，由 Rust handle_shell_method
+  // 直接拦截（ShellExecuteW），不经 sidecar。sidecar 只在内部需要打开外链时
+  // 用 notify('shell.open-external') 通知壳层执行（见 clientUpdateMod.init）。
+  // 拖入文件落盘（dsh-file-drop-eac 消费；上限与 data URL 校验在 plugin-ops）。
+  'file-drop.save': (p): RpcResult => {
+    try {
+      return (pluginOpsMod.fileDropSave as (d: string, n: string) => Record<string, unknown>)(
+        String((p && p.dataUrl) || ''), String((p && p.name) || '拖入文件'),
+      );
+    } catch (e) {
+      return { ok: false, error: String(((e as Error).message) || e) };
     }
   },
   // 原地重启 Web 服务核心。

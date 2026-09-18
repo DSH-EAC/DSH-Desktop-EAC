@@ -1155,6 +1155,43 @@ async fn handle_shell_method(
             }
             Ok(Some(reply(native_action_result(result))))
         }
+        // v6 Task 3.3：外链打开（dsh-client-file-changes 消费）。
+        // L2 只做语义转发，实际执行仍走 L1 的 ShellExecuteW。
+        "shell.open-external" => {
+            let url = params.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            let result = open_external(url).await;
+            Ok(Some(reply(match result {
+                Ok(()) => serde_json::json!({"ok":true}),
+                Err(error) => serde_json::json!({"ok":false,"error":error}),
+            })))
+        }
+        // v6 Task 3.3：文件打开（dsh-client-file-changes 消费）。
+        // 安全契约：必须先经 sidecar 的 files.authorize-open 做路径归一化 +
+        // 白名单/危险扩展名校验，拿到授权路径后才交给 ShellExecuteW。
+        // 不得跳过授权直接 open_native_target —— ShellExecuteW 无二次校验。
+        "files.open" => {
+            let state = BRIDGE.get_or_init(|| BridgeState {
+                sidecar: Arc::new(AMutex::new(None)),
+            });
+            let sidecar = state.sidecar.lock().await.clone();
+            let Some(sidecar) = sidecar else {
+                return Ok(Some(reply(serde_json::json!({"ok":false,"error":"sidecar not running"}))));
+            };
+            let authorized = match sidecar.call("files.authorize-open", params.clone()).await {
+                Ok(value) => value,
+                Err(error) => return Ok(Some(reply(serde_json::json!({"ok":false,"error":error})))),
+            };
+            if authorized.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+                return Ok(Some(reply(authorized)));
+            }
+            let Some(target) = authorized.get("path").and_then(|v| v.as_str()) else {
+                return Ok(Some(reply(serde_json::json!({"ok":false,"error":"authorized path missing"}))));
+            };
+            Ok(Some(reply(match open_native_target(target).await {
+                Ok(()) => serde_json::json!({"ok":true}),
+                Err(error) => serde_json::json!({"ok":false,"error":error}),
+            })))
+        }
         "log.page-error" => {
             let msg = params.get("message").and_then(|v| v.as_str()).unwrap_or("");
             eprintln!("[page-error] {}", msg);
@@ -1979,6 +2016,17 @@ fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {
                     if let Ok(parsed) = tauri::Url::parse(&href) {
                         let _ = win.navigate(parsed);
                     }
+                }
+            });
+        }
+        // v6 Task 3.3：sidecar 内部请求打开外链（如更新流程）。
+        // 与 handle_shell_method 的同名 arm 区分：这里是 notify 帧（无 id）。
+        "shell.open-external" => {
+            let url = params.get("url").and_then(|value| value.as_str()).unwrap_or("");
+            let url = url.to_string();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = open_external(&url).await {
+                    eprintln!("[shell] sidecar open external failed: {}", error);
                 }
             });
         }
