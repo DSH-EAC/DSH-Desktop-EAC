@@ -21,6 +21,10 @@ on:
       - 'docs/adr/0006-minimal-core-scope.md'
   workflow_dispatch:
 
+# GITHUB_TOKEN 最小权限：本 workflow 只读仓库（CodeQL actions/missing-workflow-permissions）。
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -75,7 +79,7 @@ jobs:
 
       - name: Check manifest drift
         working-directory: ${{ github.workspace }}
-        run: git diff --exit-code -- dsh-desktop/package.json dsh-desktop/package-lock.json
+        run: node dsh-desktop/scripts/check-manifest-drift.mjs
 
       - name: Upload generated Rust build input
         uses: actions/upload-artifact@v4
@@ -195,4 +199,4 @@ jobs:
 
       - name: Check manifest drift
         working-directory: ${{ github.workspace }}
-        run: git diff --exit-code -- dsh-desktop/package.json dsh-desktop/package-lock.json
+        run: node dsh-desktop/scripts/check-manifest-drift.mjs
