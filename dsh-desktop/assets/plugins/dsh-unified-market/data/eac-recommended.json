@@ -1,0 +1,19 @@
+{
+  "updated": "2026-09-01",
+  "plugins": [
+    {
+      "category": "skill",
+      "name": "Archify",
+      "url": "https://github.com/tt-a1i/archify",
+      "owner": "tt-a1i",
+      "description": {
+        "zh": "把代码仓库或系统描述生成经过校验的可交互架构图、工作流图、时序图、数据流图和生命周期图，并导出独立 HTML/SVG/PNG。",
+        "en": "Generate validated, interactive architecture, workflow, sequence, data-flow, and lifecycle diagrams from repositories or system descriptions, with standalone HTML/SVG/PNG export."
+      },
+      "install": "dsh plugin --profile web-desktop add @tt-a1i/archify-dsh@0.1.0",
+      "stars": null,
+      "added": "2026-09-01",
+      "eacRecommended": true
+    }
+  ]
+}

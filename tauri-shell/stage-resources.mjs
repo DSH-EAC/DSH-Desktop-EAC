@@ -251,9 +251,21 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills +
   //（ADR 0008 builtin 集合的子集；syncCompanionPlugins 对目录缺失的插件
   // 记录日志并跳过，因此分阶段接回无需改同步器）。
   const BUILTIN_PLUGIN_DIRS = [
+    // 阶段 1（PR #392）：零外设依赖的试点插件
     'dsh-terminal',
     'dsh-viewport-lock',
     'dsh-eac-locale-compat',
+    // 阶段 2：不依赖 window.dshDesktop 已删桥接面的 7 个 builtin 插件。
+    // 余下 6 个（balance / client-file-changes / file-drop-eac /
+    // plugin-manager / plugin-shield / plugin-wizard）依赖 ADR 0006 v5
+    // 整体删除的方法族，需先恢复 bridge 契约，不在 Task 3.3 范围。
+    'dsh-compact',
+    'dsh-eac-core-bridge',
+    'dsh-easy-setup',
+    'dsh-file-changes',
+    'dsh-settings-scroll-fix',
+    'dsh-skin-switch',
+    'dsh-unified-market',
   ];
   for (const dir of BUILTIN_PLUGIN_DIRS) {
     const from = path.join(dd, 'assets', 'plugins', dir);
