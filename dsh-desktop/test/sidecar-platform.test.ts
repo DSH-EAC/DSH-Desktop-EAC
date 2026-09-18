@@ -42,19 +42,23 @@ test('sidecar exposes platform identity and minimal mounted modules over shell.i
     const info = (await call('shell.info')).result || {};
     assert.equal(info.platform, process.platform);
     assert.equal(info.sidecar, 'server.ts');
-    assert.deepEqual(info.modules, [
-      'proc',
-      'platform',
-      'runtime-paths',
-      'profile',
-      'runtime-patches',
-      'boot-server',
-    ]);
-    for (const method of ['rc.action', 'rescue.state', 'guard.ensure']) {
+    // v6 Task 3.3：接回三件套后，最小闭包扩充。改为「必需模块必须在」
+    // 的双向断言，保留漏装配防呆但不再锁死快照。
+    for (const mod of [
+      'proc', 'platform', 'runtime-paths', 'profile',
+      'guard-box', 'runtime-patches', 'companion-sync', 'plugin-ops', 'boot-server',
+    ]) {
+      assert.ok((info.modules as string[]).includes(mod), `modules 缺少 ${mod}`);
+    }
+    // 退役能力面仍不得注册（rc/rescue 属 Task 3.5）。
+    for (const method of ['rc.action', 'rescue.state']) {
       const response = await call(method);
       assert.equal(response.error?.code, -32601, `${method} must be absent, not stubbed`);
       assert.match(response.error?.message || '', new RegExp(`method not found: ${method.replace('.', '\\.')}`));
     }
+    // guard.* 已随 Task 3.3 接回：必须应答而非返回 method not found。
+    const guardRes = await call('guard.ensure');
+    assert.equal(guardRes.error, undefined, 'guard.ensure 应已注册（Task 3.3 接回 guard-box）');
 
     assert.deepEqual((await call('shutdown')).result, { bye: true });
     await new Promise<void>((resolve, reject) => {

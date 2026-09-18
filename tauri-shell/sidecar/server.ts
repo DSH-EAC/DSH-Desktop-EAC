@@ -58,11 +58,17 @@ const profileMod = mount('profile');
 const runtimePatchesMod = mount('runtime-patches');
 const bootMod = mount('boot-server');
 
+// v6 Task 3.3：插件治理三件套接回（ADR 0006 v3 插口契约）——
+// companion-sync/guard-box 由 guard-box 依赖链引入，plugin-ops 提供插件启停。
+const guardBoxMod = mount('guard-box');
+const companionSyncMod = mount('companion-sync');
+const pluginOpsMod = mount('plugin-ops');
+
 // v6 Task 3.1（ADR 0006 v3 · 严格模式）：本体只保留对 dsh 的最简包装。
 // capability-stubs 仅提供内部 boot glue，不注册公开降级方法。
 import stubs = require('./capability-stubs');
 
-const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'runtime-patches', 'boot-server'];
+const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'guard-box', 'runtime-patches', 'companion-sync', 'plugin-ops', 'boot-server'];
 
 // 打包态判定 + 资源根：Rust 壳 spawn sidecar 时注入 DSH_SHELL_EXE /
 // DSH_RESOURCE_ROOT（main.rs Sidecar::spawn）。DSH_RESOURCE_ROOT 存在即打包态；
@@ -85,6 +91,24 @@ procMod.init({ log, getDshHome: () => dshHome, getDesktopProfile: desktopProfile
 pathsMod.init({ log, getUserDataDir: () => userDataDir, isPackaged: () => isPackagedRuntime(), resourcesPath: () => resourceRoot(), platform: process.platform });
 profileMod.init({ log, getDshHome: () => dshHome });
 runtimePatchesMod.init({ log, getDshHome: () => dshHome, getUserDataDir: () => userDataDir });
+// v6 Task 3.3：三件套 init（注入点与 v6 收窄面一致，见 ADR 0006 裁决项 5）。
+guardBoxMod.init({
+  log,
+  getDshHome: () => dshHome,
+  getDesktopProfile: desktopProfileFn,
+  getDshBin: () => (pathsMod.dshBin as () => string)(),
+});
+pluginOpsMod.init({ log });
+companionSyncMod.init({
+  log,
+  getDshHome: () => dshHome,
+  getUserDataDir: () => userDataDir,
+  // v6：皮肤行写入随皮肤系统剥出（Task 3.2 接回），此处保持空实现。
+  applyLegacySkinChoice: () => { /* Task 3.2 接回 */ },
+  showMainWindow: () => say('showMainWindow (host-delegated)'),
+  notify: notifyFallback,
+  platform: process.platform,
+});
 
 // ---- boot-server（P2：dsh web 服务编排） --------------------------------
 // settings 兼容层：与 updater.js 的 userData/settings.json 同文件同语义
@@ -188,12 +212,16 @@ function startSessionWatcher(): void {
   }
 }
 
-// 前置文件树准备（v6 严格最简版）：只做 profile 初始化 —— 插件同步/退役
-// 清理/宿主依赖落位随三件套剥出（capability-stubs.minimalPreBootSync）。
-const preBootSync = stubs.minimalPreBootSync(
-  () => (profileMod.ensureDesktopProfileInit as () => void)(),
-  log,
-);
+// 前置文件树准备（v6 Task 3.3 接回版）：退役清理 → 内置插件同步 → 模块遮蔽修复。
+// 与 v6 收窄面一致（ADR 0006 裁决项 5）；boot.start 与重启共用。
+async function preBootSync(): Promise<void> {
+  (profileMod.ensureDesktopProfileInit as () => void)();
+  (companionSyncMod.retireRemovedBuiltinPluginsGated as (dir: string) => void)(
+    (profileMod.desktopProfileDir as () => string)(),
+  );
+  (companionSyncMod.syncCompanionPlugins as () => void)();
+  (companionSyncMod.healProfileModules as () => void)();
+}
 
 // 原地重启（= main.js restartWebServiceCore，v6 最简版）：前置同步 → 拉起。
 async function restartWebServiceCore(): Promise<{ ok: boolean; webUrl?: string; port?: number; error?: string }> {
@@ -359,6 +387,52 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
       iconDataUri: chromeIcon(),
       exitAction,
     };
+  },
+  // ---- 插件管理（v6 Task 3.3 接回）----------------------------------------
+  // 仅供本机 Web UI 经 bridge 调用；Rust 壳不直接消费这些方法
+  //（main.rs 仅测试断言出现 plugins.list）。
+  'plugins.list': (): RpcResult => ({
+    list: (pluginOpsMod.pluginManagerCollect as () => unknown[])(),
+  }),
+  'plugins.set-enabled': (p): RpcResult =>
+    (pluginOpsMod.pluginManagerSetEnabled as (id: string, en: boolean) => Record<string, unknown>)(
+      String((p && p.id) || ''), !!(p && p.enabled),
+    ),
+  'plugins.set-removed': (p): RpcResult =>
+    (pluginOpsMod.pluginManagerSetRemoved as (id: string, rm: boolean) => Record<string, unknown>)(
+      String((p && p.id) || ''), !!(p && p.removed),
+    ),
+  // 保护中心动作面（guard-box 真实现覆盖 v6 桩）。
+  'guard.ensure': (): RpcResult => ({
+    ok: !!(guardBoxMod.ensureGuard as () => unknown)(),
+  }),
+  'guard.action': (p): RpcResult => {
+    const action = String((p && p.action) || '');
+    const g = (guardBoxMod.ensureGuard as () => Record<string, (...a: unknown[]) => unknown>)();
+    switch (action) {
+      case 'status': {
+        const st = loadSettings() as { shareWebProfile?: boolean };
+        return {
+          ok: true,
+          profile: desktopProfileFn(),
+          shareWebProfile: st.shareWebProfile === true,
+          snapshots: (g.listSnapshots as () => unknown[])() as unknown[],
+          incidents: (g.listIncidents as () => unknown[])() as unknown[],
+        };
+      }
+      case 'snapshot':
+        return { ok: true, snapshot: (g.snapshot as (l: string) => unknown)(String((p && p.label) || 'manual')) };
+      case 'restore':
+        return (g.restore as (id: string) => Record<string, unknown>)(String((p && p.id) || ''));
+      case 'last-good':
+        return { ok: true, snapshot: (g.lastGoodSnapshot as () => unknown)() };
+      case 'diagnostics':
+        return { ok: true, junctions: (g.junctionFindings as () => unknown[])() as unknown[] };
+      case 'repair-junctions':
+        return { ok: true, ...(g.repairJunctions as () => Record<string, unknown>)() };
+      default:
+        return { ok: false, error: 'unsupported guard action: ' + action };
+    }
   },
   // 原地重启 Web 服务核心。
   'boot.restart': async (): Promise<RpcResult> => restartWebServiceCore(),
