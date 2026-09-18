@@ -46,7 +46,7 @@ test('构建、Rust 与 staged runtime 在四个平台架构上运行并隔离�
   assert.match(rustJob, /Fetch Windows Cargo dependencies[\s\S]*?cargo fetch --locked/);
   assert.match(rustJob, /Prepare Windows WebView2Loader resource[\s\S]*?prepare-webview2-loader\.mjs --arch=\$\{\{ matrix\.arch \}\}/);
   const stagedJob = jobBlock('staged-runtime');
-  assert.match(stagedJob, /Fetch Windows Cargo dependencies[\s\S]*?cargo fetch --locked[\s\S]*?Assemble staged runtime/);
+  assert.match(stagedJob, /Set up stable Rust for Windows resources[\s\S]*?Fetch Windows Cargo dependencies[\s\S]*?cargo fetch --locked[\s\S]*?Assemble staged runtime/);
 });
 
 // CodeQL `actions/missing-workflow-permissions`（CWE-275）：没有显式

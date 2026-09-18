@@ -243,6 +243,10 @@ jobs:
       - name: Fetch bundled Node and npm runtimes
         run: npm run fetch-runtime
 
+      - name: Set up stable Rust for Windows resources
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Fetch Windows Cargo dependencies
         if: runner.os == 'Windows'
         working-directory: ${{ github.workspace }}/tauri-shell
