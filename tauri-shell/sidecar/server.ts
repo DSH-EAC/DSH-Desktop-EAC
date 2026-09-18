@@ -5,7 +5,7 @@
 //   1. stdio 行分隔 JSON-RPC 分发器（协议与 ping.js 一致，Rust L1 唯一对话面）
 //   2. 挂载最简本体模块（boot-server 及其基础闭包）
 //   3. 白名单方法注册表（Rust 壳调用面：boot.* / chrome.init / menu.action /
-//      files.* / shell.info / profile.* / rc.* / rescue.*）
+//      files.* / shell.info / profile.*）
 // 剥离面（插件系统 / 更新体系 / 余额 / 手机桥 / 向导 / SDK 隔离宿主）按
 // ADR 0006 移出装配；代码保留在仓库原位，由 Task 3.2/3.3/4/5/6 以包接回。
 //
@@ -58,11 +58,8 @@ const profileMod = mount('profile');
 const runtimePatchesMod = mount('runtime-patches');
 const bootMod = mount('boot-server');
 
-// v6 Task 3.1（ADR 0006 v3 · 严格模式）：插件治理三件套（companion-sync /
-// plugin-ops / guard-box）、恢复中心（recovery-center）、救援链
-//（rescue-integration）全部移出运行面 —— 本体只保留对 dsh 的最简包装。
-// 被剥能力经 capability-stubs 的降级桩应答（方法名与参数形态不变，
-// Task 3.3/3.5 接回时替换桩即可，插口契约见该文件头注释）。
+// v6 Task 3.1（ADR 0006 v3 · 严格模式）：本体只保留对 dsh 的最简包装。
+// capability-stubs 仅提供内部 boot glue，不注册公开降级方法。
 import stubs = require('./capability-stubs');
 
 const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'runtime-patches', 'boot-server'];
@@ -76,14 +73,6 @@ function isPackagedRuntime(): boolean {
 function resourceRoot(): string {
   return process.env.DSH_RESOURCE_ROOT || '';
 }
-
-const vnextState = require(path.join(DSH_DESKTOP_ROOT, 'lib', 'state.js')) as {
-  initVNextState(d: { dshHome?: string; userDataDir?: string; logsDir?: string }): void;
-  state: { eacBridge: { url: string; token: string; close(): void } | null; restartingServer: boolean };
-};
-const vnextLog = require(path.join(DSH_DESKTOP_ROOT, 'lib', 'log.js')) as {
-  setLogSink(fn: ((tag: string, msg: string) => void) | null): void;
-};
 
 // ---- ctx 注入（与 main.js 注入块逐项对齐；GUI 类能力走兜底/委托） --------
 const desktopProfileFn = profileMod.desktopProfile as () => string;
@@ -103,11 +92,18 @@ runtimePatchesMod.init({ log, getDshHome: () => dshHome, getUserDataDir: () => u
 let quitting = false;
 
 const settingsFile = path.join(userDataDir, 'settings.json');
-const { readJsonFile } = require(path.join(DSH_DESKTOP_ROOT, 'lib', 'plugin-copy.js')) as {
+const { readJsonFile, writeJsonAtomic } = require(path.join(DSH_DESKTOP_ROOT, 'lib', 'atomic-json.js')) as {
   readJsonFile(file: string): Record<string, unknown> | null;
-};
-const { writeJsonAtomic } = require(path.join(DSH_DESKTOP_ROOT, 'lib', 'atomic-json.js')) as {
   writeJsonAtomic(file: string, value: unknown): void;
+};
+const { verifyBundle } = require(path.join(DSH_DESKTOP_ROOT, 'bundle-integrity.js')) as {
+  verifyBundle(
+    nodeModulesRoot: string,
+    manifest: Record<string, unknown>,
+  ): {
+    ok: boolean;
+    damaged: Array<{ name: string; reason: string; expected?: number; actual?: number }>;
+  };
 };
 function loadSettings(): Record<string, unknown> {
   return readJsonFile(settingsFile) ?? {};
@@ -192,10 +188,6 @@ function startSessionWatcher(): void {
   }
 }
 
-// ---- vnext 初始化：日志 sink + 共享状态 ------------------------------------
-vnextLog.setLogSink(log);
-vnextState.initVNextState({ dshHome, userDataDir, logsDir: path.join(userDataDir, 'logs') });
-
 // 前置文件树准备（v6 严格最简版）：只做 profile 初始化 —— 插件同步/退役
 // 清理/宿主依赖落位随三件套剥出（capability-stubs.minimalPreBootSync）。
 const preBootSync = stubs.minimalPreBootSync(
@@ -207,7 +199,6 @@ const preBootSync = stubs.minimalPreBootSync(
 async function restartWebServiceCore(): Promise<{ ok: boolean; webUrl?: string; port?: number; error?: string }> {
   const running = (bootMod.state as () => { running: boolean })().running;
   (bootMod.setIsRestarting as (v: boolean) => void)(true);
-  vnextState.state.restartingServer = true;
   try {
     if (!running) {
       log('service', '请求启动 dsh web 服务（未在运行）');
@@ -228,8 +219,30 @@ async function restartWebServiceCore(): Promise<{ ok: boolean; webUrl?: string; 
     return { ok: false, error: String(((e as Error).message) || e) };
   } finally {
     (bootMod.setIsRestarting as (v: boolean) => void)(false);
-    vnextState.state.restartingServer = false;
   }
+}
+
+function verifyBundleIntegrity(): void {
+  if (!isPackagedRuntime()) return;
+  const manifestFile = path.join(DSH_DESKTOP_ROOT, 'bundle-manifest.json');
+  if (!fs.existsSync(manifestFile)) {
+    say('bundle integrity skipped: bundle-manifest.json missing (legacy install)');
+    return;
+  }
+  const manifest = readJsonFile(manifestFile);
+  if (!manifest || manifest.version !== 1 || !manifest.packages || typeof manifest.packages !== 'object') {
+    throw new Error('bundle integrity check failed: bundle-manifest.json is invalid');
+  }
+  const result = verifyBundle(path.join(DSH_DESKTOP_ROOT, 'node_modules'), manifest);
+  if (result.ok) {
+    say('bundle integrity check passed');
+    return;
+  }
+  const summary = result.damaged.slice(0, 10).map((item) =>
+    `${item.name}: ${item.reason} (expected=${item.expected ?? 'n/a'}, actual=${item.actual ?? 'n/a'})`
+  ).join('; ');
+  const omitted = result.damaged.length > 10 ? `; ${result.damaged.length - 10} more` : '';
+  throw new Error(`bundle integrity check failed: ${summary}${omitted}`);
 }
 
 // ---- 守护启动（v6 严格模式：无快照/事故面 —— guard-box 随插件保护中心剥出；
@@ -263,9 +276,6 @@ async function guardedStartAndWait(overlays: string[]): Promise<{ webUrl: string
   }
 }
 
-// （v6 严格模式：rc.* / guard.* 的桩注册移至 methods 声明之后的
-//  「能力桩注册」段统一执行；recoveryCenter.init 随恢复中心剥出。）
-
 // ---- 方法注册表 -----------------------------------------------------------
 interface RpcReq { id: number | null; method: string; params?: Record<string, unknown> }
 type RpcResult = Record<string, unknown>;
@@ -298,18 +308,14 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
   // ---- boot.*（P2：dsh web 服务编排，Rust 壳的启动主链路） ----
   'boot.start': async (p): Promise<RpcResult> => {
     const overlays = Array.isArray(p && p.overlays) ? (p!.overlays as string[]) : [];
+    verifyBundleIntegrity();
     // 前置文件树准备（v6 最简版，见 preBootSync）。
     try {
       await preBootSync();
     } catch (e) {
       say('boot 前置准备失败（继续尝试拉起服务）: ' + String(((e as Error).message) || e));
     }
-    // 恢复中心直开模式（Rust 壳检测 DSH_DESKTOP_RECOVERY=1 已打开恢复中心
-    // 窗口）：跳过 dsh web 启动，sidecar 只保持存活供恢复中心动作调用。
-    if (process.env.DSH_DESKTOP_RECOVERY === '1') {
-      say('[vnext] DSH_DESKTOP_RECOVERY=1，跳过 dsh web 启动（恢复中心直开模式）');
-      return { ok: true, recoveryMode: true };
-    }
+
     let r: { webUrl: string; port: number };
     try {
       r = await guardedStartAndWait(overlays);
@@ -356,20 +362,10 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
   },
   // 原地重启 Web 服务核心。
   'boot.restart': async (): Promise<RpcResult> => restartWebServiceCore(),
-  // （v6 严格模式：rc.action / rc.close 由 capability-stubs 桩注册 ——
-  //  恢复中心动作面剥出，方法面与参数形态不变，接回见插口契约。）
-  // （v6 严格模式：guard.action 由 capability-stubs 桩注册。）
 };
 
-// ---- 救援链 + 能力桩注册（v6 严格模式）-----------------------------------
-// rescue-integration 剥出：rescue.* 方法面由桩注册（形态不变），boot 失败
-// 记录走桩 recorder（真实现的崩溃计数随 Task 3.5 接回）。
+// ---- 内部 boot glue --------------------------------------------------------
 const bootFailureRecorder = stubs.makeBootFailureRecorder(log);
-
-// ---- 能力桩注册：rc.* / rescue.* / guard.*（插口契约见 capability-stubs）----
-Object.assign(methods, stubs.rcMethods(log));
-Object.assign(methods, stubs.rescueMethods(log));
-Object.assign(methods, stubs.guardMethods(log));
 
 function respond(msg: Record<string, unknown>): void {
   process.stdout.write(JSON.stringify(msg) + '\n');

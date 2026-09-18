@@ -1,0 +1,198 @@
+name: Minimal core CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'dsh-desktop/**'
+      - 'tauri-shell/**'
+      - '.github/workflows/ci.yml'
+      - 'docs/adr/0006-minimal-core-scope.md'
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'dsh-desktop/**'
+      - 'tauri-shell/**'
+      - '.github/workflows/ci.yml'
+      - 'docs/adr/0006-minimal-core-scope.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.7.0'
+  KERNEL_VERSION: '0.1.5-rc.2'
+
+jobs:
+  source-and-unit:
+    name: Node source and unit tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: dsh-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: dsh-desktop/package-lock.json
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@${{ env.PNPM_VERSION }} && pnpm --version
+
+      - name: Cache vendored kernel
+        uses: actions/cache@v4
+        with:
+          path: dsh-desktop/vendor/kernel
+          key: ${{ runner.os }}-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
+
+      - name: Prepare vendored kernel
+        run: node scripts/fetch-kernel.js
+
+      - name: Install dependencies
+        run: npm run ci:install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit and contract tests
+        run: npm test
+
+      - name: Check manifest drift
+        working-directory: ${{ github.workspace }}
+        run: git diff --exit-code -- dsh-desktop/package.json dsh-desktop/package-lock.json
+
+      - name: Upload generated Rust build input
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-bridge
+          path: tauri-shell/sidecar/bridge.js
+          if-no-files-found: error
+          retention-days: 1
+
+  rust-shell:
+    name: Rust shell (${{ matrix.os }})
+    needs: source-and-unit
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Download generated Rust build input
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-bridge
+          path: tauri-shell/sidecar
+
+      - name: Set up stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri-shell -> target
+          key: ${{ matrix.os }}-minimal-core
+
+      - name: Check formatting
+        working-directory: tauri-shell
+        run: cargo fmt -- --check
+
+      - name: Run Rust tests
+        working-directory: tauri-shell
+        run: cargo test --locked
+
+      - name: Check Rust shell
+        working-directory: tauri-shell
+        run: cargo check --locked
+
+  staged-runtime:
+    name: Staged runtime and isolated boot smoke (${{ matrix.arch }})
+    needs: source-and-unit
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x64
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+    defaults:
+      run:
+        working-directory: dsh-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('expected ${{ matrix.arch }}, got ' + process.arch)"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: dsh-desktop/package-lock.json
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@${{ env.PNPM_VERSION }} && pnpm --version
+
+      - name: Cache vendored kernel
+        uses: actions/cache@v4
+        with:
+          path: dsh-desktop/vendor/kernel
+          key: ${{ runner.os }}-${{ matrix.arch }}-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
+
+      - name: Prepare vendored kernel
+        run: node scripts/fetch-kernel.js
+
+      - name: Install dependencies
+        run: npm run ci:install
+
+      - name: Fetch bundled Node and npm runtimes
+        run: npm run fetch-runtime
+
+      - name: Assemble Linux staged runtime
+        working-directory: ${{ github.workspace }}
+        run: node tauri-shell/stage-resources.mjs --target=linux
+
+      - name: Verify staged closure and bundle integrity
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/verify-staged-runtime.mjs
+
+      - name: Run isolated minimal boot smoke
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/minimal-boot-smoke.mjs
+
+      - name: Check manifest drift
+        working-directory: ${{ github.workspace }}
+        run: git diff --exit-code -- dsh-desktop/package.json dsh-desktop/package-lock.json

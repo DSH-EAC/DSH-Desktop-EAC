@@ -1,6 +1,9 @@
 // release 构建隐藏控制台：release 的 exe 为 windows 子系统，双击启动不再弹出
 // 标题为 exe 路径的命令行窗口（debug 保留控制台便于看 eprintln 诊断）。
-#![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 // Deepseek Harness EAC — Tauri ShellHost（ADR 0002 L1；P2 GUI 主链路）
 //
@@ -26,10 +29,8 @@
 //     win.minimize / win.toggle-maximize / win.close / win.is-maximized /
 //     win.start-dragging（send）/ win.viewport-beat（send，视口失同步自愈）/
 //     win.maximized（通知推送）
-//     float.open（per-webview data_directory 隔离 = 硬门槛①）/ float.close
 //     menu.action 的纯壳动作（reload / devtools / fullscreen / quit / open-browser）
-//     shell.open-external（http(s) 校验后系统打开）
-//     log.renderer-heartbeat / log.page-error（send，壳层记录）
+//     log.page-error（send，壳层记录）
 //   其余 → sidecar（chrome.init / service.restart / boot.* / P3 渐进收编面）。
 
 use std::collections::HashMap;
@@ -39,10 +40,10 @@ use std::sync::{Arc, OnceLock, RwLock};
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
+use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as ABufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
-use std::process::Stdio;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex as AMutex};
 use tokio_tungstenite::tungstenite::Message;
 
@@ -53,7 +54,7 @@ static CHINESE_UI: OnceLock<bool> = OnceLock::new();
 
 // 桥端口回退：19873 被占（他程序占用/异常残留监听）时向上探测 25 个候选，
 // 全失败退回 OS 分配（端口 0）。实际端口必须先于任何窗口 URL 定稿
-//（loading/died/recovery/浮窗都指向这里），故绑定挪到 setup 任务最前面。
+//（loading/died 与主窗口都指向这里），故绑定挪到 setup 任务最前面。
 // 页面侧注入的 __DSH_BRIDGE_WS__ 恒为 ws_port()；ws-jsonrpc-client.js 里的
 // 19873 仅为无注入环境的兜底默认值，不与本机制耦合。
 static WS_PORT_EFFECTIVE: AtomicU16 = AtomicU16::new(WS_PORT);
@@ -108,12 +109,19 @@ fn use_chinese_ui() -> bool {
 }
 
 fn ui_text<'a>(zh: &'a str, en: &'a str) -> &'a str {
-    if use_chinese_ui() { zh } else { en }
+    if use_chinese_ui() {
+        zh
+    } else {
+        en
+    }
 }
 
 #[cfg(test)]
 mod shell_tests {
-    use super::{is_sidecar_recovery_request, locale_tag_is_chinese, verified_resource_root};
+    use super::{
+        is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status,
+        verified_resource_root,
+    };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -132,7 +140,8 @@ mod shell_tests {
             .duration_since(UNIX_EPOCH)
             .expect("system clock before unix epoch")
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("dsh-resource-root-{}-{nonce}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("dsh-resource-root-{}-{nonce}", std::process::id()));
         fs::create_dir_all(root.join("sidecar")).expect("create sidecar fixture");
         fs::create_dir_all(root.join("dsh-desktop")).expect("create desktop fixture");
         fs::write(root.join("sidecar").join("server.js"), "").expect("write sidecar fixture");
@@ -149,11 +158,72 @@ mod shell_tests {
     }
 
     #[test]
-    fn only_explicit_recovery_calls_can_respawn_sidecar() {
-        assert!(is_sidecar_recovery_request("boot.start"));
-        assert!(is_sidecar_recovery_request("rescue.safe-mode"));
-        assert!(!is_sidecar_recovery_request("chrome.init"));
-        assert!(!is_sidecar_recovery_request("plugins.list"));
+    fn only_boot_start_can_respawn_sidecar() {
+        assert!(is_sidecar_respawn_request("boot.start"));
+        assert!(!is_sidecar_respawn_request("rescue.safe-mode"));
+        assert!(!is_sidecar_respawn_request("chrome.init"));
+        assert!(!is_sidecar_respawn_request("plugins.list"));
+    }
+
+    #[test]
+    fn retired_and_unknown_shell_pages_are_not_found() {
+        let retired_page = format!("/{}-{}", "recovery", "center");
+        assert_eq!(shell_http_status("/loading"), 200);
+        assert_eq!(shell_http_status("/died?code=1"), 200);
+        assert_eq!(shell_http_status("/inject/bridge.js"), 200);
+        assert_eq!(shell_http_status(&retired_page), 404);
+        assert_eq!(shell_http_status("/about"), 404);
+        assert_eq!(shell_http_status("/unknown"), 404);
+    }
+
+    #[test]
+    fn died_page_retries_through_boot_start_only() {
+        let page = super::died_page("/tmp/dsh-web.log", "1");
+        assert!(page.contains("_call('boot.start'"));
+        assert!(!page.contains("rescue.safe-mode"));
+        assert!(!page.contains(&format!("{}-{}", "recovery", "center")));
+    }
+
+    #[test]
+    fn retired_recovery_page_returns_http_404() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        runtime.block_on(async {
+            let retired_page = format!("/{}-{}", "recovery", "center");
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind test listener");
+            let address = listener.local_addr().expect("listener address");
+            let server = tokio::spawn(async move {
+                let (stream, _) = listener.accept().await.expect("accept request");
+                super::http_serve(stream, &retired_page)
+                    .await
+                    .expect("serve response");
+            });
+
+            let mut client = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("connect test client");
+            let request = format!(
+                "GET /{}-{} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+                "recovery", "center"
+            );
+            client
+                .write_all(request.as_bytes())
+                .await
+                .expect("write request");
+            let mut response = String::new();
+            client
+                .read_to_string(&mut response)
+                .await
+                .expect("read response");
+            server.await.expect("server task");
+            assert!(response.starts_with("HTTP/1.1 404 Not Found\r\n"));
+        });
     }
 }
 
@@ -189,7 +259,10 @@ fn initialize_packaged_resource_root(app: &tauri::App) {
         if let Some(root) = verified_resource_root(&root) {
             let _ = PACKAGED_RESOURCE_ROOT.set(root);
         } else {
-            eprintln!("[shell] ignoring invalid resource directory: {}", root.display());
+            eprintln!(
+                "[shell] ignoring invalid resource directory: {}",
+                root.display()
+            );
         }
     }
 }
@@ -252,12 +325,15 @@ fn sidecar_script() -> std::path::PathBuf {
     strip_verbatim_prefix(script.canonicalize().unwrap_or(script))
 }
 
-fn is_sidecar_recovery_request(method: &str) -> bool {
-    matches!(method, "boot.start" | "rescue.safe-mode")
+fn is_sidecar_respawn_request(method: &str) -> bool {
+    method == "boot.start"
 }
 
 fn dsh_desktop_dir() -> String {
-    resource_root().join("dsh-desktop").to_string_lossy().replace('\u{5C}', "/")
+    resource_root()
+        .join("dsh-desktop")
+        .to_string_lossy()
+        .replace('\u{5C}', "/")
 }
 
 static SHELL_NOTIFY: OnceLock<broadcast::Sender<Value>> = OnceLock::new();
@@ -284,10 +360,7 @@ fn current_web_url() -> Option<String> {
 }
 
 fn set_current_web_url(url: &str) {
-    if let Ok(mut g) = WEB_URL
-        .get_or_init(|| RwLock::new(String::new()))
-        .write()
-    {
+    if let Ok(mut g) = WEB_URL.get_or_init(|| RwLock::new(String::new())).write() {
         *g = url.to_string();
     }
 }
@@ -354,7 +427,10 @@ struct WindowState {
 
 fn window_state_path(app: &tauri::AppHandle) -> Option<PathBuf> {
     use tauri::Manager;
-    app.path().app_config_dir().ok().map(|dir| dir.join("window-state.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("window-state.json"))
 }
 
 fn load_window_state(app: &tauri::AppHandle) -> Option<WindowState> {
@@ -365,10 +441,16 @@ fn load_window_state(app: &tauri::AppHandle) -> Option<WindowState> {
 
 fn save_window_state(app: &tauri::AppHandle) {
     use tauri::Manager;
-    let Some(path) = window_state_path(app) else { return };
-    let Some(win) = app.get_webview_window("main") else { return };
+    let Some(path) = window_state_path(app) else {
+        return;
+    };
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
     let Ok(size) = win.outer_size() else { return };
-    let Ok(pos) = win.outer_position() else { return };
+    let Ok(pos) = win.outer_position() else {
+        return;
+    };
     let scale = win.scale_factor().unwrap_or(1.0);
     let logical = size.to_logical::<f64>(scale);
     let state = WindowState {
@@ -406,12 +488,13 @@ fn save_window_state(app: &tauri::AppHandle) {
 
 /// 拖动缩放期间避免写盘风暴：同一窗口 800ms 内最多落盘一次；
 /// 最终状态由 CloseRequested / ExitRequested 兜底保存。
-static LAST_STATE_SAVE: std::sync::Mutex<Option<std::time::Instant>> =
-    std::sync::Mutex::new(None);
+static LAST_STATE_SAVE: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
 
 fn throttle_save_window_state(app: &tauri::AppHandle) {
     let now = std::time::Instant::now();
-    let Ok(mut last) = LAST_STATE_SAVE.lock() else { return };
+    let Ok(mut last) = LAST_STATE_SAVE.lock() else {
+        return;
+    };
     if last
         .map(|t| now.duration_since(t).as_millis() < 800)
         .unwrap_or(false)
@@ -438,14 +521,15 @@ fn throttle_save_window_state(app: &tauri::AppHandle) {
 // ---------------------------------------------------------------------------
 
 /// 上次自愈时刻（节流 ≥2s）与连续失同步拍数。
-static LAST_VP_HEAL: std::sync::Mutex<Option<std::time::Instant>> =
-    std::sync::Mutex::new(None);
+static LAST_VP_HEAL: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
 static VP_DESYNC_STREAK: AtomicU64 = AtomicU64::new(0);
 
 /// 心跳报文的视口与窗口实际尺寸比对，失同步时分级自愈。
 fn heal_viewport_desync(app: &tauri::AppHandle, page_w: f64, page_h: f64, dpr: f64) {
     use tauri::Manager;
-    let Some(win) = app.get_webview_window("main") else { return };
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
     // 最小化/隐藏时页面视口本来就不会跟随，不做误报。
     if win.is_minimized().unwrap_or(true) || !win.is_visible().unwrap_or(false) {
         VP_DESYNC_STREAK.store(0, Ordering::SeqCst);
@@ -500,7 +584,10 @@ fn heal_viewport_desync(app: &tauri::AppHandle, page_w: f64, page_h: f64, dpr: f
             tokio::time::sleep(std::time::Duration::from_millis(150)).await;
             let _ = win2.set_size(tauri::PhysicalSize::new(w, h));
         });
-        eprintln!("[shell] viewport desync persists, nudged window size {}x{}", w, h);
+        eprintln!(
+            "[shell] viewport desync persists, nudged window size {}x{}",
+            w, h
+        );
     }
 }
 
@@ -509,7 +596,9 @@ fn heal_viewport_desync(app: &tauri::AppHandle, page_w: f64, page_h: f64, dpr: f
 /// —— 即视口失同步的主诱因，这里延迟一拍显式重绑兜底。
 fn reassert_webview_bounds(app: &tauri::AppHandle) {
     use tauri::Manager;
-    let Some(win) = app.get_webview_window("main") else { return };
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
     let Ok(phys) = win.inner_size() else { return };
     let rect = tauri::Rect {
         position: tauri::PhysicalPosition::new(0i32, 0i32).into(),
@@ -528,9 +617,7 @@ fn reassert_webview_bounds(app: &tauri::AppHandle) {
 /// 计算主窗初始（inner_size 逻辑尺寸, position 逻辑坐标, 是否恢复最大化）。
 /// 有合法历史状态 → 恢复并在目标显示器 work area 内 clamp；
 /// 无历史 → 按主显示器 work area 收敛默认尺寸并居中。
-fn resolved_initial_bounds(
-    app: &tauri::AppHandle,
-) -> (f64, f64, Option<(f64, f64)>, bool) {
+fn resolved_initial_bounds(app: &tauri::AppHandle) -> (f64, f64, Option<(f64, f64)>, bool) {
     let primary = app.primary_monitor().ok().flatten();
 
     let min_w = min_inner_w();
@@ -577,42 +664,42 @@ fn resolved_initial_bounds(
                 st.w, st.h
             );
         } else {
-        // 目标显示器：窗口中心点所在显示器（副屏拼接/拔插后旧坐标仍指向其它
-        // 屏也算合法；完全失效时 monitor_from_point 返回 None → 回退上面的默认）。
-        let scale = primary.as_ref().map(|p| p.scale_factor()).unwrap_or(1.0);
-        let cx = st.x as f64 + st.w * scale / 2.0;
-        let cy = st.y as f64 + st.h * scale / 2.0;
-        let target = app
-            .monitor_from_point(cx, cy)
-            .ok()
-            .flatten()
-            .or_else(|| primary.clone());
-        if let Some(m) = target {
-            let mscale = m.scale_factor();
-            let wa = m.work_area();
-            let work_w = wa.size.width as f64 / mscale;
-            let work_h = wa.size.height as f64 / mscale;
-            // 与首启一致：恢复下限不越过目标显示器 work area（极窄副屏上
-            // 已保存的窄尺寸原样恢复，不会被 OS 下限弹回而显示不全）。
-            let eff_min_w = min_w.min(work_w - FIRST_RUN_MARGIN).max(1.0);
-            let eff_min_h = min_h.min(work_h - FIRST_RUN_MARGIN).max(1.0);
-            let w = st.w.clamp(eff_min_w, work_w.max(eff_min_w));
-            let h = st.h.clamp(eff_min_h, work_h.max(eff_min_h));
-            // min_vis / 40px 兜底由逻辑尺寸推导，而 wa.* 是物理像素：高 DPI 屏
-            // 不做 scale 换算会把「至少可见 40%/40px」的保障按 1/scale 缩水
-            //（150% 屏实际只保证 ~27% 可见）。
-            let min_vis = MIN_VISIBLE_W.max(w * 0.4) * mscale;
-            let x = (st.x as f64)
-                .max(wa.position.x as f64)
-                .min(wa.position.x as f64 + wa.size.width as f64 - min_vis);
-            let y = (st.y as f64)
-                .max(wa.position.y as f64)
-                .min(wa.position.y as f64 + wa.size.height as f64 - 40.0 * mscale);
-            out_w = w;
-            out_h = h;
-            out_pos = Some((x / mscale, y / mscale));
-            out_max = st.maximized;
-        }
+            // 目标显示器：窗口中心点所在显示器（副屏拼接/拔插后旧坐标仍指向其它
+            // 屏也算合法；完全失效时 monitor_from_point 返回 None → 回退上面的默认）。
+            let scale = primary.as_ref().map(|p| p.scale_factor()).unwrap_or(1.0);
+            let cx = st.x as f64 + st.w * scale / 2.0;
+            let cy = st.y as f64 + st.h * scale / 2.0;
+            let target = app
+                .monitor_from_point(cx, cy)
+                .ok()
+                .flatten()
+                .or_else(|| primary.clone());
+            if let Some(m) = target {
+                let mscale = m.scale_factor();
+                let wa = m.work_area();
+                let work_w = wa.size.width as f64 / mscale;
+                let work_h = wa.size.height as f64 / mscale;
+                // 与首启一致：恢复下限不越过目标显示器 work area（极窄副屏上
+                // 已保存的窄尺寸原样恢复，不会被 OS 下限弹回而显示不全）。
+                let eff_min_w = min_w.min(work_w - FIRST_RUN_MARGIN).max(1.0);
+                let eff_min_h = min_h.min(work_h - FIRST_RUN_MARGIN).max(1.0);
+                let w = st.w.clamp(eff_min_w, work_w.max(eff_min_w));
+                let h = st.h.clamp(eff_min_h, work_h.max(eff_min_h));
+                // min_vis / 40px 兜底由逻辑尺寸推导，而 wa.* 是物理像素：高 DPI 屏
+                // 不做 scale 换算会把「至少可见 40%/40px」的保障按 1/scale 缩水
+                //（150% 屏实际只保证 ~27% 可见）。
+                let min_vis = MIN_VISIBLE_W.max(w * 0.4) * mscale;
+                let x = (st.x as f64)
+                    .max(wa.position.x as f64)
+                    .min(wa.position.x as f64 + wa.size.width as f64 - min_vis);
+                let y = (st.y as f64)
+                    .max(wa.position.y as f64)
+                    .min(wa.position.y as f64 + wa.size.height as f64 - 40.0 * mscale);
+                out_w = w;
+                out_h = h;
+                out_pos = Some((x / mscale, y / mscale));
+                out_max = st.maximized;
+            }
         }
     }
 
@@ -642,7 +729,11 @@ fn resolve_node() -> String {
             return p;
         }
     }
-    let executable = if cfg!(target_os = "windows") { "node.exe" } else { "node" };
+    let executable = if cfg!(target_os = "windows") {
+        "node.exe"
+    } else {
+        "node"
+    };
     let vendored = format!("{}/vendor/node/{}", dsh_desktop_dir(), executable);
     if std::path::Path::new(&vendored).exists() {
         return vendored;
@@ -665,14 +756,22 @@ impl Sidecar {
     async fn spawn() -> Result<Self, String> {
         let node = resolve_node();
         let script = sidecar_script();
-        eprintln!("[sidecar] spawning node={} script={}", node, script.display());
+        eprintln!(
+            "[sidecar] spawning node={} script={}",
+            node,
+            script.display()
+        );
         let mut cmd = Command::new(&node);
         cmd.arg(&script)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             // 开发期诊断直通终端；release 无控制台，显式丢弃（inherit 在
             // windows 子系统下无有效句柄）。
-            .stderr(if cfg!(debug_assertions) { Stdio::inherit() } else { Stdio::null() });
+            .stderr(if cfg!(debug_assertions) {
+                Stdio::inherit()
+            } else {
+                Stdio::null()
+            });
         // node.exe 是控制台子系统程序：GUI 父进程派生时若不加
         // CREATE_NO_WINDOW 会自建控制台窗口（0x08000000）。
         #[cfg(windows)]
@@ -766,7 +865,9 @@ impl Sidecar {
             let mut w = self.writer.lock().await;
             let mut line = serde_json::to_string(&req).map_err(|e| e.to_string())?;
             line.push('\n');
-            w.write_all(line.as_bytes()).await.map_err(|e| format!("write rpc: {}", e))?;
+            w.write_all(line.as_bytes())
+                .await
+                .map_err(|e| format!("write rpc: {}", e))?;
             w.flush().await.map_err(|e| format!("flush rpc: {}", e))?;
             Ok(())
         }
@@ -818,7 +919,10 @@ async fn bind_ws_listener() -> Option<TcpListener> {
                 let real = l.local_addr().map(|a| a.port()).unwrap_or(port);
                 if real != WS_PORT {
                     // 打印被占的原定端口（WS_PORT），不是刚绑定成功的候选端口。
-                    eprintln!("[ws] port {} occupied, bridge fallback to {}", WS_PORT, real);
+                    eprintln!(
+                        "[ws] port {} occupied, bridge fallback to {}",
+                        WS_PORT, real
+                    );
                 }
                 WS_PORT_EFFECTIVE.store(real, Ordering::SeqCst);
                 return Some(l);
@@ -835,7 +939,10 @@ async fn bind_ws_listener() -> Option<TcpListener> {
 }
 
 async fn serve_ws(state: BridgeState, app: tauri::AppHandle, listener: TcpListener) {
-    println!("[ws] bridge listening on http://127.0.0.1:{}/bootstrap", ws_port());
+    println!(
+        "[ws] bridge listening on http://127.0.0.1:{}/bootstrap",
+        ws_port()
+    );
     loop {
         let Ok((stream, _)) = listener.accept().await else {
             // 持续性 accept 错误（监听句柄异常）若紧循环会打满 CPU：退避后再试。
@@ -856,7 +963,9 @@ async fn serve_ws(state: BridgeState, app: tauri::AppHandle, listener: TcpListen
 /// minimize → 隐藏到托盘；quit → 优雅退出；ask → 弹出独立退出选择窗口。
 async fn apply_exit_policy(app: &tauri::AppHandle, allow_ask: bool) {
     use tauri::Manager;
-    let action = sidecar_exit_action(app).await.unwrap_or_else(|| "ask".to_string());
+    let action = sidecar_exit_action(app)
+        .await
+        .unwrap_or_else(|| "ask".to_string());
     match action.as_str() {
         "minimize" => {
             if let Some(w) = app.get_webview_window("main") {
@@ -885,7 +994,6 @@ fn open_exit_dialog(app: &tauri::AppHandle) {
     }
 }
 
-
 /// 从 sidecar 的 boot.state 读 exitAction（settings 同源）。
 /// v6 Task 3.1（ADR 0006 v5）：chrome.init 已随 EAC 自定义面删除，
 /// 退出策略改由 boot.state 承载（壳最小控制面的唯一信息接口）。
@@ -904,7 +1012,9 @@ async fn sidecar_exit_action(_app: &tauri::AppHandle) -> Option<String> {
     .await
     .ok()?
     .ok()?;
-    r.get("exitAction").and_then(|v| v.as_str()).map(|s| s.to_string())
+    r.get("exitAction")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 /// 壳层方法拦截：返回 Some(reply) = 已处理并给出 JSON-RPC 完整回复；
@@ -916,9 +1026,8 @@ async fn handle_shell_method(
     id: &Value,
 ) -> Result<Option<String>, ()> {
     use tauri::Manager;
-    let reply = |result: Value| {
-        serde_json::json!({"jsonrpc":"2.0","id":id,"result":result}).to_string()
-    };
+    let reply =
+        |result: Value| serde_json::json!({"jsonrpc":"2.0","id":id,"result":result}).to_string();
     match method {
         "win.minimize" => {
             if let Some(w) = app.get_webview_window("main") {
@@ -1046,33 +1155,9 @@ async fn handle_shell_method(
             }
             Ok(Some(reply(native_action_result(result))))
         }
-        "log.renderer-heartbeat" => Ok(None), // P3 恢复状态机消费；P2 吞掉不转发
         "log.page-error" => {
             let msg = params.get("message").and_then(|v| v.as_str()).unwrap_or("");
             eprintln!("[page-error] {}", msg);
-            Ok(None)
-        }
-        "shell.exit-dismiss" => {
-            // 已改为 overlay 注入，不再需要此方法
-            Ok(None)
-        }
-        "recovery.restart" => {
-            // 整应用重启（= Electron app.relaunch+exit）。
-            SIDECAR_STOPPING.store(true, Ordering::SeqCst);
-            app.request_restart();
-            Ok(None)
-        }
-        "rc.open" => {
-            // 恢复中心：托盘菜单 / 启动失败链 / DSH_DESKTOP_RECOVERY 共用入口。
-            open_recovery_center_window(app);
-            Ok(Some(reply(serde_json::json!({"ok":true}))))
-        }
-        "shell.relaunch-safe-mode" => {
-            // 安全模式 relaunch（恢复中心 safe-mode 动作 → sidecar 通知）：
-            // 注入环境标记后整壳重启，新进程的 sidecar 继承该 env。
-            std::env::set_var("DSH_DESKTOP_SAFE_MODE", "1");
-            SIDECAR_STOPPING.store(true, Ordering::SeqCst);
-            app.request_restart();
             Ok(None)
         }
         _ => Err(()),
@@ -1112,7 +1197,9 @@ async fn run_bounded_command(mut command: Command, label: &str) -> Result<(), St
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .kill_on_drop(true);
-    let mut child = command.spawn().map_err(|error| format!("{} spawn failed: {}", label, error))?;
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("{} spawn failed: {}", label, error))?;
     match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait()).await {
         Ok(Ok(status)) if status.success() => Ok(()),
         Ok(Ok(status)) => Err(format!("{} exited with {}", label, status)),
@@ -1227,116 +1314,6 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
     }
 }
 
-async fn run_clipboard_command(program: &str, args: &[&str], text: &str) -> Result<(), String> {
-    let mut command = Command::new(program);
-    command
-        .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        command.as_std_mut().creation_flags(0x0800_0000);
-    }
-    let mut child = command.spawn().map_err(|error| format!("{} spawn failed: {}", program, error))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(text.as_bytes())
-            .await
-            .map_err(|error| format!("{} stdin failed: {}", program, error))?;
-    }
-    match tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await {
-        Ok(Ok(status)) if status.success() => Ok(()),
-        Ok(Ok(status)) => Err(format!("{} exited with {}", program, status)),
-        Ok(Err(error)) => Err(format!("{} wait failed: {}", program, error)),
-        Err(_) => {
-            let _ = child.kill().await;
-            Err(format!("{} timed out after 5s", program))
-        }
-    }
-}
-
-async fn write_clipboard_text(text: &str) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        let mut last_error = String::new();
-        for attempt in 0..3 {
-            match run_clipboard_command(
-                "powershell",
-                &["-NoProfile", "-Command", "$input | Set-Clipboard"],
-                text,
-            ).await {
-                Ok(()) => return Ok(()),
-                Err(error) => last_error = error,
-            }
-            if attempt < 2 {
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-            }
-        }
-        return Err(last_error);
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let mut backends: Vec<(&str, &[&str])> = Vec::new();
-        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-            backends.push(("wl-copy", &[]));
-        }
-        backends.push(("xclip", &["-selection", "clipboard"]));
-        backends.push(("xsel", &["--clipboard", "--input"]));
-        let mut failures = Vec::new();
-        for (program, args) in backends {
-            match run_clipboard_command(program, args, text).await {
-                Ok(()) => return Ok(()),
-                Err(error) => failures.push(error),
-            }
-        }
-        return Err(format!(
-            "Linux clipboard requires wl-copy, xclip, or xsel ({})",
-            failures.join("; ")
-        ));
-    }
-    #[cfg(target_os = "macos")]
-    {
-        return run_clipboard_command("pbcopy", &[], text).await;
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-    {
-        let _ = text;
-        Err("clipboard is unsupported on this platform".into())
-    }
-}
-
-/// 窗口标签字符集（tauri 限制：字母数字与 - / : _）。
-fn sanitize_label(s: &str) -> String {
-    let cleaned: String = s
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '/' || c == ':' || c == '_' {
-                c
-            } else {
-                '-'
-            }
-        })
-        .collect();
-    if cleaned.is_empty() {
-        "float".to_string()
-    } else {
-        cleaned
-    }
-}
-
-/// FNV-1a 32 位（窗口标签去重用，无需密码学强度）。
-fn fnv1a_hex8(s: &str) -> String {
-    let mut hash: u32 = 0x811c_9dc5;
-    for b in s.as_bytes() {
-        hash ^= u32::from(*b);
-        hash = hash.wrapping_mul(0x0100_0193);
-    }
-    format!("{:08x}", hash)
-}
-
 /// Windows 任务栏 Big 图标：tauri 的 set_icon 只走 tao set_window_icon
 /// （IconType::Small —— 标题栏/Alt+Tab），而任务栏读取的是 ICON_BIG；
 /// tao 注册的窗口 class 不带图标（hIcon NULL）且 tauri 未暴露
@@ -1396,99 +1373,6 @@ fn apply_window_icon(win: &tauri::WebviewWindow, app: &tauri::AppHandle) {
     apply_taskbar_icon_big(win);
 }
 
-/// 会话浮窗（硬门槛①）：第二个 WebviewWindow + 独立 data_directory
-/// （= Electron 的 persist:dsh-float 分区），与主窗 localStorage 隔离。
-/// 同一会话复用同一标签 → 单浮窗；返回 false 表示已存在（show+focus）。
-fn open_float_window(app: &tauri::AppHandle, session_id: &str) -> Result<bool, String> {
-    use tauri::Manager;
-    let label = format!("float-{}-{}", sanitize_label(session_id), fnv1a_hex8(session_id));
-    if let Some(existing) = app.get_webview_window(&label) {
-        let _ = existing.show();
-        let _ = existing.set_focus();
-        return Ok(false);
-    }
-    let Some(url_str) = current_web_url() else {
-        return Err("web url not ready".into());
-    };
-    let url = tauri::Url::parse(&url_str).map_err(|e| e.to_string())?;
-    let init = format!(
-        "window.__DSH_FLOAT__={{sessionId:{:?},win:{:?}}};{}\n\
-         window.dshDesktop._onReady(function(){{\
-           window.dshDesktop._send('float.ready',{{win:{:?}}});\
-         }});",
-        session_id, label, bridge_init_script(), label
-    );
-    let data_dir: PathBuf = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("float-webview");
-    let mut builder = tauri::webview::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::External(url))
-        .title(ui_text("DSH 会话", "DSH Session"))
-        .inner_size(900.0, 640.0)
-        .min_inner_size(480.0, 360.0)
-        .decorations(false)
-        .data_directory(data_dir)
-        // 关闭 Tauri 窗口级 drag&drop handler：否则 Windows 上页面收不到
-        // HTML5 拖拽（dragover/drop），图片/文件拖不进输入框。
-        .disable_drag_drop_handler()
-        .initialization_script(&init);
-    // 独立 data_directory = 独立 WebView2 环境（独立浏览器进程），不继承主窗
-    // 的调试参数 —— 显式透传（保持 Tauri 默认禁用项不变；无该环境变量时零差异）。
-    if let Ok(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
-        if !extra.is_empty() {
-            builder = builder.additional_browser_args(&format!(
-                "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection {}",
-                extra
-            ));
-        }
-    }
-    let win = builder.build().map_err(|e| e.to_string())?;
-    apply_window_icon(&win, app);
-    println!("[shell] float window {} created", label);
-    Ok(true)
-}
-
-/// 恢复中心窗口（vnext-absorb Phase 2）：独立 WebviewWindow，加载壳层
-/// /recovery-center 页（http_serve 注入 RC preload → window.rc）。与主窗/
-/// 浮窗互不依赖 —— 任意插件树启动失败时用户仍能进入这里治理插件。
-/// 已存在时聚焦；返回 false 表示已存在。
-fn open_recovery_center_window(app: &tauri::AppHandle) -> bool {
-    use tauri::Manager;
-    let label = "recovery-center";
-    if let Some(existing) = app.get_webview_window(label) {
-        let _ = existing.show();
-        let _ = existing.set_focus();
-        return false;
-    }
-    let url_str = format!("http://127.0.0.1:{}/recovery-center", ws_port());
-    let Ok(url) = tauri::Url::parse(&url_str) else {
-        return false;
-    };
-    // 独立 data_directory：不继承主窗的 WebView2 环境（与浮窗同策略）。
-    let data_dir: std::path::PathBuf = app
-        .path()
-        .app_data_dir()
-        .map(|p| p.join("recovery-center-webview"))
-        .unwrap_or_default();
-    let builder = tauri::webview::WebviewWindowBuilder::new(app, label, tauri::WebviewUrl::External(url))
-        .title(ui_text("恢复中心", "Recovery Center"))
-        .inner_size(980.0, 720.0)
-        .min_inner_size(760.0, 520.0)
-        .data_directory(data_dir)
-        .disable_drag_drop_handler()
-        .focused(true);
-    match builder.build() {
-        Ok(win) => apply_window_icon(&win, app),
-        Err(e) => {
-            eprintln!("[shell] recovery-center window build failed: {}", e);
-            return false;
-        }
-    }
-    println!("[shell] recovery-center window created");
-    true
-}
-
 /// 回环 WS 准入校验（传入已小写的请求头）。
 /// 浏览器跨站 WebSocket 必带发起页 Origin；非浏览器客户端（注入桥在
 /// WebView 内运行，同样带 Origin）之外的场景通常不带。规则：
@@ -1541,7 +1425,9 @@ mod ws_handshake_tests {
         assert!(ws_handshake_allowed(hdr));
         assert!(ws_handshake_allowed("get /ws http/1.1\r\nhost: 127.0.0.1:19873\r\norigin: http://127.0.0.1:5173\r\nupgrade: websocket\r\n\r\n"));
         assert!(ws_handshake_allowed("get /ws http/1.1\r\nhost: localhost:19873\r\norigin: http://tauri.localhost\r\nupgrade: websocket\r\n\r\n"));
-        assert!(ws_handshake_allowed("get /ws http/1.1\r\norigin: tauri://localhost\r\nupgrade: websocket\r\n\r\n"));
+        assert!(ws_handshake_allowed(
+            "get /ws http/1.1\r\norigin: tauri://localhost\r\nupgrade: websocket\r\n\r\n"
+        ));
         assert!(ws_handshake_allowed("get /ws http/1.1\r\nhost: [::1]:19873\r\norigin: http://[::1]:19873\r\nupgrade: websocket\r\n\r\n"));
     }
 
@@ -1549,15 +1435,23 @@ mod ws_handshake_tests {
     fn rejects_cross_site_origins_rebinding_and_truncated_headers() {
         assert!(!ws_handshake_allowed("get /ws http/1.1\r\nhost: 127.0.0.1:19873\r\norigin: https://evil.example\r\nupgrade: websocket\r\n\r\n"));
         // DNS rebinding：外部域名解析到回环后 Host 头仍带外部名。
-        assert!(!ws_handshake_allowed("get /ws http/1.1\r\nhost: evil.example:19873\r\nupgrade: websocket\r\n\r\n"));
+        assert!(!ws_handshake_allowed(
+            "get /ws http/1.1\r\nhost: evil.example:19873\r\nupgrade: websocket\r\n\r\n"
+        ));
         // 沙箱 iframe 的 null 源。
         assert!(!ws_handshake_allowed("get /ws http/1.1\r\nhost: 127.0.0.1:19873\r\norigin: null\r\nupgrade: websocket\r\n\r\n"));
         // 头部截断（窥探缓冲不满且未见终止符）一律拒绝。
-        assert!(!ws_handshake_allowed("get /ws http/1.1\r\norigin: http://127.0.0.1:1"));
+        assert!(!ws_handshake_allowed(
+            "get /ws http/1.1\r\norigin: http://127.0.0.1:1"
+        ));
     }
 }
 
-async fn handle_conn(stream: TcpStream, state: BridgeState, app: tauri::AppHandle) -> std::io::Result<()> {
+async fn handle_conn(
+    stream: TcpStream,
+    state: BridgeState,
+    app: tauri::AppHandle,
+) -> std::io::Result<()> {
     // 先窥探请求头：决定 WS 升级还是极简 HTTP。（peek 取 &self，不消耗流）
     // peek 是「当前到达多少看多少」：握手头可能分段到达（cookie 头大时
     // 必然 —— 浏览器 cookie 按域名不按端口隔离，127.0.0.1 上内核设置的
@@ -1575,14 +1469,21 @@ async fn handle_conn(stream: TcpStream, state: BridgeState, app: tauri::AppHandl
             }
             if n >= buf.len() || std::time::Instant::now() >= deadline {
                 // 头超 16KB 或 3s 未收全：拒绝（保持旧截断语义的 fail-closed）。
-                eprintln!("[ws] handshake header incomplete/oversized ({}B peeked), rejecting", n);
+                eprintln!(
+                    "[ws] handshake header incomplete/oversized ({}B peeked), rejecting",
+                    n
+                );
                 return Ok(());
             }
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         };
         let first = head.lines().next().unwrap_or("");
         let path = first.split_whitespace().nth(1).unwrap_or("/").to_string();
-        (path, head.to_lowercase().contains("upgrade: websocket"), head)
+        (
+            path,
+            head.to_lowercase().contains("upgrade: websocket"),
+            head,
+        )
     };
 
     if !wants_upgrade {
@@ -1649,11 +1550,17 @@ async fn handle_conn(stream: TcpStream, state: BridgeState, app: tauri::AppHandl
             Err(_) => break,
         };
         if let Message::Text(txt) = msg {
-            let Ok(req) = serde_json::from_str::<Value>(&txt) else { continue };
+            let Ok(req) = serde_json::from_str::<Value>(&txt) else {
+                continue;
+            };
             let id = req.get("id").cloned().unwrap_or(Value::Null);
-            let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("").to_string();
+            let method = req
+                .get("method")
+                .and_then(|m| m.as_str())
+                .unwrap_or("")
+                .to_string();
             let params = req.get("params").cloned().unwrap_or(Value::Null);
-            // 1) 壳层域：本地拦截（窗口/浮窗/菜单壳动作/日志 send 帧）。
+            // 1) 壳层域：本地拦截（窗口/菜单壳动作/日志 send 帧）。
             match handle_shell_method(&app, &method, &params, &id).await {
                 Ok(Some(reply)) => {
                     let _ = out_tx.send(Message::Text(reply));
@@ -1664,9 +1571,8 @@ async fn handle_conn(stream: TcpStream, state: BridgeState, app: tauri::AppHandl
             }
             // 2) 其余 → sidecar。
             let sc = state.sidecar.lock().await.clone();
-            // sidecar 已死（reader EOF 后槽位仍持旧 Arc）：/died 页的恢复动作
-            // （boot.start / rescue.safe-mode）必须经 sidecar 执行 —— 不重生则
-            // R3 引到的 /died 链是死胡同（两个按钮必然失败）。检出死亡即重生
+            // sidecar 已死（reader EOF 后槽位仍持旧 Arc）：/died 页的 boot.start
+            // 必须经 sidecar 执行。检出死亡即重生
             // + 换槽 + 重接壳层广播订阅。竞态安全：仅当槽位仍指向这个死实例
             // 时才换（并发连接只会有一个真正重生）。
             let sc = match sc {
@@ -1674,10 +1580,10 @@ async fn handle_conn(stream: TcpStream, state: BridgeState, app: tauri::AppHandl
                     let exited = matches!(s.child.lock().await.try_wait(), Ok(Some(_)));
                     if !exited {
                         Some(s)
-                    } else if !is_sidecar_recovery_request(&method) {
+                    } else if !is_sidecar_respawn_request(&method) {
                         // 页面心跳或初始化轮询不能驱动崩溃重生；否则 sidecar
                         // 若启动即退，会形成无上限的进程风暴。仅死亡页上的
-                        // 显式重启/安全模式动作拥有重生权限。
+                        // boot.start 拥有重生权限。
                         Some(s)
                     } else {
                         let mut slot = state.sidecar.lock().await;
@@ -1704,9 +1610,13 @@ async fn handle_conn(stream: TcpStream, state: BridgeState, app: tauri::AppHandl
             let reply = match sc {
                 Some(sc) => match sc.call(&method, params).await {
                     Ok(result) => serde_json::json!({"jsonrpc":"2.0","id":id,"result":result}),
-                    Err(e) => serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":-32000,"message":e}}),
+                    Err(e) => {
+                        serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":-32000,"message":e}})
+                    }
                 },
-                None => serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":-32000,"message":"sidecar not running"}}),
+                None => {
+                    serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":-32000,"message":"sidecar not running"}})
+                }
             };
             let _ = out_tx.send(Message::Text(reply.to_string()));
         }
@@ -1758,7 +1668,11 @@ fn loading_page() -> String {
 }
 
 fn died_page(log_path: &str, code: &str) -> String {
-    let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let esc = |s: &str| {
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+    };
     format!(
         "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>{SHELL_SKIN_LINKS}\
          <body style=\"{SHELL_BODY_STYLE}\">\
@@ -1791,21 +1705,6 @@ fn died_page(log_path: &str, code: &str) -> String {
     )
 }
 
-/// 主窗导航助手（壳页打开/返回共用；show + navigate 原子化到主线程）。
-fn navigate_main(app: &tauri::AppHandle, href: String) {
-    let app2 = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        use tauri::Manager;
-        if let Some(win) = app2.get_webview_window("main") {
-            let _ = win.show();
-            if let Ok(parsed) = tauri::Url::parse(&href) {
-                let _ = win.navigate(parsed);
-            }
-        }
-    });
-}
-
-/// back 查询参数编码（与 /died 的 log 参数同规则；页面侧 URLSearchParams 解码）。
 /// 查询参数百分号编码（encodeURIComponent 语义：RFC 3986 unreserved 之外
 /// 全部转 %XX）。5.3.2 及以前只编码反斜杠/冒号/斜杠/空格 —— `&`/`#` 会
 /// 截断或污染参数（log 路径含 `&` 时 /died 页丢失后续内容）。页面侧
@@ -1814,144 +1713,13 @@ fn encode_query(v: &str) -> String {
     let mut out = String::with_capacity(v.len() + 8);
     for b in v.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
             _ => out.push_str(&format!("%{:02X}", b)),
         }
     }
     out
-}
-
-/// back 查询参数编码（与 /died 的 log 参数同规则；页面侧 URLSearchParams 解码）。
-fn encode_back(url: &str) -> String {
-    encode_query(url)
-}
-
-/// 更新进度页（client-update.show / agent 更新共用；进度经 _onNotify 渲染）。
-fn update_page(version: &str, kind: &str) -> String {
-    let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
-    let product = if kind == "agent" {
-        ui_text("dsh 内核", "dsh core")
-    } else {
-        "Deepseek Harness EAC"
-    };
-    format!(
-        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>{SHELL_SKIN_LINKS}\
-         <body style=\"{SHELL_BODY_STYLE}\">\
-         <div style=\"text-align:center;max-width:520px;width:82%\">\
-         <div style=\"font-size:19px;font-weight:600;margin-bottom:8px\">{2} {3}</div>\
-         <div style=\"font-size:12.5px;color:var(--eac-shell-text-secondary,#8b9ac4);margin-bottom:22px\">v{4} · {5}</div>\
-         <div style=\"height:8px;border-radius:6px;background:var(--eac-shell-border-weak,rgba(255,255,255,.08));overflow:hidden\">\
-         <div id=fill style=\"height:100%;width:0%;border-radius:6px;background:var(--eac-shell-accent,#5b8cff);transition:width .3s\"></div></div>\
-         <div id=status style=\"margin-top:14px;font-size:12.5px;color:var(--eac-shell-text-secondary,#8b9ac4);font-family:var(--eac-shell-font-mono,Consolas,monospace)\">{6}</div>\
-         </div>\
-         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{7}/ws';{8}\
-         var EN={9};\
-         var BACK=new URLSearchParams(location.search).get('back')||'';\
-         window.dshDesktop._onNotify(function(m,p){{\
-           if (m==='client-update.progress'){{\
-             if (p && p.channel==='client' && p.total>0){{\
-               var pct=Math.max(0,Math.min(100,Math.round(p.received*100/p.total)));\
-               document.getElementById('fill').style.width=pct+'%';\
-               var extra='';\
-               if (p.speedMBps) extra=' · '+p.speedMBps.toFixed(1)+' MB/s';\
-               if (p.etaSec && isFinite(p.etaSec) && p.etaSec>0){{var s=Math.round(p.etaSec);extra+=EN?' · '+(s>=60?Math.floor(s/60)+'m '+(s%60)+'s':s+'s')+' remaining':' · 剩余 '+(s>=60?Math.floor(s/60)+' 分 '+(s%60)+' 秒':s+' 秒');}}\
-               document.getElementById('status').textContent=(EN?'Downloading ':'正在下载 ')+pct+'%'+extra;\
-             }} else if (p && p.stage){{\
-               var stages={{fetch:'Downloading packages...',install:'Installing...',done:'Finishing...',mirror:'Switching download source...'}};\
-               document.getElementById('status').textContent=EN?(stages[p.stage]||'Updating...'):p.stage;\
-             }}\
-           }} else if (m==='client-update.hide'){{\
-             if (BACK) location.replace(BACK);\
-           }}\
-         }});</script></body>",
-        ui_text("zh-CN", "en"),
-        ui_text("正在更新", "Updating"),
-        ui_text("正在更新", "Updating"),
-        product,
-        esc(version),
-        ui_text("更新完成后应用会自动重启；插件、皮肤与会话全部保留。", "The app restarts automatically when the update finishes. Plugins, skins, and sessions are preserved."),
-        ui_text("准备中…", "Preparing..."),
-        ws_port(),
-        BRIDGE_JS,
-        if use_chinese_ui() { "false" } else { "true" },
-    )
-}
-
-/// 关于页（版本经 boot.state 动态读取）。
-fn about_page() -> String {
-    format!(
-        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>{SHELL_SKIN_LINKS}\
-         <body style=\"{SHELL_BODY_STYLE}\">\
-         <div style=\"text-align:center;max-width:460px;padding:30px 38px;border:1px solid var(--eac-shell-border-weak,rgba(255,255,255,.08));\
-         border-radius:16px;background:var(--eac-shell-card-raised,color-mix(in srgb,#0b1220 92%,white))\">\
-         <div style=\"font-size:20px;font-weight:600;margin-bottom:6px\">Deepseek Harness EAC</div>\
-         <div id=ver style=\"font-size:13px;color:var(--eac-shell-text-secondary,#8b9ac4);margin-bottom:14px\">{2}</div>\
-         <div style=\"font-size:12px;color:var(--eac-shell-text-tertiary,#5f6f9c);line-height:1.8\">{3}<br/>{4}</div>\
-         <button onclick=\"if(BACK)location.replace(BACK)\" style=\"margin-top:20px;padding:8px 26px;border:1px solid var(--eac-shell-border-strong,rgba(255,255,255,.18));\
-         border-radius:9px;background:var(--eac-shell-accent-soft-bg-strong,rgba(91,140,255,.15));color:var(--eac-shell-text-primary,#dfe6ff);font-size:13px;cursor:pointer\">{5}</button>\
-         </div>\
-         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{6}/ws';{7}\
-         var BACK=new URLSearchParams(location.search).get('back')||'';\
-         window.dshDesktop.boot.state().then(function(i){{\
-           document.getElementById('ver').textContent={8:?}+' v'+i.appVersion+' · '+{9:?}+' '+i.agentVersion+' ('+(i.agentSource||'bundled')+')';\
-         }}).catch(function(){{document.getElementById('ver').textContent={10:?};}});</script></body>",
-        ui_text("zh-CN", "en"),
-        ui_text("关于", "About"),
-        ui_text("读取版本中…", "Reading version..."),
-        ui_text("Tauri 壳（Rust L1）· Node sidecar（L2）· dsh 内核零改动（L3）", "Tauri shell (Rust L1) · Node sidecar (L2) · unchanged dsh core (L3)"),
-        ui_text("本项目为社区增强封装，与官方 DeepSeek 无隶属关系。", "This community enhancement is not affiliated with official DeepSeek."),
-        ui_text("返回", "Back"),
-        ws_port(),
-        BRIDGE_JS,
-        ui_text("封装", "App"),
-        ui_text("dsh 内核", "dsh core"),
-        ui_text("版本信息暂不可用", "Version information is unavailable"),
-    )
-}
-
-/// 恢复中心页：serve 真实 assets/recovery-center.html，注入回环 WS 地址 +
-/// 专用 preload（recovery-center-preload.js 的 IIFE，暴露 window.rc）。
-/// 窗口由 open_recovery_center_window 创建；页面只消费 rc.action/rc.close
-/// （走 sidecar 的 rc.* 方法，与主窗 bridge.js 的 dshDesktop 互不干扰）。
-fn recovery_center_page() -> String {
-    let file = resource_root().join("dsh-desktop").join("assets").join("recovery-center.html");
-    let html = std::fs::read_to_string(&file).unwrap_or_else(|_| {
-        format!(
-            "<!doctype html><meta charset=utf-8><title>{0}</title>{SHELL_SKIN_LINKS}<body style=\"background:var(--eac-shell-bg-base,#0b1220);color:var(--eac-shell-text-primary,#dfe6ff);font-family:sans-serif;display:grid;place-items:center;height:100vh\">{1} (assets/recovery-center.html)</body>",
-            ui_text("恢复中心", "Recovery Center"),
-            ui_text("恢复中心资源缺失", "Recovery Center resource is missing"),
-        )
-    });
-    let ws_rpc = std::fs::read_to_string(resource_root().join("dsh-desktop").join("assets").join("ws-jsonrpc-client.js")).unwrap_or_default();
-    let preload = std::fs::read_to_string(resource_root().join("dsh-desktop").join("assets").join("recovery-center-preload.js")).unwrap_or_default();
-    let preload = format!("{}\n{}", ws_rpc, preload);
-    let injection = format!(
-        "<script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\n{}</script>",
-        ws_port(), preload
-    );
-    inject_after_doctype(html, &injection)
-}
-
-/// 资产页桥注入定位：优先插在 charset meta 之后；旧实现 marker 硬编码自闭合
-/// 斜杠写法（<meta charset="utf-8" />），实际资产用无斜杠写法 → 恒匹配失败 →
-/// 注入被整体前置到 <!doctype html> 之前，页面以 quirks mode 渲染且 charset
-/// meta 后移。两种写法都认；都没有时插到 doctype 之后（绝不污染文档序言）。
-fn inject_after_doctype(html: String, injection: &str) -> String {
-    let markers = ["<meta charset=\"utf-8\" />", "<meta charset=\"utf-8\">"];
-    for m in markers {
-        if html.contains(m) {
-            return html.replacen(m, &format!("{}{}", m, injection), 1);
-        }
-    }
-    let doctype = "<!doctype html>";
-    // 字节切片前必须确认 char 边界：前 14 字节含多字节字符时裸切片 panic。
-    if html.len() >= doctype.len()
-        && html.is_char_boundary(doctype.len())
-        && html[..doctype.len()].eq_ignore_ascii_case(doctype)
-    {
-        return format!("{}{}{}", &html[..doctype.len()], injection, &html[doctype.len()..]);
-    }
-    format!("{}{}", injection, html)
 }
 
 /// 壳层皮肤包 CSS（assets/shell-skin/eac-default/，v6 Task 1.1）：
@@ -1971,6 +1739,20 @@ fn shell_skin_css(file: &str) -> String {
             .join(file),
     )
     .unwrap_or_default()
+}
+
+fn shell_http_status(path: &str) -> u16 {
+    let route = path.split('?').next().unwrap_or("");
+    if route == "/"
+        || route == "/inject/bridge.js"
+        || route.starts_with("/skin/")
+        || route == "/loading"
+        || route == "/died"
+    {
+        200
+    } else {
+        404
+    }
 }
 
 async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
@@ -1995,38 +1777,19 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
             }
         }
     }
-    let (body, ctype) = if path.starts_with("/inject/bridge.js") {
+    let status = shell_http_status(path);
+    let (body, ctype) = if status == 404 {
+        (
+            "<!doctype html><meta charset=utf-8><title>Not Found</title><h1>404 Not Found</h1>"
+                .to_string(),
+            "text/html; charset=utf-8",
+        )
+    } else if path.starts_with("/inject/bridge.js") {
         (BRIDGE_JS.to_string(), "application/javascript")
-    } else if let Some(file) = path
-        .split('?')
-        .next()
-        .unwrap_or("")
-        .strip_prefix("/skin/")
-    {
+    } else if let Some(file) = path.split('?').next().unwrap_or("").strip_prefix("/skin/") {
         (shell_skin_css(file), "text/css; charset=utf-8")
-    } else if path.starts_with("/recovery-center") {
-        (recovery_center_page(), "text/html; charset=utf-8")
     } else if path.starts_with("/loading") {
         (loading_page(), "text/html; charset=utf-8")
-    } else if path.starts_with("/update") {
-        // /update?v=..&kind=..（client-update.show 通知方拼好）
-        let mut version = String::new();
-        let mut kind = "client".to_string();
-        if let Some(q) = path.split_once('?') {
-            for kv in q.1.split('&') {
-                if let Some((k, v)) = kv.split_once('=') {
-                    let v = v.replace("%3A", ":").replace("%5C", "\\").replace("%2F", "/").replace('+', " ");
-                    if k == "v" {
-                        version = v;
-                    } else if k == "kind" {
-                        kind = v;
-                    }
-                }
-            }
-        }
-        (update_page(&version, &kind), "text/html; charset=utf-8")
-    } else if path.starts_with("/about") {
-        (about_page(), "text/html; charset=utf-8")
     } else if path.starts_with("/died") {
         // /died?code=..&log=..（查询参数由 boot.server-died 处理方拼好）
         let mut code = "unknown".to_string();
@@ -2034,7 +1797,11 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
         if let Some(q) = path.split_once('?') {
             for kv in q.1.split('&') {
                 if let Some((k, v)) = kv.split_once('=') {
-                    let v = v.replace("%3A", ":").replace("%5C", "\\").replace("%2F", "/").replace('+', " ");
+                    let v = v
+                        .replace("%3A", ":")
+                        .replace("%5C", "\\")
+                        .replace("%2F", "/")
+                        .replace('+', " ");
                     if k == "code" {
                         code = v;
                     } else if k == "log" {
@@ -2054,8 +1821,14 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
         );
         (page, "text/html; charset=utf-8")
     };
+    let status_text = if status == 200 {
+        "200 OK"
+    } else {
+        "404 Not Found"
+    };
     let resp = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        status_text,
         ctype,
         body.len(),
         body
@@ -2081,7 +1854,11 @@ fn run_bridge_test() -> i32 {
             }
         };
         let checks: Vec<(&str, Value, Box<dyn Fn(&Value) -> bool>)> = vec![
-            ("ping", serde_json::json!({}), Box::new(|r: &Value| r.get("pong") == Some(&serde_json::json!(true)))),
+            (
+                "ping",
+                serde_json::json!({}),
+                Box::new(|r: &Value| r.get("pong") == Some(&serde_json::json!(true))),
+            ),
             (
                 "shell.info",
                 serde_json::json!({}),
@@ -2141,7 +1918,7 @@ static BRIDGE_ONCE: std::sync::Once = std::sync::Once::new();
 static BRIDGE: std::sync::OnceLock<BridgeState> = std::sync::OnceLock::new();
 
 /// sidecar 通知 → 壳层响应（主线程执行窗口操作）。
-/// sidecar 通知 → 壳层（导航/恢复页）接线。setup 首生与死后重生共用：
+/// setup 首生与死后重生共用：
 /// 重生实例有新的 notify_tx，不重接则 boot.web-ready 等事件永久丢失。
 fn wire_sidecar_notifications(app: &tauri::AppHandle, sc: &Sidecar) {
     let mut notify = sc.notify_tx.subscribe();
@@ -2157,7 +1934,8 @@ fn wire_sidecar_notifications(app: &tauri::AppHandle, sc: &Sidecar) {
     });
 }
 
-fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {    let method = v.get("method").and_then(|m| m.as_str()).unwrap_or("");
+fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {
+    let method = v.get("method").and_then(|m| m.as_str()).unwrap_or("");
     let params = v.get("params").cloned().unwrap_or(Value::Null);
     match method {
         "boot.web-ready" => {
@@ -2177,8 +1955,15 @@ fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {    let method = v.
             }
         }
         "boot.server-died" => {
-            let code = params.get("code").map(|c| c.to_string()).unwrap_or_else(|| "unknown".into());
-            let log = params.get("logPath").and_then(|l| l.as_str()).unwrap_or("").to_string();
+            let code = params
+                .get("code")
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "unknown".into());
+            let log = params
+                .get("logPath")
+                .and_then(|l| l.as_str())
+                .unwrap_or("")
+                .to_string();
             println!("[shell] server-died code={} log={}", code, log);
             let href = format!(
                 "http://127.0.0.1:{}/died?code={}&log={}",
@@ -2197,62 +1982,17 @@ fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {    let method = v.
                 }
             });
         }
-        // ---- P4：更新链 / 关于页 / 向导（sidecar 通知 → 壳导航） ----
-        "client-update.show" => {
-            let version = params.get("version").and_then(|v| v.as_str()).unwrap_or("");
-            let kind = params.get("kind").and_then(|k| k.as_str()).unwrap_or("client");
-            println!("[shell] update window show v={} kind={}", version, kind);
-            let back = current_web_url().map(|u| encode_back(&u)).unwrap_or_default();
-            navigate_main(app, format!("http://127.0.0.1:{}/update?v={}&kind={}&back={}", ws_port(), encode_back(version), encode_back(kind), back));
-        }
-        "client-update.hide" => {
-            if let Some(url) = current_web_url() {
-                navigate_main(app, url);
-            }
-        }
-        "shell.about" => {
-            let back = current_web_url().map(|u| encode_back(&u)).unwrap_or_default();
-            navigate_main(app, format!("http://127.0.0.1:{}/about?back={}", ws_port(), back));
-        }
-        "shell.relaunch" => {
-            // agent 更新完成后整壳重启（Tauri restart 会退出并重新拉起自身）。
-            println!("[shell] relaunch requested (agent update)");
-            SIDECAR_STOPPING.store(true, Ordering::SeqCst);
-            app.request_restart();
-        }
-        "shell.show-main-window" => {
-            // 通知点击/任务完成等场景聚焦主窗（= Electron second-instance 行为）。
-            let app2 = app.clone();
-            let _ = app.run_on_main_thread(move || {
-                use tauri::Manager;
-                if let Some(win) = app2.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.unminimize();
-                    let _ = win.set_focus();
-                }
-            });
-        }
-        "shell.quit-for-update" => {
-            // 客户端更新交接：更新助手已 detached，壳整体优雅退出
-            // （ExitRequested 钩子会同步有界关停 sidecar/dsh web）。
-            println!("[shell] quit requested (client update handoff)");
-            let app2 = app.clone();
-            let _ = app.run_on_main_thread(move || {
-                app2.exit(0);
-            });
-        }
-        "shell.open-external" => {
-            let url = params.get("url").and_then(|value| value.as_str()).unwrap_or("");
-            let url = url.to_string();
-            tauri::async_runtime::spawn(async move {
-                if let Err(error) = open_external(&url).await {
-                    eprintln!("[shell] sidecar open external failed: {}", error);
-                }
-            });
-        }
         "shell.system-notification" => {
-            let title = params.get("title").and_then(|value| value.as_str()).unwrap_or("Deepseek Harness EAC").to_string();
-            let body = params.get("body").and_then(|value| value.as_str()).unwrap_or("").to_string();
+            let title = params
+                .get("title")
+                .and_then(|value| value.as_str())
+                .unwrap_or("Deepseek Harness EAC")
+                .to_string();
+            let body = params
+                .get("body")
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+                .to_string();
             tauri::async_runtime::spawn(async move {
                 if let Err(error) = show_system_notification(&title, &body).await {
                     eprintln!("[shell] system notification failed: {}", error);
@@ -2300,7 +2040,7 @@ fn main() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     // 先绑桥端口（可能回退到非默认端口）：下面所有窗口 URL
-                    // （loading / died / recovery）都指向桥端口，必须先定稿。
+                    // （loading / died）都指向桥端口，必须先定稿。
                     let Some(listener) = bind_ws_listener().await else {
                         eprintln!("[ws] bridge listener bind failed; aborting shell startup");
                         return;
@@ -2308,25 +2048,10 @@ fn main() {
                     match Sidecar::spawn().await {
                         Ok(sc) => {
                             println!("[shell] sidecar ready");
-                            // sidecar 通知 → 壳层（导航/恢复页）：首生与死后重生共用接线。
+                            // sidecar 通知 → 壳层：首生与死后重生共用接线。
                             wire_sidecar_notifications(&app_handle, &sc);
                             *st.sidecar.lock().await = Some(Arc::new(sc));
 
-                            // 恢复中心直开模式（DSH_DESKTOP_RECOVERY=1）：不建主窗、
-                            // 不拉起 dsh web —— 直开恢复中心窗口，sidecar 的 boot.start
-                            // 检测该 env 后跳过服务启动（保持存活供 rc.* 动作调用）。
-                            // 必须先起 serve_ws：恢复中心页（http_serve /recovery-center）
-                            // 与 rc.preload 的 WS 桥都挂在这个同端口服务上，漏起则
-                            // 窗口白屏、rc.* 全部不可达（G2 实测抓出）。
-                            if std::env::var("DSH_DESKTOP_RECOVERY").as_deref() == Ok("1") {
-                                let app_rc = app_handle.clone();
-                                let app_rc_inner = app_rc.clone();
-                                let _ = app_rc.run_on_main_thread(move || {
-                                    open_recovery_center_window(&app_rc_inner);
-                                });
-                                serve_ws(st, app_handle, listener).await;
-                                return;
-                            }
 
                             // 主窗：先加载壳层 /loading 页（即起即见）。
                             let app_win = app_handle.clone();
@@ -2469,8 +2194,8 @@ fn main() {
                                     }
                                 }
                             });
-                            // issue #210 修复完整性：/died 页与托盘「恢复中心」都挂在
-                            // 桥端口上 —— spawn 失败分支同样必须起 serve_ws，否则
+                            // issue #210 修复完整性：/died 页挂在桥端口上，
+                            // spawn 失败分支同样必须起 serve_ws，否则
                             // 诊断页指向无人监听的端口，WebView2 只会显示「无法访问」。
                             serve_ws(st, app_handle, listener).await;
                         }
@@ -2478,16 +2203,15 @@ fn main() {
                 });
             });
 
-            // 托盘（L1）：对齐 Electron 托盘全项（显示/隐藏、恢复中心、重启服务、反馈、退出）。
+            // 托盘（L1）：显示/隐藏、重启服务、反馈、退出。
             let app_handle = app.handle().clone();
             let show = tauri::menu::MenuItem::with_id(app, "show", ui_text("显示 / 隐藏窗口", "Show / Hide Window"), true, None::<&str>)?;
-            let recovery = tauri::menu::MenuItem::with_id(app, "recovery", ui_text("恢复中心…", "Recovery Center..."), true, None::<&str>)?;
+
             let restart = tauri::menu::MenuItem::with_id(app, "restart", ui_text("重启 Web 服务", "Restart Web Service"), true, None::<&str>)?;
             let feedback = tauri::menu::MenuItem::with_id(app, "feedback", ui_text("反馈建议", "Feedback"), true, None::<&str>)?;
             let quit = tauri::menu::MenuItem::with_id(app, "quit", ui_text("退出", "Quit"), true, None::<&str>)?;
             let sep1 = tauri::menu::PredefinedMenuItem::separator(app)?;
-            let sep2 = tauri::menu::PredefinedMenuItem::separator(app)?;
-            let menu = tauri::menu::Menu::with_items(app, &[&show, &sep1, &recovery, &restart, &sep2, &feedback, &quit])?;
+            let menu = tauri::menu::Menu::with_items(app, &[&show, &sep1, &restart, &feedback, &quit])?;
             let mut tray = tauri::tray::TrayIconBuilder::new()
                 .tooltip("Deepseek Harness EAC")
                 .menu(&menu);
@@ -2529,9 +2253,6 @@ fn main() {
                             eprintln!("[tray] open feedback failed: {}", error);
                         }
                     });
-                }
-                "recovery" => {
-                    open_recovery_center_window(app);
                 }
                 "quit" => app_handle.exit(0),
                 _ => {}

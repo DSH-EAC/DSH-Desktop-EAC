@@ -35,8 +35,8 @@ origin/aio-v1
 
 | AIO 视觉 | 来源 | 本包表达 |
 | --- | --- | --- |
-| 深蓝径向背景 | `assets/loading.html`、`assets/updating.html` | 页面背景 token |
-| 紫色错误氛围、玻璃卡片 | `assets/recovery.html` | 危险态和卡片 token |
+| 深蓝径向背景 | AIO 启动壳层 | 页面背景 token |
+| 紫色错误氛围、玻璃卡片 | AIO 错误态壳层 | 危险态和卡片 token |
 | 蓝色强调、文本层级 | AIO 壳页 | 强调色和文本 token |
 | 玻璃表面、紧凑按钮 | `tauri-app/frontend/chrome.ts` | 表面 token 和控件样式 |
 
@@ -53,15 +53,16 @@ CSS 视觉值。
 
 - 窗口最小化、最大化、关闭和菜单动作。
 - `window.dshDesktop`、Tauri invoke 和事件监听。
-- 会话、文件、终端、插件管理和更新业务。
+- 会话、文件、终端和插件管理业务。
 - dsh Web UI 的 `--dsw-*` 和 `--aion-*` token。
 - AIO 构建产物中的随机 CSS class。
 
-## 当前加载状态
+## 当前加载状态与消费者
 
-Task 1.2 只制作包，不接入生产切换。Rust `/skin/tokens.css` 和
-`/skin/controls.css` 当前仍固定读取 `eac-default`。后续 Task 3.2 可以在不
-改变本包内容的前提下增加选择机制。
+Rust `/skin/tokens.css` 和 `/skin/controls.css` 当前仍固定读取
+`eac-default`。本包实现相同接口，对应的生产消费者路径为
+`tauri-shell/src/main.rs` 和 `tauri-shell/src/exit-overlay.js`；后续选择机制
+无需改变消费者即可切换两包。
 
 ## 公约兼容
 

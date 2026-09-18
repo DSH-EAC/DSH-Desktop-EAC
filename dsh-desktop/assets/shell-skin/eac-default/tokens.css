@@ -49,9 +49,6 @@
   --eac-shell-danger-soft-bg-hover: rgba(232, 50, 70, .20);
   --eac-shell-danger-soft-border: rgba(232, 50, 70, .30);
   --eac-shell-close-hover: #e81123;                   /* 窗口关闭钮 hover */
-  --eac-shell-safe-mode-text: #ffd9a3;                /* 安全模式按钮文字 */
-  --eac-shell-safe-mode-bg: rgba(255, 180, 80, .10);
-  --eac-shell-safe-mode-border: rgba(255, 200, 120, .25);
 
   /* —— 表面与边框（玻璃卡片体系） —— */
   --eac-shell-surface: rgba(255, 255, 255, .03);
@@ -62,32 +59,7 @@
   --eac-shell-border-strong: rgba(255, 255, 255, .18);
   --eac-shell-card-bg: #1e1e2e;                       /* 实底卡片（退出确认） */
   --eac-shell-card-shadow: 0 12px 48px rgba(0, 0, 0, .6);
-  --eac-shell-card-raised: color-mix(in srgb, #0b1220 92%, white); /* 关于页浮起卡片 */
 
-  /* —— 恢复中心面板体系（实色表面） —— */
-  --eac-shell-panel-bg: #16233c;
-  --eac-shell-panel-border: #243756;
-  --eac-shell-panel-btn-bg: #1b2c4a;
-  --eac-shell-panel-btn-bg-hover: #24375c;
-  --eac-shell-panel-btn-border: #2c4370;
-  --eac-shell-panel-table-border: #1a2740;
-  --eac-shell-panel-header-border: #1d2a44;
-  --eac-shell-log-bg: #070d18;
-  --eac-shell-banner-err-bg: #3a1620;
-  --eac-shell-banner-err-border: #5c2433;
-  --eac-shell-banner-err-text: #ffb3c0;
-  --eac-shell-banner-ok-bg: #122f1e;
-  --eac-shell-banner-ok-border: #1f4d31;
-  --eac-shell-banner-ok-text: #a9e8c0;
-  --eac-shell-risk-legacy-bg: #4a2f16;
-  --eac-shell-risk-legacy-text: #ffcf9e;
-  --eac-shell-risk-core-bg: #163a2a;
-  --eac-shell-risk-core-text: #9fe6c0;
-  --eac-shell-risk-sdk-bg: #16334a;
-  --eac-shell-risk-sdk-text: #9fd2f0;
-  --eac-shell-danger-btn-border: #6b2a3c;
-  --eac-shell-warn-btn-border: #6b5a2a;
-  --eac-shell-warn-btn-text: #ffe2a9;
 
   /* —— 字体 —— */
   --eac-shell-font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
