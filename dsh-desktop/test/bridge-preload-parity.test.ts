@@ -96,6 +96,10 @@ const bridgeTree = extractKeyTree(bridge, '(window as any).dshDesktop =');
 const ALWAYS_PRESENT = ['protocolVersion', 'locale', 'plugins', 'updates', 'windowControls', 'boot'];
 const RESTORED_BY_TASK_3_3 = ['pluginManager', 'guard', 'fileDrop', 'getPathForFile',
   'getInfo', 'revertFiles', 'openPath', 'openExternal'];
+// 依据 metaone01 2026-09-19 的裁决（按 ADR 0006）：
+//  - balance 不作内置，转为推荐插件（Task 4 范围）；其 balance* RPC 面不接回；
+//  - plugin-wizard 因后续会与其它插件管理功能冲突，明确不接入。
+// 因此下面这些键为**终态契约**（不再是"待裁决"状态），不得回归。
 const STILL_RETIRED = ['menu', 'floatWindow', 'phoneBridge', 'pluginUpdates', 'imagePaste',
   'balancePrices', 'balanceModels', 'refreshBalance', 'restartService', 'copyText',
   'pluginWizard', 'recovery', 'rescue'];

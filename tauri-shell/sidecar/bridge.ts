@@ -124,6 +124,9 @@
     // 配置收窄说明：仅恢复当前已接回插件实际消费的键，未恢复的
     // （menu / floatWindow / phoneBridge / pluginUpdates / imagePaste /
     //   recovery / rescue / refreshBalance / restartService 等）继续留空。
+    // 依据 metaone01 2026-09-19 裁决（按 ADR 0006）：balance 转推荐插件、
+    // plugin-wizard 明确不接入 —— 故 balance* 与 pluginWizard 为终态留空，
+    // 由 bridge-preload-parity.test.ts 的 STILL_RETIRED 锁定不得回归。
     pluginManager: {
       list: function () { return call('plugins.list', {}); },
       setEnabled: function (id: string, enabled: boolean) { return call('plugins.set-enabled', { id: id, enabled: enabled }); },

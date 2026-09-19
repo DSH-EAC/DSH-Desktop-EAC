@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,10 +32,11 @@ test('sidecar exposes platform identity and minimal mounted modules over shell.i
     if (typeof message.id === 'number') pending.get(message.id)?.(message);
   });
   let id = 0;
-  const call = (method: string): Promise<RpcResponse> => new Promise((resolve) => {
+  // v6 Task 3.3 修复：支持带参调用（guard.action 等需要 params）。
+  const call = (method: string, params: Record<string, unknown> = {}): Promise<RpcResponse> => new Promise((resolve) => {
     id += 1;
     pending.set(id, resolve);
-    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params: {} }) + '\n');
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
   });
 
   try {
@@ -59,6 +60,40 @@ test('sidecar exposes platform identity and minimal mounted modules over shell.i
     // guard.* 已随 Task 3.3 接回：必须应答而非返回 method not found。
     const guardRes = await call('guard.ensure');
     assert.equal(guardRes.error, undefined, 'guard.ensure 应已注册（Task 3.3 接回 guard-box）');
+
+    // ---- v6 Task 3.3 修复：插件保护中心 UI（dsh-plugin-shield）的动作面 ----
+    // 背景：bridge.guard.action(action, value) 只传两个位置参数，服务端必须
+    // 读 p.value。此前读 p.label / p.id 导致 snapshot 丢参、restore 失效；
+    // 且 check / repair / incident / resolve-incident 四个动作缺失。
+    // 这条断言按「UI 实际会调的动作集合」逐个验证，防止再次漏接。
+    for (const action of ['status', 'snapshot', 'restore', 'check', 'repair', 'incident', 'resolve-incident']) {
+      const r = await call('guard.action', { action, value: undefined });
+      assert.notEqual(
+        r.result?.error, 'unknown action',
+        `guard.action 必须支持 UI 动作 '${action}'（插件保护中心点了没反应即此处漏接）`,
+      );
+    }
+    // 参数名契约锁：snapshot 的入参名必须是 value（UI 传的是位置参数 value）。
+    // plugin-guard 的 snapshot() 在 profile 目录不存在时返回 null，故先建目录
+    // 让快照可成立，再用 reason 回显值证明读的是 value 而不是 label。
+    const profileDir = join(root, 'dsh-home', 'profiles', 'web-desktop');
+    mkdirSync(profileDir, { recursive: true });
+    const snap = await call('guard.action', { action: 'snapshot', value: 'contract-probe' });
+    assert.equal(snap.result?.ok, true, 'snapshot 应接受 value 参数并成功建快照');
+    assert.equal(
+      (snap.result?.snapshot as Record<string, unknown> | undefined)?.reason,
+      'contract-probe',
+      'snapshot 必须读 p.value 作为 reason（读 p.label 会退回默认 manual）',
+    );
+    // status 必须带 lastGood（UI 用它渲染「回退最后良好快照」按钮）。
+    const statusRes = await call('guard.action', { action: 'status' });
+    assert.ok('lastGood' in (statusRes.result || {}), 'guard.action status 必须返回 lastGood 字段');
+
+    // ---- v6 Task 3.3 修复：boot.state 必须暴露 staticPort ----
+    // dsh-client-file-changes 经 bridge.getInfo()（→ boot.state）读 staticPort
+    // 拼静态预览 URL；字段缺失会让契约不完整（届时恒 0，客户端按契约回退宿主路由）。
+    const bootState = await call('boot.state');
+    assert.ok('staticPort' in (bootState.result || {}), 'boot.state 必须包含 staticPort 字段');
 
     assert.deepEqual((await call('shutdown')).result, { bye: true });
     await new Promise<void>((resolve, reject) => {

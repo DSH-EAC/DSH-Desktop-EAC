@@ -388,6 +388,10 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
       agentSource: (pathsMod.dshVersionSource as () => string)(),
       iconDataUri: chromeIcon(),
       exitAction,
+      // v6 Task 3.3：插件（dsh-client-file-changes）经 bridge.getInfo() 读
+      // staticPort 拼静态预览 URL。静态预览服务随插件面剥出，故恒 0 ——
+      // 客户端按既有契约回退宿主 /dsh-files/static/ 路由（非错误路径）。
+      staticPort: 0,
     };
   },
   // ---- 插件管理（v6 Task 3.3 接回）----------------------------------------
@@ -410,6 +414,11 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
   }),
   'guard.action': (p): RpcResult => {
     const action = String((p && p.action) || '');
+    // v6 Task 3.3 修复：插件侧 bridge.guard.action(action, value) 只传两个位置参数
+    //（见 dsh-plugin-shield/lib/client.js 的 `var call = function (action, value)`），
+    // 因此取参必须是 p.value —— 原实现读 p.label / p.id 会让 snapshot 丢参、
+    // restore 直接失效。动作集合按 v5 对齐（保护中心 UI 的 7 个动作）。
+    const value = p && p.value;
     const g = (guardBoxMod.ensureGuard as () => Record<string, (...a: unknown[]) => unknown>)();
     switch (action) {
       case 'status': {
@@ -418,14 +427,35 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
           ok: true,
           profile: desktopProfileFn(),
           shareWebProfile: st.shareWebProfile === true,
-          snapshots: (g.listSnapshots as () => unknown[])() as unknown[],
-          incidents: (g.listIncidents as () => unknown[])() as unknown[],
+          // 上限 20 条：快照/事故目录可能很长，避免一次回传压垮 UI。
+          snapshots: (g.listSnapshots as () => unknown[])().slice(0, 20),
+          incidents: (g.listIncidents as () => unknown[])().slice(0, 20),
+          lastGood: (g.lastGoodSnapshot as () => unknown)(),
         };
       }
-      case 'snapshot':
-        return { ok: true, snapshot: (g.snapshot as (l: string) => unknown)(String((p && p.label) || 'manual')) };
-      case 'restore':
-        return (g.restore as (id: string) => Record<string, unknown>)(String((p && p.id) || ''));
+      case 'snapshot': {
+        const s = (g.snapshot as (r: string) => unknown)(String(value || 'manual'));
+        return { ok: !!s, snapshot: s };
+      }
+      case 'restore': {
+        // 服务在跑时不允许回滚（文件被占用且随即会被重写）。
+        const running = (bootMod.state as () => { running: boolean })().running;
+        if (running) {
+          return { ok: false, error: 'service-running', hint: '请先重启 Web 服务（或让回滚在重启间隙执行）' };
+        }
+        return (g.restore as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
+      }
+      case 'check':
+        return { ok: true, report: (g.healthCheck as () => unknown)() };
+      case 'repair': {
+        const r = (g.repair as () => { applied: unknown })();
+        return { ok: true, applied: r.applied };
+      }
+      case 'incident':
+        return (g.readIncident as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
+      case 'resolve-incident':
+        return (g.resolveIncident as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
+      // 以下为 v6 特有的无 UI 消费方动作，保留以兼容既有调用方。
       case 'last-good':
         return { ok: true, snapshot: (g.lastGoodSnapshot as () => unknown)() };
       case 'diagnostics':
@@ -433,7 +463,7 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
       case 'repair-junctions':
         return { ok: true, ...(g.repairJunctions as () => Record<string, unknown>)() };
       default:
-        return { ok: false, error: 'unsupported guard action: ' + action };
+        return { ok: false, error: 'unknown action' };
     }
   },
   // ---- 文件能力（v6 Task 3.3 接回；dsh-client-file-changes 消费）----
