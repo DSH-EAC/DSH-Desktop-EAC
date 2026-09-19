@@ -132,8 +132,14 @@ export async function runMinimalBootSmoke(stageRoot) {
     const info = await rpc.call('shell.info', {}, 15_000);
     if (info.result?.sidecar !== 'server.ts') throw new Error(`sidecar identity failed: ${JSON.stringify(info)}`);
 
-    for (const method of ['rc.action', 'rescue.safe-mode', 'guard.action']) {
+    // v6 Task 3.3：guard.* 已随插件治理接回，不在退役清单内。
+    // rc.* / rescue.* 仍属 Task 3.5 范围，必须保持 method-not-found。
+    for (const method of ['rc.action', 'rescue.safe-mode']) {
       requireMethodNotFound(method, await rpc.call(method, {}, 15_000));
+    }
+    const guard = await rpc.call('guard.ensure', {}, 15_000);
+    if (guard.error || guard.result?.ok !== true) {
+      throw new Error(`guard.ensure must be served after Task 3.3: ${JSON.stringify(guard)}`);
     }
 
     const boot = await rpc.call('boot.start');
@@ -151,7 +157,7 @@ export async function runMinimalBootSmoke(stageRoot) {
     if (exitCode !== 0) throw new Error(`sidecar exited with ${exitCode}`);
     await expectWebStopped(webUrl);
 
-    return { auth, dshHome, exitCode, retiredRpc: 3, orphanWeb: false };
+    return { auth, dshHome, exitCode, retiredRpc: 2, orphanWeb: false };
   } finally {
     if (child.exitCode === null) {
       try { await rpc.call('boot.stop', {}, 15_000); } catch { /* best-effort cleanup */ }

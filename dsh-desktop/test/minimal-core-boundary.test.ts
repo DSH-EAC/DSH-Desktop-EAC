@@ -34,8 +34,17 @@ test('minimal sidecar does not register retired recovery RPC families', () => {
   assert.doesNotMatch(stubs, /['"](?:rc|rescue|guard)\.[\w-]+['"]\s*:/);
 });
 
-test('platform abstraction has no plugin-specific capability matrix', () => {
-  assert.doesNotMatch(platform, /pluginCapabilityDetails|computerUser|plugins\s*:/);
+// v6 Task 3.3：插件系统接回后，平台抽象重新暴露插件能力矩阵。
+// 原断言（pluginCapabilityDetails 不存在）随接回反转：现在锁住它必须存在，
+// 且保持按平台判定可用性的语义。防呆方向由"必须不存在"改为"必须存在且完整"。
+test('platform abstraction exposes plugin capability matrix after Task 3.3', () => {
+  assert.match(platform, /pluginCapabilityDetails/);
+  assert.match(platform, /PluginCapability/);
+  assert.match(platform, /status: 'supported' \| 'external-dependency' \| 'unavailable'/);
+  // 四个受能力矩阵管辖的插件必须全部有平台判定项。
+  for (const id of ['computer-user', 'picturereader', 'dsh-dafeiyu', 'dsh-stt']) {
+    assert.match(platform, new RegExp(`${id}`), `能力矩阵缺少 ${id}`);
+  }
 });
 
 test('minimal shell has no float, update, about, or renderer heartbeat implementation', () => {
@@ -44,17 +53,23 @@ test('minimal shell has no float, update, about, or renderer heartbeat implement
 });
 
 test('staging excludes retired recovery and isolation modules', () => {
+  // v6 Task 3.3：插件治理闭包接回后，plugin-copy.js 重新进入装配面
+  //（companion-sync 消费），故自退役清单移除；其余仍必须被排除。
   for (const retired of [
     'recovery-center.html',
     'recovery-center-preload.js',
     'state.js',
     'log.js',
-    'plugin-copy.js',
-    'file-roots.js',
     'logger.js',
     'shared/protocol.js',
   ]) {
-    assert.doesNotMatch(stage, new RegExp(retired.replaceAll('.', '\\.')));
+    const escaped = retired.replaceAll('.', '\\.');
+    // 词边界防止子串误匹配（如 plugin-manager-state.js 含 'state.js'）。
+    assert.doesNotMatch(stage, new RegExp(`(^|[^-\\w])${escaped}`));
+  }
+  // 接回项必须真实进入装配清单，反向锁住 Task 3.3 不被回退。
+  for (const revived of ['plugin-copy.js', 'companion-sync.js', 'guard-box.js', 'plugin-ops.js', 'file-roots.js']) {
+    assert.match(stage, new RegExp(revived.replaceAll('.', '\\.')));
   }
 });
 

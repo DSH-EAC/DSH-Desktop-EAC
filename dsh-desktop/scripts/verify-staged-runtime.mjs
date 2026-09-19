@@ -21,6 +21,26 @@ const REQUIRED_FILES = [
   'dsh-desktop/lib/desktop/profile.js',
   'dsh-desktop/lib/desktop/runtime-patches.js',
   'dsh-desktop/lib/desktop/boot-server.js',
+  // v6 Task 3.3：插件治理闭包随包（companion-sync 顶层 require 链）
+  'dsh-desktop/plugin-guard.js',
+  'dsh-desktop/plugin-updater.js',
+  'dsh-desktop/plugin-manager-state.js',
+  'dsh-desktop/builtin-collision.js',
+  'dsh-desktop/patch-row-heal.js',
+  'dsh-desktop/profile-module-heal.js',
+  'dsh-desktop/preset-sync.js',
+  'dsh-desktop/compact-preset-migrate.js',
+  'dsh-desktop/router-persona-preset-migrate.js',
+  'dsh-desktop/lib/plugin-copy.js',
+  'dsh-desktop/lib/desktop/guard-box.js',
+  'dsh-desktop/lib/desktop/companion-sync.js',
+  'dsh-desktop/lib/desktop/plugin-ops.js',
+  'dsh-desktop/lib/desktop/install-profile.js',
+  'dsh-desktop/lib/desktop/plugin-sync-registry.js',
+  // v6 Task 3.3 阶段 3：files.revert 的白名单根
+  'dsh-desktop/lib/desktop/file-roots.js',
+  'dsh-desktop/scripts/onboarding.js',
+  'dsh-desktop/scripts/plugin-manager-patch.js',
 ];
 
 const RETIRED_PATHS = [
@@ -31,10 +51,10 @@ const RETIRED_PATHS = [
   'dsh-desktop/lib/recovery-center',
   'dsh-desktop/lib/state.js',
   'dsh-desktop/lib/log.js',
-  'dsh-desktop/lib/desktop/file-roots.js',
   'dsh-desktop/logger.js',
-  'dsh-desktop/lib/plugin-copy.js',
   'dsh-desktop/shared/protocol.js',
+  // v6 Task 3.3：plugin-copy.js（治理闭包）与 file-roots.js（files.* 白名单根）
+  // 已随接回移出退役面，均改列入 REQUIRED_FILES。
 ];
 
 function requireRegularFile(root, relative) {

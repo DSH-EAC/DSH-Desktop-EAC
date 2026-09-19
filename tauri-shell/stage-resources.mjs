@@ -58,23 +58,41 @@ if (targetPlatform !== process.platform) {
 //   - companion-sync / plugin-ops / market / install-profile / shortcuts /
 //     junction-patrol / static-preview / feature-pack 等 lib/desktop 模块
 //   - vnext 隔离体系整体剥出（ADR 0003 体系随插件系统走）
+// v6 Task 3.3：插件治理闭包接回。ROOT_FILES 增补 companion-sync 的根模块
+// 依赖（plugin-guard / plugin-updater / plugin-manager-state / builtin-collision /
+// patch-row-heal / profile-module-heal / preset-sync / compact-preset-migrate /
+// router-persona-preset-migrate）——它们由 companion-sync 顶层 require 消费。
+// 更新流（client-updater / client-update）仍属 v6.1 Task 8/9，不在此清单。
 const ROOT_FILES = [
   'session-watcher.js',
   'bundle-integrity.js', 'stable-port.js', 'stream-write-guard.js',
   // updater.js 保留其 overlay 内核管理面（boot 失败隔离切内置内核的链路，
   // runtime-paths/profile 消费）；更新流函数无人调用，v6.1 Task 8 拆分。
   'updater.js',
+  // Task 3.3 插件治理闭包
+  'plugin-guard.js', 'plugin-updater.js', 'plugin-manager-state.js',
+  'builtin-collision.js', 'patch-row-heal.js', 'profile-module-heal.js',
+  'preset-sync.js', 'compact-preset-migrate.js', 'router-persona-preset-migrate.js',
 ];
 const LIB_DESKTOP = [
   'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js',
   'runtime-patches.js', 'boot-server.js',
+  // Task 3.3 插件治理三件套 + 其 lib/desktop 依赖
+  'guard-box.js', 'companion-sync.js', 'plugin-ops.js',
+  'install-profile.js', 'plugin-sync-registry.js',
+  // Task 3.3 阶段 3：files.revert 的白名单根
+  'file-roots.js',
 ];
 const SCRIPTS = [
   'patch-session-manage.js', 'patch-deps.js',
+  // plugin-ops 消费：核心插件集合判定 + patch 行读写
+  'onboarding.js', 'plugin-manager-patch.js',
 ];
 
 const LIB_VNEXT = [
   'atomic-json.js',
+  // companion-sync / guard-box 消费
+  'plugin-copy.js',
 ];
 const NATIVE_MODULES = [];
 function requireFile(file, label) {
@@ -231,6 +249,39 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills +
     cpSync(shellSkin, path.join(staged, 'dsh-desktop', 'assets', 'shell-skin'), { recursive: true });
     console.log('[stage] 壳层皮肤包已随行（ADR 0005 接缝）');
   }
+  // v6 Task 3.3：内置插件随行。只拷当前已接回的内置插件目录
+  //（ADR 0008 builtin 集合的子集；syncCompanionPlugins 对目录缺失的插件
+  // 记录日志并跳过，因此分阶段接回无需改同步器）。
+  const BUILTIN_PLUGIN_DIRS = [
+    // 阶段 1（PR #392）：零外设依赖的试点插件
+    'dsh-terminal',
+    'dsh-viewport-lock',
+    'dsh-eac-locale-compat',
+    // 阶段 2：不依赖 window.dshDesktop 已删桥接面的 7 个 builtin 插件。
+    // 余下 6 个（balance / client-file-changes / file-drop-eac /
+    // plugin-manager / plugin-shield / plugin-wizard）依赖 ADR 0006 v5
+    // 整体删除的方法族，需先恢复 bridge 契约，不在 Task 3.3 范围。
+    'dsh-compact',
+    'dsh-eac-core-bridge',
+    'dsh-easy-setup',
+    'dsh-file-changes',
+    'dsh-settings-scroll-fix',
+    'dsh-skin-switch',
+    'dsh-unified-market',
+    // 阶段 3：服务端 RPC / bridge 面已随本批接回
+    'dsh-plugin-manager',
+    'dsh-plugin-shield',
+    'dsh-file-drop-eac',
+    'dsh-client-file-changes',
+  ];
+  for (const dir of BUILTIN_PLUGIN_DIRS) {
+    const from = path.join(dd, 'assets', 'plugins', dir);
+    if (!existsSync(from)) {
+      throw new Error(`[stage] 内置插件目录缺失: assets/plugins/${dir}`);
+    }
+    cpSync(from, path.join(staged, 'dsh-desktop', 'assets', 'plugins', dir), { recursive: true });
+  }
+  console.log(`[stage] 内置插件已随行（Task 3.3，${BUILTIN_PLUGIN_DIRS.length} 个）`);
 }
 
 // dsh-distribution 发行版描述符（阶段 3）：组件清单来自插件来源台账

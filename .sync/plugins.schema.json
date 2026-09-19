@@ -1,0 +1,499 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dsh-desktop:plugins.schema:v1",
+  "title": "DSH Desktop bundled asset sync manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedRegistry",
+    "plugins",
+    "skins",
+    "sdkPlugins"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedRegistry": {
+      "const": "dsh-desktop/lib/desktop/plugin-sync-registry.ts"
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/inventoryEntry"
+      }
+    },
+    "skins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/inventoryEntry"
+      }
+    },
+    "sdkPlugins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/inventoryEntry"
+      }
+    }
+  },
+  "$defs": {
+    "inventoryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "packageName",
+        "class",
+        "source",
+        "request",
+        "sync",
+        "runtimeUpdate",
+        "validation",
+        "license",
+        "owner"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "kind": {
+          "enum": [
+            "plugin",
+            "skin",
+            "sdk-plugin"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^dsh-desktop/assets/(plugins|skins|sdk-plugins)/[^/]+$"
+        },
+        "packageName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "class": {
+          "enum": [
+            "follow-upstream",
+            "patched",
+            "internal",
+            "manual",
+            "resource",
+            "isolated-sdk"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "sync": {
+          "$ref": "#/$defs/sync"
+        },
+        "runtimeUpdate": {
+          "$ref": "#/$defs/runtimeUpdate"
+        },
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "license": {
+          "$ref": "#/$defs/license"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultDisabled": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "skin"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "class": {
+                "const": "resource"
+              },
+              "sync": {
+                "properties": {
+                  "mode": {
+                    "const": "metadata-only"
+                  }
+                }
+              },
+              "runtimeUpdate": {
+                "properties": {
+                  "allowed": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "sdk-plugin"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "class": {
+                "const": "isolated-sdk"
+              },
+              "runtimeUpdate": {
+                "properties": {
+                  "allowed": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "npm",
+            "github",
+            "internal",
+            "unknown"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri-reference"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "npm"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "name"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "github"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "repository"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "internal",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "reason"
+            ],
+            "not": {
+              "required": [
+                "repository"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "latest",
+            "exact"
+          ]
+        },
+        "range": {
+          "type": "string"
+        },
+        "releaseAgeHours": {
+          "type": "number",
+          "minimum": 0
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "latest"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "range",
+              "releaseAgeHours"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "exact"
+              }
+            }
+          },
+          "then": {
+            "anyOf": [
+              {
+                "required": [
+                  "version"
+                ]
+              },
+              {
+                "required": [
+                  "commit"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "patches",
+        "preservePaths"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "mirror",
+            "patch-rebase",
+            "metadata-only",
+            "manual"
+          ]
+        },
+        "patches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "preservePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runtimeUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed",
+        "defaultAction"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "defaultAction": {
+          "enum": [
+            "prompt",
+            "none"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/runtimeSource"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "allowed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "source"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "allowed": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "source"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "runtimeSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "npm",
+            "github"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri-reference"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "npm"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "name"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "github"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "repository"
+            ]
+          }
+        }
+      ]
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entrypoints",
+        "commands"
+      ],
+      "properties": {
+        "entrypoints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected",
+        "reviewOnChange"
+      ],
+      "properties": {
+        "expected": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewOnChange": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
