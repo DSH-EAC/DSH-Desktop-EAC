@@ -1,0 +1,187 @@
+/* Structural rules for system.default.control. No visual values live here. */
+
+html.eac-shell,
+html.eac-shell body {
+  margin: 0;
+  min-height: 100%;
+}
+
+[data-region="session"][data-control-name="session-root"] {
+  min-height: 100vh;
+}
+
+[data-control-name="system.default.shell-page"] {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+[data-control-name="system.default.shell-content"] {
+  max-width: 560px;
+  text-align: center;
+}
+
+[data-control-name="system.default.shell-title"] {
+  margin-bottom: 10px;
+}
+
+[data-control-name="system.default.shell-status"] {
+  margin-bottom: 6px;
+}
+
+[data-control-name="system.default.shell-log-path"] {
+  margin-bottom: 20px;
+}
+
+[data-control-name="system.default.shell-actions"] {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+[data-control-name="system.default.loading-spinner"] {
+  width: 34px;
+  height: 34px;
+  margin: 18px auto 0;
+}
+
+[data-region="top-sidebar"][data-control-name="sidebar-root"] {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 2147483000;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 10px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+[data-region="top-sidebar"] [data-control-name="sidebar-content"],
+[data-region="top-sidebar"] [data-control-name="window-actions"] {
+  display: flex;
+  align-items: center;
+}
+
+[data-region="top-sidebar"] [data-control-name="sidebar-content"] {
+  min-width: 0;
+  gap: 8px;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-actions"] {
+  gap: 2px;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-icon"] {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: block;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-badge"] {
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+[data-region="top-sidebar"] button[data-control-name^="window-"],
+[data-region="top-sidebar"] [role="button"][data-control-name^="window-"] {
+  width: 30px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+html[data-dsh-title-bar-height] body {
+  box-sizing: border-box !important;
+  padding-top: 36px !important;
+  overflow-x: hidden !important;
+}
+
+html[data-dsh-title-bar-height] [data-region="session"][data-control-name="session-root"] {
+  transition: none !important;
+}
+
+html[data-dsh-title-bar-height] [data-phase="hero"] [data-conversation-scroll] {
+  justify-content: flex-start !important;
+  overflow-x: hidden !important;
+}
+
+html[data-dsh-title-bar-height] [data-phase="hero"] [data-conversation-scroll] > * {
+  margin-block: auto !important;
+}
+
+html[data-dsh-title-bar-height] [data-control-name="popup-surface"] {
+  z-index: 5100 !important;
+}
+
+html[data-dsh-title-bar-height] [data-control-name="popup-surface"].dsh-popup-flip {
+  inset: calc(100% + 8px) auto auto !important;
+}
+
+html[data-dsh-title-bar-height] [data-control-name="composer"]:has([data-control-name="popup-surface"]) {
+  overflow: visible !important;
+}
+
+[data-control-name="dialog-surface"] {
+  overscroll-behavior: contain !important;
+  z-index: 5000 !important;
+}
+
+[data-control-name="dialog-surface"] [data-control-name="system.default.dialog-scroll-area"] {
+  overflow-anchor: none !important;
+  overscroll-behavior: contain !important;
+}
+
+[data-control-name="dialog-surface"] [data-control-name="system.default.dialog-panel"] {
+  overscroll-behavior: contain !important;
+}
+
+[data-control-name="popup-surface"] {
+  z-index: 5000 !important;
+}
+
+[data-region="overlay"][data-control-name="overlay-root"] {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-region="overlay"] [data-control-name="dialog-surface"] {
+  width: min(380px, calc(100vw - 32px));
+  padding: 28px 32px 22px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+[data-region="overlay"] [data-control-name="dialog-title"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+[data-region="overlay"] [data-control-name="dialog-body"] {
+  margin-bottom: 20px;
+}
+
+[data-region="overlay"] [data-control-name="dialog-actions"] {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+[data-region="overlay"] [data-control-name="dialog-actions"] > button {
+  padding: 10px;
+}
+
+@media (hover: none) {
+  [data-region="overlay"] [data-control-name="dialog-actions"] > button {
+    padding: 13px;
+  }
+}

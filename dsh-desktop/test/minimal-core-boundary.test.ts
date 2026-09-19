@@ -13,12 +13,15 @@ const stage = read('tauri-shell', 'stage-resources.mjs');
 const build = read('tauri-shell', 'build.rs');
 const platform = read('dsh-desktop', 'lib', 'desktop', 'platform.ts');
 const skinAssets = [
-  read('dsh-desktop', 'assets', 'shell-skin', 'eac-default', 'skin.json'),
-  read('dsh-desktop', 'assets', 'shell-skin', 'eac-default', 'README.md'),
-  read('dsh-desktop', 'assets', 'shell-skin', 'eac-default', 'controls.css'),
-  read('dsh-desktop', 'assets', 'shell-skin', 'eac-default', 'tokens.css'),
-  read('dsh-desktop', 'assets', 'shell-skin', 'aio', 'skin.json'),
-  read('dsh-desktop', 'assets', 'shell-skin', 'aio', 'tokens.css'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'registry.json'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'skin.json'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'README.md'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'control', 'control.json'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'control', 'layout.css'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'style', 'style.json'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'style', 'tokens.css'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'style', 'states.css'),
+  read('dsh-desktop', 'assets', 'ui-skin', 'system-default', 'slot', 'slot.json'),
 ].join('\n');
 
 test('minimal shell has no recovery center entry points', () => {
