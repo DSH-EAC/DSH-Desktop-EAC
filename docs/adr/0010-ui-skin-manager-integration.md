@@ -25,7 +25,7 @@ The normative cross-repository versions and owners are listed in `docs/ui-skin-c
 
 ### 2. Host profile and slot topology
 
-EAC owns `dsh-desktop-eac-ui-skin-profile@^0.3`. The initial regions are `top-sidebar`, `bottom-sidebar`, `left-sidebar`, `right-sidebar`, `session`, and `overlay`. `popup`, `dialog`, and `floating-window` remain instance kinds. Existing `data-region`, `data-control-name`, and `data-state` anchors are the initial stable host surface.
+EAC owns `dsh-desktop-eac-ui-skin-profile@^0.3.0`; the current static `^0.3` spelling is SemVer-equivalent migration input. The initial regions are `top-sidebar`, `bottom-sidebar`, `left-sidebar`, `right-sidebar`, `session`, and `overlay`. `popup`, `dialog`, and `floating-window` remain instance kinds. Existing `data-region`, `data-control-name`, and `data-state` anchors are the initial stable host surface.
 
 These six regions are not a permanent ceiling. Before a visual element can be replaced by a Skin, EAC must place it in a versioned slot with a props schema, mount contract, z-index policy, capability set, and fallback contribution. EAC does not retain a parallel customizable shell appearance layer. There is no shell-skin package and no package-wide switch requirement; each slot is independently selectable, activatable, recoverable, and freely composable with other slots.
 
