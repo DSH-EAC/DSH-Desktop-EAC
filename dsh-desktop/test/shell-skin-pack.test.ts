@@ -304,6 +304,30 @@ test('runtime exposes stable region, control, and state anchors and loads the sp
   assert.match(states, /button\[data-control-name\^="window-"\]/);
 });
 
+test('developer control overlay is Ctrl-gated and reports package provenance without mutating controls', () => {
+  const bridge = read('tauri-shell', 'sidecar', 'bridge.ts');
+  const main = read('tauri-shell', 'src', 'main.rs');
+
+  assert.match(bridge, /__dsh_ui_devtools__/);
+  assert.match(bridge, /event\.ctrlKey/);
+  assert.match(bridge, /event\.key === 'Control'/);
+  assert.match(bridge, /data-control-name/);
+  assert.match(bridge, /data-slot/);
+  assert.match(bridge, /data-slot-provider/);
+  assert.match(bridge, /devtoolsPackage\('control'\)/);
+  assert.match(bridge, /devtoolsPackage\('style'\)/);
+  assert.match(bridge, /replaceChildren\(\)/);
+  assert.doesNotMatch(bridge, /node\.textContent\s*=|node\.innerHTML\s*=/);
+
+  assert.match(main, /__DSH_UI_SKIN_META__/);
+  assert.match(main, /ui_skin_debug_metadata/);
+  assert.match(main, /registry\.profile/);
+  assert.match(main, /control\/control\.json/);
+  assert.match(main, /style\/style\.json/);
+  assert.match(main, /slot\/slot\.json/);
+  assert.match(main, /__DSH_UI_DEVTOOLS_ENABLED__/);
+});
+
 test('retired surfaces stay outside the built-in packages', () => {
   const retiredPageLanguage = /recovery(?:-center)?|onboarding|update|about|恢复中心|安全模式|向导/i;
   const packageText = [

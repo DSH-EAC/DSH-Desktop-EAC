@@ -41,6 +41,118 @@
   function call(method: string, params?: unknown, timeoutMs?: number): Promise<any> { return rpc.call(method, params, timeoutMs); }
   function onNotify(fn: (method: string, params: any) => void): void { notifyHooks.push(fn); }
 
+  // 开发者标注层：按住 Ctrl 时临时标出稳定控件名、槽位和实际包来源。
+  // 标注只存在于独立 portal，不改写业务节点的文本、样式或事件。
+  var DEVTOOLS_PORTAL_ID = '__dsh_ui_devtools__';
+  var devtoolsActive = false;
+  var devtoolsFrame: number | null = null;
+  var devtoolsObserver: MutationObserver | null = null;
+
+  function devtoolsMetadata(): any {
+    return (window as any).__DSH_UI_SKIN_META__ || {};
+  }
+
+  function devtoolsPackage(kind: string): string {
+    var meta = devtoolsMetadata();
+    var packages = meta && meta.packages;
+    return String((packages && packages[kind]) || ('system.default.' + kind));
+  }
+
+  function devtoolsEnabled(): boolean {
+    var value = (window as any).__DSH_UI_DEVTOOLS_ENABLED__;
+    return value !== false;
+  }
+
+  function devtoolsPortal(): HTMLElement {
+    var existing = document.getElementById(DEVTOOLS_PORTAL_ID);
+    if (existing) return existing;
+    var style = document.createElement('style');
+    style.id = DEVTOOLS_PORTAL_ID + '-style';
+    style.textContent = '#__dsh_ui_devtools__{position:fixed;inset:0;z-index:2147483647;pointer-events:none;font:11px/1.25 Consolas,"Microsoft YaHei",monospace;color:#fff}' +
+      '#__dsh_ui_devtools__ .dsh-devtools-label{position:fixed;max-width:360px;padding:2px 5px;border:1px solid rgba(91,140,255,.9);border-radius:3px;background:rgba(7,14,31,.92);box-shadow:0 1px 5px rgba(0,0,0,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '#__dsh_ui_devtools__ .dsh-devtools-slot{border-color:rgba(61,220,132,.9);background:rgba(5,31,22,.94)}';
+    document.head.appendChild(style);
+    var portal = document.createElement('div');
+    portal.id = DEVTOOLS_PORTAL_ID;
+    document.body.appendChild(portal);
+    return portal;
+  }
+
+  function devtoolsText(node: Element): { text: string; slot: boolean } | null {
+    var control = node.getAttribute('data-control-name');
+    var slot = node.getAttribute('data-slot');
+    if (!control && !slot) return null;
+    if (slot) {
+      var controlPackage = node.getAttribute('data-control-package') || devtoolsPackage('control');
+      var stylePackage = node.getAttribute('data-style-package') || devtoolsPackage('style');
+      var provider = node.getAttribute('data-slot-provider') || node.getAttribute('data-package') || '<unknown>';
+      return { text: 'slot: ' + slot + ' · provider: ' + provider + ' · control: ' + controlPackage + ' · style: ' + stylePackage, slot: true };
+    }
+    return { text: control + ' · control: ' + devtoolsPackage('control') + ' · style: ' + devtoolsPackage('style'), slot: false };
+  }
+
+  function refreshDevtools(): void {
+    devtoolsFrame = null;
+    if (!devtoolsActive || !devtoolsEnabled() || !document.body) return;
+    var portal = devtoolsPortal();
+    portal.replaceChildren();
+    var nodes = document.querySelectorAll('[data-control-name], [data-slot]');
+    nodes.forEach(function (node) {
+      if (node === portal || portal.contains(node)) return;
+      var info = devtoolsText(node);
+      if (!info) return;
+      var rect = (node as HTMLElement).getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) return;
+      var label = document.createElement('span');
+      label.className = 'dsh-devtools-label' + (info.slot ? ' dsh-devtools-slot' : '');
+      label.textContent = info.text;
+      label.style.left = Math.max(0, Math.min(window.innerWidth - 8, rect.left)) + 'px';
+      label.style.top = Math.max(0, Math.min(window.innerHeight - 18, rect.top - 17)) + 'px';
+      portal.appendChild(label);
+    });
+  }
+
+  function scheduleDevtoolsRefresh(): void {
+    if (devtoolsFrame === null) devtoolsFrame = window.requestAnimationFrame(refreshDevtools);
+  }
+
+  function setDevtoolsActive(active: boolean): void {
+    if (devtoolsActive === active) return;
+    devtoolsActive = active;
+    var portal = document.getElementById(DEVTOOLS_PORTAL_ID);
+    if (!active) {
+      if (portal) portal.replaceChildren();
+      return;
+    }
+    scheduleDevtoolsRefresh();
+  }
+
+  function initDevtools(): void {
+    if (!devtoolsEnabled()) return;
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Control' || event.ctrlKey) setDevtoolsActive(true);
+    });
+    document.addEventListener('keyup', function (event) {
+      if (event.key === 'Control' || !event.ctrlKey) setDevtoolsActive(false);
+    });
+    window.addEventListener('blur', function () { setDevtoolsActive(false); });
+    window.addEventListener('resize', scheduleDevtoolsRefresh, { passive: true });
+    window.addEventListener('scroll', scheduleDevtoolsRefresh, { passive: true, capture: true });
+    devtoolsObserver = new MutationObserver(function (records) {
+      var portal = document.getElementById(DEVTOOLS_PORTAL_ID);
+      if (!portal || records.some(function (record) { return !portal.contains(record.target); })) {
+        scheduleDevtoolsRefresh();
+      }
+    });
+    var observe = function (): void {
+      if (document.body && devtoolsObserver) {
+        devtoolsObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-control-name', 'data-slot', 'data-state', 'data-slot-provider', 'data-package'] });
+      }
+    };
+    if (document.body) observe();
+    else document.addEventListener('DOMContentLoaded', observe, { once: true });
+  }
+
   // ---------------------------------------------------------------------------
   // window.dshDesktop（v6 Task 3.1 · 官方契约 + 壳最小控制面）
   //
@@ -409,4 +521,5 @@
   })();
 
   initPopupRescue();
+  initDevtools();
 })();

@@ -72,12 +72,20 @@ fn ws_port() -> u16 {
 fn bridge_init_script() -> String {
     let skin_css =
         serde_json::to_string(&ui_skin_css_bundle()).unwrap_or_else(|_| "\"\"".to_string());
+    let skin_meta = ui_skin_debug_metadata();
+    let devtools_enabled = ui_devtools_enabled();
     format!(
-        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\nwindow.__DSH_UI_SKIN_CSS__={};\n{}",
+        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\nwindow.__DSH_UI_SKIN_CSS__={};\nwindow.__DSH_UI_SKIN_META__={};\nwindow.__DSH_UI_DEVTOOLS_ENABLED__={};\n{}",
         ws_port(),
         skin_css,
+        skin_meta,
+        devtools_enabled,
         BRIDGE_JS,
     )
+}
+
+fn ui_devtools_enabled() -> bool {
+    cfg!(debug_assertions) || std::env::var("DSH_UI_DEVTOOLS").is_ok_and(|value| value == "1")
 }
 
 fn locale_tag_is_chinese(tag: &str) -> bool {
@@ -1716,8 +1724,8 @@ fn loading_page() -> String {
          <div data-control-name=\"system.default.shell-status\">{}</div>\\
          <div data-control-name=\"system.default.loading-spinner\" data-state=\"loading animating\" aria-label=\"Loading\"></div>\\
          </section></main>\\
-         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{}</script></body></html>",
-        ui_text("正在启动服务…", "Starting services..."), ws_port(), BRIDGE_JS
+         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';window.__DSH_UI_SKIN_META__={};window.__DSH_UI_DEVTOOLS_ENABLED__={};{}</script></body></html>",
+        ui_text("正在启动服务…", "Starting services..."), ws_port(), ui_skin_debug_metadata(), ui_devtools_enabled(), BRIDGE_JS
     )
 }
 
@@ -1738,11 +1746,11 @@ fn died_page(log_path: &str, code: &str) -> String {
          <div data-control-name=\"system.default.shell-actions\">\\
          <button data-control-name=\"system.default.restart-button\" data-state=\"idle\" onclick=\"retry()\">{6}</button>\\
          </div></section></main>\\
-         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{7}/ws';{8}\\
+         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{7}/ws';window.__DSH_UI_SKIN_META__={8};window.__DSH_UI_DEVTOOLS_ENABLED__={9};{10}\\
          function retry(){{\\
-           var b=document.querySelector('[data-control-name=\"system.default.restart-button\"]');b.textContent={9:?};b.disabled=true;b.setAttribute('data-state','running');\\
+           var b=document.querySelector('[data-control-name=\"system.default.restart-button\"]');b.textContent={11:?};b.disabled=true;b.setAttribute('data-state','running');\\
            window.dshDesktop._call('boot.start',{{}}).then(function(){{location.reload();}})\\
-             .catch(function(e){{b.textContent={10:?};b.disabled=false;b.setAttribute('data-state','error');}});\\
+             .catch(function(e){{b.textContent={12:?};b.disabled=false;b.setAttribute('data-state','error');}});\\
          }}</script></body></html>",
         ui_text("zh-CN", "en"),
         ui_text("服务已停止", "Service stopped"),
@@ -1752,6 +1760,8 @@ fn died_page(log_path: &str, code: &str) -> String {
         esc(log_path),
         ui_text("重新启动", "Restart"),
         ws_port(),
+        ui_skin_debug_metadata(),
+        ui_devtools_enabled(),
         BRIDGE_JS,
         ui_text("正在重启…", "Restarting..."),
         ui_text("重启失败，请重试", "Restart failed. Try again."),
@@ -1782,6 +1792,7 @@ struct UiSkinDefaultRegistration {
 
 #[derive(serde::Deserialize)]
 struct UiSkinRegistry {
+    profile: String,
     default: UiSkinDefaultRegistration,
     assets: Vec<String>,
 }
@@ -1838,6 +1849,36 @@ fn ui_skin_css_bundle() -> String {
                 .join("\n")
         })
         .unwrap_or_default()
+}
+
+fn ui_skin_debug_metadata() -> String {
+    let Some(registry) = ui_skin_registry() else {
+        return "{}".to_string();
+    };
+    let package_root = ui_skin_root().join(&registry.default.directory);
+    let package_id = |kind: &str, file: &str| {
+        std::fs::read_to_string(package_root.join(file))
+            .ok()
+            .and_then(|source| serde_json::from_str::<serde_json::Value>(&source).ok())
+            .and_then(|manifest| {
+                manifest
+                    .get("id")
+                    .and_then(|id| id.as_str())
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|| format!("{}.{}", registry.default.directory, kind))
+    };
+    serde_json::to_string(&serde_json::json!({
+        "profile": registry.profile.clone(),
+        "packages": {
+            "skin": package_id("skin", "skin.json"),
+            "control": package_id("control", "control/control.json"),
+            "style": package_id("style", "style/style.json"),
+            "slot": package_id("slot", "slot/slot.json"),
+        },
+        "assets": registry.assets.clone(),
+    }))
+    .unwrap_or_else(|_| "{}".to_string())
 }
 
 fn shell_http_status(path: &str) -> u16 {
