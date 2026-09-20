@@ -58,11 +58,19 @@ const profileMod = mount('profile');
 const runtimePatchesMod = mount('runtime-patches');
 const bootMod = mount('boot-server');
 
+// v6 Task 3.3：插件治理三件套接回（ADR 0006 v3 插口契约）——
+// companion-sync/guard-box 由 guard-box 依赖链引入，plugin-ops 提供插件启停。
+const guardBoxMod = mount('guard-box');
+const companionSyncMod = mount('companion-sync');
+const pluginOpsMod = mount('plugin-ops');
+// v6 Task 3.3：files.* 白名单根（files.revert / files.authorize-open 消费）。
+const fileRootsMod = mount('file-roots');
+
 // v6 Task 3.1（ADR 0006 v3 · 严格模式）：本体只保留对 dsh 的最简包装。
 // capability-stubs 仅提供内部 boot glue，不注册公开降级方法。
 import stubs = require('./capability-stubs');
 
-const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'runtime-patches', 'boot-server'];
+const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'guard-box', 'runtime-patches', 'companion-sync', 'plugin-ops', 'file-roots', 'boot-server'];
 
 // 打包态判定 + 资源根：Rust 壳 spawn sidecar 时注入 DSH_SHELL_EXE /
 // DSH_RESOURCE_ROOT（main.rs Sidecar::spawn）。DSH_RESOURCE_ROOT 存在即打包态；
@@ -85,6 +93,24 @@ procMod.init({ log, getDshHome: () => dshHome, getDesktopProfile: desktopProfile
 pathsMod.init({ log, getUserDataDir: () => userDataDir, isPackaged: () => isPackagedRuntime(), resourcesPath: () => resourceRoot(), platform: process.platform });
 profileMod.init({ log, getDshHome: () => dshHome });
 runtimePatchesMod.init({ log, getDshHome: () => dshHome, getUserDataDir: () => userDataDir });
+// v6 Task 3.3：三件套 init（注入点与 v6 收窄面一致，见 ADR 0006 裁决项 5）。
+guardBoxMod.init({
+  log,
+  getDshHome: () => dshHome,
+  getDesktopProfile: desktopProfileFn,
+  getDshBin: () => (pathsMod.dshBin as () => string)(),
+});
+pluginOpsMod.init({ log });
+companionSyncMod.init({
+  log,
+  getDshHome: () => dshHome,
+  getUserDataDir: () => userDataDir,
+  // v6：皮肤行写入随皮肤系统剥出（Task 3.2 接回），此处保持空实现。
+  applyLegacySkinChoice: () => { /* Task 3.2 接回 */ },
+  showMainWindow: () => say('showMainWindow (host-delegated)'),
+  notify: notifyFallback,
+  platform: process.platform,
+});
 
 // ---- boot-server（P2：dsh web 服务编排） --------------------------------
 // settings 兼容层：与 updater.js 的 userData/settings.json 同文件同语义
@@ -188,12 +214,16 @@ function startSessionWatcher(): void {
   }
 }
 
-// 前置文件树准备（v6 严格最简版）：只做 profile 初始化 —— 插件同步/退役
-// 清理/宿主依赖落位随三件套剥出（capability-stubs.minimalPreBootSync）。
-const preBootSync = stubs.minimalPreBootSync(
-  () => (profileMod.ensureDesktopProfileInit as () => void)(),
-  log,
-);
+// 前置文件树准备（v6 Task 3.3 接回版）：退役清理 → 内置插件同步 → 模块遮蔽修复。
+// 与 v6 收窄面一致（ADR 0006 裁决项 5）；boot.start 与重启共用。
+async function preBootSync(): Promise<void> {
+  (profileMod.ensureDesktopProfileInit as () => void)();
+  (companionSyncMod.retireRemovedBuiltinPluginsGated as (dir: string) => void)(
+    (profileMod.desktopProfileDir as () => string)(),
+  );
+  (companionSyncMod.syncCompanionPlugins as () => void)();
+  (companionSyncMod.healProfileModules as () => void)();
+}
 
 // 原地重启（= main.js restartWebServiceCore，v6 最简版）：前置同步 → 拉起。
 async function restartWebServiceCore(): Promise<{ ok: boolean; webUrl?: string; port?: number; error?: string }> {
@@ -358,7 +388,171 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
       agentSource: (pathsMod.dshVersionSource as () => string)(),
       iconDataUri: chromeIcon(),
       exitAction,
+      // v6 Task 3.3：插件（dsh-client-file-changes）经 bridge.getInfo() 读
+      // staticPort 拼静态预览 URL。静态预览服务随插件面剥出，故恒 0 ——
+      // 客户端按既有契约回退宿主 /dsh-files/static/ 路由（非错误路径）。
+      staticPort: 0,
     };
+  },
+  // ---- 插件管理（v6 Task 3.3 接回）----------------------------------------
+  // 仅供本机 Web UI 经 bridge 调用；Rust 壳不直接消费这些方法
+  //（main.rs 仅测试断言出现 plugins.list）。
+  'plugins.list': (): RpcResult => ({
+    list: (pluginOpsMod.pluginManagerCollect as () => unknown[])(),
+  }),
+  'plugins.set-enabled': (p): RpcResult =>
+    (pluginOpsMod.pluginManagerSetEnabled as (id: string, en: boolean) => Record<string, unknown>)(
+      String((p && p.id) || ''), !!(p && p.enabled),
+    ),
+  'plugins.set-removed': (p): RpcResult =>
+    (pluginOpsMod.pluginManagerSetRemoved as (id: string, rm: boolean) => Record<string, unknown>)(
+      String((p && p.id) || ''), !!(p && p.removed),
+    ),
+  // 保护中心动作面（guard-box 真实现覆盖 v6 桩）。
+  'guard.ensure': (): RpcResult => ({
+    ok: !!(guardBoxMod.ensureGuard as () => unknown)(),
+  }),
+  'guard.action': (p): RpcResult => {
+    const action = String((p && p.action) || '');
+    // v6 Task 3.3 修复：插件侧 bridge.guard.action(action, value) 只传两个位置参数
+    //（见 dsh-plugin-shield/lib/client.js 的 `var call = function (action, value)`），
+    // 因此取参必须是 p.value —— 原实现读 p.label / p.id 会让 snapshot 丢参、
+    // restore 直接失效。动作集合按 v5 对齐（保护中心 UI 的 7 个动作）。
+    const value = p && p.value;
+    const g = (guardBoxMod.ensureGuard as () => Record<string, (...a: unknown[]) => unknown>)();
+    switch (action) {
+      case 'status': {
+        const st = loadSettings() as { shareWebProfile?: boolean };
+        return {
+          ok: true,
+          profile: desktopProfileFn(),
+          shareWebProfile: st.shareWebProfile === true,
+          // 上限 20 条：快照/事故目录可能很长，避免一次回传压垮 UI。
+          snapshots: (g.listSnapshots as () => unknown[])().slice(0, 20),
+          incidents: (g.listIncidents as () => unknown[])().slice(0, 20),
+          lastGood: (g.lastGoodSnapshot as () => unknown)(),
+        };
+      }
+      case 'snapshot': {
+        const s = (g.snapshot as (r: string) => unknown)(String(value || 'manual'));
+        return { ok: !!s, snapshot: s };
+      }
+      case 'restore': {
+        // 服务在跑时不允许回滚（文件被占用且随即会被重写）。
+        const running = (bootMod.state as () => { running: boolean })().running;
+        if (running) {
+          return { ok: false, error: 'service-running', hint: '请先重启 Web 服务（或让回滚在重启间隙执行）' };
+        }
+        return (g.restore as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
+      }
+      case 'check':
+        return { ok: true, report: (g.healthCheck as () => unknown)() };
+      case 'repair': {
+        const r = (g.repair as () => { applied: unknown })();
+        return { ok: true, applied: r.applied };
+      }
+      case 'incident':
+        return (g.readIncident as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
+      case 'resolve-incident':
+        return (g.resolveIncident as (v: unknown) => Record<string, unknown>)(value) as Record<string, unknown>;
+      // 以下为 v6 特有的无 UI 消费方动作，保留以兼容既有调用方。
+      case 'last-good':
+        return { ok: true, snapshot: (g.lastGoodSnapshot as () => unknown)() };
+      case 'diagnostics':
+        return { ok: true, junctions: (g.junctionFindings as () => unknown[])() as unknown[] };
+      case 'repair-junctions':
+        return { ok: true, ...(g.repairJunctions as () => Record<string, unknown>)() };
+      default:
+        return { ok: false, error: 'unknown action' };
+    }
+  },
+  // ---- 文件能力（v6 Task 3.3 接回；dsh-client-file-changes 消费）----
+  // files.open 走 Rust L1 的 ShellExecuteW；本方法只做「授权判定」，返回
+  // 归一化后的绝对路径供壳层打开（授权必须先于打开，见 main.rs files.open）。
+  'files.authorize-open': (p): RpcResult => {
+    let fp = (p && p.path) as string;
+    if (typeof fp !== 'string' || !path.isAbsolute(fp)) return { ok: false, error: 'path must be absolute' };
+    // 归一化必须先于前缀比对：原始串可携带 `..`/大小写变体/符号链接骗过
+    // 字面前缀命中。realPath 跟随符号链接与 ..；叶子不存在时用已解析的父
+    // 目录拼回（随后 existsSync 把关）。
+    try {
+      fp = fs.realpathSync(fp);
+    } catch {
+      try {
+        fp = path.resolve(fs.realpathSync(path.dirname(fp)), path.basename(fp));
+      } catch { /* 父目录也不可解析：保持原串，交给下方围栏判定 */ }
+    }
+    const lower = (x: string): string => (process.platform === 'win32' ? x.toLowerCase() : x);
+    const skillsRoots = [
+      path.join(dshHome, 'skills'),
+      path.join(process.env.DSH_AGENTS_HOME || path.join(os.homedir(), '.agents'), 'skills'),
+    ].map((r) => lower(path.resolve(r)));
+    const fpL = lower(fp);
+    const underSkillsRoot = skillsRoots.some((r) => fpL === r || fpL.startsWith(r + path.sep));
+    if (!underSkillsRoot && !(fileRootsMod.isUnderFileRoots as (x: string) => boolean)(fp)) {
+      return { ok: false, error: 'path outside session workspace' };
+    }
+    if ((fileRootsMod.DANGEROUS_EXT as RegExp).test(fp)) {
+      return { ok: false, error: 'executable files are not openable from the file view' };
+    }
+    if (!fs.existsSync(fp)) return { ok: false, error: 'file not found' };
+    return { ok: true, path: fp };
+  },
+  // 文件逐项还原（内容精确匹配后替换；上限与 v5 一致）。
+  'files.revert': (p): RpcResult => {
+    const changes = (p && p.changes) as Array<{ path?: string; oldText?: string; newText?: string }>;
+    if (!Array.isArray(changes) || changes.length === 0 || changes.length > 300) return { results: [] };
+    const results: Record<string, unknown>[] = [];
+    for (const c of changes) {
+      const fp = String((c && c.path) || '');
+      const oldText = String((c && c.oldText) ?? '');
+      const newText = String((c && c.newText) ?? '');
+      if (!path.isAbsolute(fp) || oldText.length > 400000 || newText.length > 400000) {
+        results.push({ path: fp, status: 'invalid' });
+        continue;
+      }
+      if (!(fileRootsMod.isUnderFileRoots as (x: string) => boolean)(fp)) {
+        results.push({ path: fp, status: 'forbidden' });
+        continue;
+      }
+      try {
+        const exists = fs.existsSync(fp);
+        const content = exists ? fs.readFileSync(fp, 'utf8') : null;
+        if (oldText === '' && newText !== '') {
+          if (content !== null && content === newText) { fs.rmSync(fp); results.push({ path: fp, status: 'reverted' }); }
+          else results.push({ path: fp, status: content === null ? 'missing' : 'conflict' });
+        } else if (newText === '' && oldText !== '') {
+          if (content === null) { fs.writeFileSync(fp, oldText, 'utf8'); results.push({ path: fp, status: 'reverted' }); }
+          else results.push({ path: fp, status: 'conflict' });
+        } else {
+          if (content !== null && content.includes(newText)) {
+            const occurrences = content.split(newText).length - 1;
+            fs.writeFileSync(fp, content.replace(newText, () => oldText), 'utf8');
+            results.push(occurrences > 1
+              ? { path: fp, status: 'reverted', occurrences, note: 'oldText 多处匹配，仅回滚第一处' }
+              : { path: fp, status: 'reverted' });
+          } else {
+            results.push({ path: fp, status: content === null ? 'missing' : 'conflict' });
+          }
+        }
+      } catch (e) {
+        results.push({ path: fp, status: 'error', error: String(((e as Error).message) || e) });
+      }
+    }
+    return { results };
+  },
+  // 注：shell.open-external 与 files.open 属 L1 域，由 Rust handle_shell_method
+  // 直接拦截（ShellExecuteW），不经 sidecar。sidecar 只在内部需要打开外链时
+  // 用 notify('shell.open-external') 通知壳层执行（见 clientUpdateMod.init）。
+  // 拖入文件落盘（dsh-file-drop-eac 消费；上限与 data URL 校验在 plugin-ops）。
+  'file-drop.save': (p): RpcResult => {
+    try {
+      return (pluginOpsMod.fileDropSave as (d: string, n: string) => Record<string, unknown>)(
+        String((p && p.dataUrl) || ''), String((p && p.name) || '拖入文件'),
+      );
+    } catch (e) {
+      return { ok: false, error: String(((e as Error).message) || e) };
+    }
   },
   // 原地重启 Web 服务核心。
   'boot.restart': async (): Promise<RpcResult> => restartWebServiceCore(),

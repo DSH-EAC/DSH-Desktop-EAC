@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -32,23 +34,33 @@ test('runtime paths resolve the packaged Node executable for Linux', () => {
   assert.equal(runtimePaths.nodeExe(), path.join('/opt/dsh', 'node', 'node'));
 });
 
-if (process.platform === 'win32') test('runtime paths preserve packaged and development node.exe on Windows', () => {
-  const appRoot = path.resolve(runtimePaths.APP_ROOT, 'vendor', 'node', 'node.exe');
-  runtimePaths.init({
-    log: () => {},
-    getUserDataDir: () => 'C:\\tmp\\user-data',
-    isPackaged: () => true,
-    resourcesPath: () => 'C:\\Program Files\\DSH',
-    platform: 'win32',
-  });
-  assert.equal(runtimePaths.nodeExe(), appRoot);
+test('runtime paths preserve packaged and development node.exe on Windows', () => {
+  const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-paths-win-'));
+  const bundledNode = path.join(appRoot, 'vendor', 'node', 'node.exe');
+  fs.mkdirSync(path.dirname(bundledNode), { recursive: true });
+  fs.writeFileSync(bundledNode, '');
 
-  runtimePaths.init({
-    log: () => {},
-    getUserDataDir: () => 'C:\\tmp\\user-data',
-    isPackaged: () => false,
-    resourcesPath: () => '',
-    platform: 'win32',
-  });
-  assert.equal(runtimePaths.nodeExe(), appRoot);
+  try {
+    runtimePaths.init({
+      log: () => {},
+      getUserDataDir: () => 'C:\\tmp\\user-data',
+      isPackaged: () => true,
+      resourcesPath: () => 'C:\\Program Files\\DSH',
+      appRoot: () => appRoot,
+      platform: 'win32',
+    });
+    assert.equal(runtimePaths.nodeExe(), bundledNode);
+
+    runtimePaths.init({
+      log: () => {},
+      getUserDataDir: () => 'C:\\tmp\\user-data',
+      isPackaged: () => false,
+      resourcesPath: () => '',
+      appRoot: () => appRoot,
+      platform: 'win32',
+    });
+    assert.equal(runtimePaths.nodeExe(), bundledNode);
+  } finally {
+    fs.rmSync(appRoot, { recursive: true, force: true });
+  }
 });

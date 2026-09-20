@@ -21,21 +21,6 @@ export function makeBootFailureRecorder(log: StubContext['log']): {
   };
 }
 
-/**
- * preBootSync 的最简实现：只做 profile 初始化（ensureDesktopProfileInit）。
- * 原实现的插件同步/退役清理/宿主依赖落位随三件套剥出；
- * Task 3.3 接回时替换为真 preBootSync。
- */
-export function minimalPreBootSync(
-  ensureProfile: () => void,
-  log: StubContext['log'],
-): () => Promise<void> {
-  return async (): Promise<void> => {
-    try {
-      ensureProfile();
-    } catch (e) {
-      log('boot', 'profile 初始化失败: ' + String(((e as Error).message) || e));
-      throw e;
-    }
-  };
-}
+// v6 Task 3.3：minimalPreBootSync 已由 server.ts 的真 preBootSync 取代
+//（退役清理 → 内置插件同步 → 模块遮蔽修复）。按 ADR 0006「不留无消费者
+// 模块」纪律移除，文本可在 git 历史取回。

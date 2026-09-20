@@ -118,6 +118,37 @@
         };
       },
     },
+    // ---- v6 Task 3.3 接回：内置插件消费的 EAC 面 ----
+    // 依据 ADR 0006 v5 的接口收敛清单，这些方法族曾随最简本体剥出；
+    // 现按其「插口契约」逐项接回。服务端实现见 sidecar/server.ts。
+    // 配置收窄说明：仅恢复当前已接回插件实际消费的键，未恢复的
+    // （menu / floatWindow / phoneBridge / pluginUpdates / imagePaste /
+    //   recovery / rescue / refreshBalance / restartService 等）继续留空。
+    // 依据 metaone01 2026-09-19 裁决（按 ADR 0006）：balance 转推荐插件、
+    // plugin-wizard 明确不接入 —— 故 balance* 与 pluginWizard 为终态留空，
+    // 由 bridge-preload-parity.test.ts 的 STILL_RETIRED 锁定不得回归。
+    pluginManager: {
+      list: function () { return call('plugins.list', {}); },
+      setEnabled: function (id: string, enabled: boolean) { return call('plugins.set-enabled', { id: id, enabled: enabled }); },
+      setRemoved: function (id: string, removed: boolean) { return call('plugins.set-removed', { id: id, removed: removed }); },
+    },
+    guard: {
+      action: function (action: string, value?: unknown) { return call('guard.action', { action: action, value: value }); },
+    },
+    fileDrop: {
+      save: function (payload: Record<string, unknown>) { return call('file-drop.save', payload || {}); },
+    },
+    // 浏览器环境无 File 磁盘路径：与 v5 一致返回空串，插件据此降级为可读提示。
+    getPathForFile: function (): string { return ''; },
+    // 壳信息（v6 语义：等同 boot.state；staticPort 恒 0，静态预览服务随
+    // 插件面剥出，客户端按既有契约回退宿主路由）。
+    getInfo: function () { return call('boot.state', {}); },
+    // 文件还原（内容精确匹配；白名单校验在 sidecar）。
+    revertFiles: function (changes: unknown) { return call('files.revert', { changes: changes }); },
+    // 文件打开：L1 拦截（先经 sidecar files.authorize-open 授权，再 ShellExecuteW）。
+    openPath: function (path: string) { return call('files.open', { path: path }); },
+    // 外链打开：L1 拦截（ShellExecuteW）。
+    openExternal: function (url: string) { return call('shell.open-external', { url: url }); },
     // 桥内省（壳层页面与冒烟用；不属于对外契约）。
     _call: call,
     _send: send,

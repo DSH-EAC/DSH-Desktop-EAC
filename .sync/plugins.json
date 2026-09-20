@@ -1,0 +1,2202 @@
+{
+  "schemaVersion": 1,
+  "generatedRegistry": "dsh-desktop/lib/desktop/plugin-sync-registry.ts",
+  "plugins": [
+    {
+      "id": "agent-teams",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-agent-teams",
+      "packageName": "@nanmicoder/dsh-agent-teams",
+      "class": "patched",
+      "source": {
+        "kind": "github",
+        "repository": "git+https://github.com/NanmiCoder/dsh-agent-teams.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.13-eac.3"
+      },
+      "sync": {
+        "mode": "patch-rebase",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "balance",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-balance",
+      "packageName": "@deepseek-ai/dsh-balance",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-balance",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "better-sidebar",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-better-sidebar",
+      "packageName": "dsh-better-sidebar",
+      "class": "patched",
+      "source": {
+        "kind": "npm",
+        "name": "dsh-better-sidebar",
+        "repository": "https://github.com/omdsh-dev/DSH-better-sidebar"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "patch-rebase",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "dsh-better-sidebar"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "change-review",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-change-review",
+      "packageName": "dsh-change-review",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "client-file-changes",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-client-file-changes",
+      "packageName": "@deepseek-ai/dsh-client-file-changes",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-client-file-changes",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "compact",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-compact",
+      "packageName": "dsh-compact",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "1.0.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "composer-dynamic-island",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-composer-dynamic-island",
+      "packageName": "dsh-composer-dynamic-island",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "github",
+        "repository": "git+https://github.com/says693/dsh-composer-dynamic-island.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "2.1.0"
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/types/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "computer-user",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/computer-user",
+      "packageName": "computer-user",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "computer-user",
+        "repository": "git+https://github.com/jing-hy/computer-user.git"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "computer-user"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "src/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "conversation-tweaks",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-conversation-tweaks",
+      "packageName": "@deepseek-ai/dsh-conversation-tweaks",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-conversation-tweaks",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dock-settings",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-dock-settings",
+      "packageName": "dsh-dock-settings",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/host.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-dafeiyu",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-dafeiyu",
+      "packageName": "dsh-dafeiyu",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "git+https://github.com/QCYTSN/dsh-dafeiyu.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0-alpha.6"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "src/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "SEE LICENSE IN ASSET_LICENSE.md",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-feature-toggles",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-feature-toggles",
+      "packageName": "dsh-feature-toggles",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.1"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-navbar",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-navbar",
+      "packageName": "@vlln/dsh-navbar",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "@vlln/dsh-navbar"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "@vlln/dsh-navbar"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.mjs"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-pet",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-pet",
+      "packageName": "dsh-pet",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "dsh-pet",
+        "repository": "git+https://github.com/PC2005-cloud/dsh-pet.git"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "dsh-pet"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins",
+      "defaultDisabled": true
+    },
+    {
+      "id": "dsh-pet-settings",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-pet-settings",
+      "packageName": "dsh-pet-settings",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-phone",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-phone",
+      "packageName": "dsh-phone",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "dsh-phone",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-raw-html",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-raw-html",
+      "packageName": "dsh-raw-html",
+      "class": "manual",
+      "source": {
+        "kind": "internal",
+        "name": "dsh-raw-html",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.6.2"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-session-manager",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-session-manager",
+      "packageName": "dsh-session-manager",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "dsh-session-manager"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "dsh-session-manager"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.mjs"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-undo",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-undo-savepoint",
+      "packageName": "dsh-undo-savepoint",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/lire1131/dsh-undo-savepoint"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "github",
+          "repository": "https://github.com/lire1131/dsh-undo-savepoint"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-webui-prompt-optimizer",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-webui-prompt-optimizer",
+      "packageName": "dsh-webui-prompt-optimizer",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-whale-widget",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-whale-widget",
+      "packageName": "dsh-whale-widget",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "git+https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.2.10"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins",
+      "defaultDisabled": true
+    },
+    {
+      "id": "eac-core-bridge",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-eac-core-bridge",
+      "packageName": "dsh-eac-core-bridge",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "1.0.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "eac-locale-compat",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-eac-locale-compat",
+      "packageName": "dsh-eac-locale-compat",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "1.0.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "easy-setup",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-easy-setup",
+      "packageName": "@deepseek-ai/dsh-easy-setup",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-easy-setup",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "file-changes",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-file-changes",
+      "packageName": "@deepseek-ai/dsh-file-changes",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-file-changes",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "file-drop-eac",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-file-drop-eac",
+      "packageName": "dsh-file-drop-eac",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "dsh-file-drop-eac",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.2"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "float-window",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-float-window",
+      "packageName": "@deepseek-ai/dsh-float-window",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-float-window",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "font-custom",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-font-custom",
+      "packageName": "dsh-font-custom",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "image-paste",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-image-paste",
+      "packageName": "dsh-image-paste",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins",
+      "defaultDisabled": true
+    },
+    {
+      "id": "meow-smooth",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-meow-smooth",
+      "packageName": "meow-smooth",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "github",
+        "repository": "git+https://github.com/Phant0Meow/dsh-meow-smooth.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.5.0"
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "message-rewind",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-message-rewind",
+      "packageName": "dsh-message-rewind",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/host.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "mobile-fix",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-web-mobile-fix",
+      "packageName": "dsh-web-mobile-fix",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "dsh-web-mobile-fix",
+        "repository": "git+https://github.com/AcidGr/dsh-web-mobile-fix.git"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "dsh-web-mobile-fix"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "offpeak",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-offpeak",
+      "packageName": "dsh-offpeak",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "dsh-offpeak",
+        "repository": "git+https://github.com/christophersmith2737-commits/OffPeak.git"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "dsh-offpeak"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "src/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "openclaw-bridge",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-openclaw-bridge",
+      "packageName": "@deepseek-ai/dsh-openclaw-bridge",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-openclaw-bridge",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.7.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "picturereader",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/picturereader",
+      "packageName": "picturereader",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "picturereader",
+        "repository": "https://github.com/jing-hy/picturereader.git"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "picturereader"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "src/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "plugin-manager",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-plugin-manager",
+      "packageName": "@deepseek-ai/dsh-plugin-manager",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-plugin-manager",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "plugin-shield",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-plugin-shield",
+      "packageName": "dsh-plugin-shield",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "plugin-wizard",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-plugin-wizard",
+      "packageName": "dsh-plugin-wizard",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "prompt-custom",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-prompt-custom",
+      "packageName": "@deepseek-ai/dsh-prompt-custom",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-prompt-custom",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "settings-groups",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-settings-groups",
+      "packageName": "dsh-settings-groups",
+      "class": "manual",
+      "source": {
+        "kind": "unknown",
+        "reason": "package.json does not declare a source repository; do not infer one from the directory name"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "settings-scroll-fix",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-settings-scroll-fix",
+      "packageName": "dsh-settings-scroll-fix",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "dsh-settings-scroll-fix",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "2.0.2"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "side-session",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-side-session",
+      "packageName": "@dsh-external/dsh-side-session",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@dsh-external/dsh-side-session",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.2.8"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "skin-switch",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-skin-switch",
+      "packageName": "@deepseek-ai/dsh-skin-switch",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-skin-switch",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "soul-md",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-soul-md",
+      "packageName": "dsh-soul-md",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "dsh-soul-md",
+        "repository": "git+https://github.com/Scorp1o117/dsh-soul-md.git"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "dsh-soul-md"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "terminal",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-terminal",
+      "packageName": "@deepseek-ai/dsh-terminal",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "@deepseek-ai/dsh-terminal",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "unified-market",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-unified-market",
+      "packageName": "dsh-unified-market",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "npm",
+        "name": "dsh-unified-market",
+        "repository": "git+https://github.com/jing-hy/dsh-unified-market.git"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "npm",
+          "name": "dsh-unified-market"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/host.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "viewport-lock",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-viewport-lock",
+      "packageName": "dsh-viewport-lock",
+      "class": "internal",
+      "source": {
+        "kind": "internal",
+        "name": "dsh-viewport-lock",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "1.0.1"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "think-zh-expand-eac",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-think-zh-expand-eac",
+      "packageName": "dsh-think-zh-expand-eac",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/jing-hy/dsh-think-zh-expand-eac"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "github",
+          "repository": "https://github.com/jing-hy/dsh-think-zh-expand-eac"
+        }
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins"
+    },
+    {
+      "id": "dsh-stt",
+      "kind": "plugin",
+      "path": "dsh-desktop/assets/plugins/dsh-stt",
+      "packageName": "@deepseek-ai/dsh-stt",
+      "class": "follow-upstream",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/BAIKAI23333/dsh-stt"
+      },
+      "request": {
+        "mode": "latest",
+        "range": "*",
+        "releaseAgeHours": 24
+      },
+      "sync": {
+        "mode": "mirror",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "src/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-plugins",
+      "defaultDisabled": true
+    }
+  ],
+  "skins": [
+    {
+      "id": "ui-skin-blue-fantasy",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/blue-fantasy",
+      "packageName": "@linxin666/dsh-client-ui-skin-blue-fantasy",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-dragon-heir",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/dragon-heir",
+      "packageName": "@linxin666/dsh-client-ui-skin-dragon-heir",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-maid-atelier",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/maid-atelier",
+      "packageName": "@dsh-external/dsh-client-ui-skin-maid-atelier",
+      "class": "resource",
+      "source": {
+        "kind": "internal",
+        "name": "@dsh-external/dsh-client-ui-skin-maid-atelier",
+        "reason": "maintained in this repository; no external source is declared"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.0.1"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "CC-BY-NC-SA-4.0",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-miku",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/miku",
+      "packageName": "@linxin666/dsh-client-ui-skin-miku",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-minecraft",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/minecraft",
+      "packageName": "@linxin666/dsh-client-ui-skin-minecraft",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-qq98",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/qq98",
+      "packageName": "@linxin666/dsh-client-ui-skin-qq98",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-ths",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/ths",
+      "packageName": "@linxin666/dsh-client-ui-skin-ths",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-trading",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/trading",
+      "packageName": "@linxin666/dsh-client-ui-skin-trading",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-whale-song",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/whale-song",
+      "packageName": "@linxin666/dsh-client-ui-skin-whale-song",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    },
+    {
+      "id": "ui-skin-xp",
+      "kind": "skin",
+      "path": "dsh-desktop/assets/skins/xp",
+      "packageName": "@linxin666/dsh-client-ui-skin-xp",
+      "class": "resource",
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/zhu1090093659/dsh-web-ui.git"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "0.1.11"
+      },
+      "sync": {
+        "mode": "metadata-only",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "lib/index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "BSD-3-Clause",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-skins"
+    }
+  ],
+  "sdkPlugins": [
+    {
+      "id": "sample-sdk-plugin",
+      "kind": "sdk-plugin",
+      "path": "dsh-desktop/assets/sdk-plugins/sample-sdk-plugin",
+      "packageName": "sample-sdk-plugin",
+      "class": "isolated-sdk",
+      "source": {
+        "kind": "internal",
+        "name": "sample-sdk-plugin",
+        "reason": "SDK fixture maintained with the desktop repository"
+      },
+      "request": {
+        "mode": "exact",
+        "version": "1.0.0"
+      },
+      "sync": {
+        "mode": "manual",
+        "patches": [],
+        "preservePaths": []
+      },
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "validation": {
+        "entrypoints": [
+          "index.js"
+        ],
+        "commands": []
+      },
+      "license": {
+        "expected": "MIT",
+        "reviewOnChange": true
+      },
+      "owner": "desktop-sdk"
+    }
+  ]
+}

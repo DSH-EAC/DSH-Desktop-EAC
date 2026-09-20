@@ -155,6 +155,16 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Fetch Windows Cargo dependencies
+        if: runner.os == 'Windows'
+        working-directory: tauri-shell
+        run: cargo fetch --locked
+
+      - name: Prepare Windows WebView2Loader resource
+        if: runner.os == 'Windows'
+        working-directory: ${{ github.workspace }}
+        run: node tauri-shell/prepare-webview2-loader.mjs --arch=${{ matrix.arch }}
+
       - name: Cache Rust build outputs
         uses: Swatinem/rust-cache@v2
         with:
@@ -232,6 +242,15 @@ jobs:
 
       - name: Fetch bundled Node and npm runtimes
         run: npm run fetch-runtime
+
+      - name: Set up stable Rust for Windows resources
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Fetch Windows Cargo dependencies
+        if: runner.os == 'Windows'
+        working-directory: ${{ github.workspace }}/tauri-shell
+        run: cargo fetch --locked
 
       - name: Assemble staged runtime
         working-directory: ${{ github.workspace }}
