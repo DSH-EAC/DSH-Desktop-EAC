@@ -1,0 +1,21 @@
+{
+  "profile": "dsh-desktop-eac-ui-skin-profile@^0.3",
+  "default": {
+    "directory": "system-default",
+    "skin": "system.default",
+    "control": "system.default.control",
+    "style": "system.default.style",
+    "slot": "system.default.slot"
+  },
+  "manifests": {
+    "skin": "skin.json",
+    "control": "control/control.json",
+    "style": "style/style.json",
+    "slot": "slot/slot.json"
+  },
+  "assets": [
+    "control/layout.css",
+    "style/tokens.css",
+    "style/states.css"
+  ]
+}

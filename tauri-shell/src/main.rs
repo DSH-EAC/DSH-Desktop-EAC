@@ -70,9 +70,12 @@ fn ws_port() -> u16 {
 /// 后页面上下文会重建；仅注入裸 BRIDGE_JS 会让客户端退回固定的
 /// 19873，端口发生回退时窗口控制全部失效。
 fn bridge_init_script() -> String {
+    let skin_css =
+        serde_json::to_string(&ui_skin_css_bundle()).unwrap_or_else(|_| "\"\"".to_string());
     format!(
-        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\n{}",
+        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\nwindow.__DSH_UI_SKIN_CSS__={};\n{}",
         ws_port(),
+        skin_css,
         BRIDGE_JS,
     )
 }
@@ -171,9 +174,28 @@ mod shell_tests {
         assert_eq!(shell_http_status("/loading"), 200);
         assert_eq!(shell_http_status("/died?code=1"), 200);
         assert_eq!(shell_http_status("/inject/bridge.js"), 200);
+        assert_eq!(shell_http_status("/skin/control/layout.css"), 200);
+        assert_eq!(shell_http_status("/skin/style/tokens.css"), 200);
+        assert_eq!(shell_http_status("/skin/style/states.css"), 200);
+        assert_eq!(shell_http_status("/skin/tokens.css"), 404);
+        assert_eq!(shell_http_status("/skin/../skin.json"), 404);
         assert_eq!(shell_http_status(&retired_page), 404);
         assert_eq!(shell_http_status("/about"), 404);
         assert_eq!(shell_http_status("/unknown"), 404);
+    }
+
+    #[test]
+    fn shell_pages_expose_named_skin_contracts_and_state_changes() {
+        let loading = super::loading_page();
+        assert!(loading.contains("data-region=\"session\""));
+        assert!(loading.contains("data-control-name=\"system.default.loading-spinner\""));
+        assert!(loading.contains("data-state=\"loading animating\""));
+
+        let died = super::died_page("/tmp/dsh-web.log", "1");
+        assert!(died.contains("data-control-name=\"system.default.restart-button\""));
+        assert!(died.contains("data-state=\"idle\""));
+        assert!(died.contains("setAttribute('data-state','running')"));
+        assert!(died.contains("setAttribute('data-state','error')"));
     }
 
     #[test]
@@ -1677,35 +1699,24 @@ async fn handle_conn(
     Ok(())
 }
 
-/// 内联壳页（loading/died/update/about）共享的 body 主题样式（暗色底 + 居中栅格）。
-/// 颜色/字体消费壳层皮肤包 token（v6 Task 1.1）；皮肤包缺失时 fallback 保证可读。
-const SHELL_BODY_STYLE: &str = concat!(
-    "margin:0;height:100vh;display:grid;place-items:center;",
-    "background:var(--eac-shell-bg-base,#0b1220);",
-    "color:var(--eac-shell-text-primary,#dfe6ff);",
-    "font-family:var(--eac-shell-font-family,'Segoe UI','Microsoft YaHei',system-ui,sans-serif)",
-);
-
-/// 壳层皮肤包 <link> 注入（/skin/* 由 http_serve 伺服 assets/shell-skin/）。
-/// 内联壳页无磁盘文件可挂 <link> 进 <head>，统一在 body 前置此片段。
-const SHELL_SKIN_LINKS: &str = concat!(
-    "<link rel=stylesheet href=\"/skin/tokens.css\">",
-    "<link rel=stylesheet href=\"/skin/controls.css\">",
+/// Built-in skin assets are loaded control first, then the bound style package.
+const UI_SKIN_LINKS: &str = concat!(
+    "<link rel=stylesheet href=\"/skin/control/layout.css\">",
+    "<link rel=stylesheet href=\"/skin/style/tokens.css\">",
+    "<link rel=stylesheet href=\"/skin/style/states.css\">",
 );
 
 fn loading_page() -> String {
     format!(
-        "<!doctype html><meta charset=utf-8><title>Deepseek Harness EAC</title>{SHELL_SKIN_LINKS}\
-         <body style=\"{SHELL_BODY_STYLE}\">\
-         <div style=\"text-align:center\">\
-         <div style=\"font-size:20px;font-weight:600;margin-bottom:14px\">Deepseek Harness EAC</div>\
-         <div style=\"font-size:13px;color:var(--eac-shell-text-secondary,#8b9ac4)\">{}</div>\
-         <div style=\"margin-top:18px;width:34px;height:34px;margin-left:auto;margin-right:auto;\
-         border:3px solid var(--eac-shell-border,rgba(255,255,255,.12));\
-         border-top-color:var(--eac-shell-accent,#5b8cff);border-radius:50%;\
-         animation:dshspin 1s linear infinite\"></div></div>\
-         <style>@keyframes dshspin{{to{{transform:rotate(360deg)}}}}</style>\
-         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{}</script>",
+        "<!doctype html><html class=\"eac-shell\"><head><meta charset=utf-8><title>Deepseek Harness EAC</title>{UI_SKIN_LINKS}</head>\\
+         <body data-region=\"session\" data-control-name=\"session-root\" data-state=\"loading\">\\
+         <main data-control-name=\"system.default.shell-page\" data-state=\"loading\">\\
+         <section data-control-name=\"system.default.shell-content\">\\
+         <div data-control-name=\"system.default.shell-title\">Deepseek Harness EAC</div>\\
+         <div data-control-name=\"system.default.shell-status\">{}</div>\\
+         <div data-control-name=\"system.default.loading-spinner\" data-state=\"loading animating\" aria-label=\"Loading\"></div>\\
+         </section></main>\\
+         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{}</script></body></html>",
         ui_text("正在启动服务…", "Starting services..."), ws_port(), BRIDGE_JS
     )
 }
@@ -1717,23 +1728,22 @@ fn died_page(log_path: &str, code: &str) -> String {
             .replace('>', "&gt;")
     };
     format!(
-        "<!doctype html><html lang={0}><meta charset=utf-8><title>{1}</title>{SHELL_SKIN_LINKS}\
-         <body style=\"{SHELL_BODY_STYLE}\">\
-         <div style=\"text-align:center;max-width:560px\">\
-         <div style=\"font-size:20px;font-weight:600;margin-bottom:10px\">{2}</div>\
-         <div style=\"font-size:13px;color:var(--eac-shell-text-secondary,#8b9ac4);margin-bottom:6px\">{3} {4}</div>\
-         <div style=\"font-size:12px;color:var(--eac-shell-text-tertiary,#5f6f9c);font-family:var(--eac-shell-font-mono,Consolas,monospace);margin-bottom:20px\">{5}</div>\
-         <div style=\"display:flex;gap:10px;justify-content:center\">\
-         <button onclick=\"retry()\" style=\"padding:8px 22px;border:1px solid rgba(255,255,255,.18);\
-         border-radius:9px;background:rgba(91,140,255,.15);color:#dfe6ff;font-size:13px;cursor:pointer\">{6}</button>\
-         </div>\
-         </div>\
-         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{7}/ws';{8}\
-         function retry(){{\
-           var b=document.querySelector('button');b.textContent={9:?};b.disabled=true;\
-           window.dshDesktop._call('boot.start',{{}}).then(function(){{location.reload();}})\
-             .catch(function(e){{b.textContent={10:?};b.disabled=false;}});\
-         }}</script></body>",
+        "<!doctype html><html class=\"eac-shell\" lang={0}><head><meta charset=utf-8><title>{1}</title>{UI_SKIN_LINKS}</head>\\
+         <body data-region=\"session\" data-control-name=\"session-root\" data-state=\"error\">\\
+         <main data-control-name=\"system.default.shell-page\" data-state=\"error\">\\
+         <section data-control-name=\"system.default.shell-content\">\\
+         <div data-control-name=\"system.default.shell-title\">{2}</div>\\
+         <div data-control-name=\"system.default.shell-status\">{3} {4}</div>\\
+         <div data-control-name=\"system.default.shell-log-path\">{5}</div>\\
+         <div data-control-name=\"system.default.shell-actions\">\\
+         <button data-control-name=\"system.default.restart-button\" data-state=\"idle\" onclick=\"retry()\">{6}</button>\\
+         </div></section></main>\\
+         <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{7}/ws';{8}\\
+         function retry(){{\\
+           var b=document.querySelector('[data-control-name=\"system.default.restart-button\"]');b.textContent={9:?};b.disabled=true;b.setAttribute('data-state','running');\\
+           window.dshDesktop._call('boot.start',{{}}).then(function(){{location.reload();}})\\
+             .catch(function(e){{b.textContent={10:?};b.disabled=false;b.setAttribute('data-state','error');}});\\
+         }}</script></body></html>",
         ui_text("zh-CN", "en"),
         ui_text("服务已停止", "Service stopped"),
         ui_text("DSH 服务已停止", "The DSH service has stopped"),
@@ -1765,32 +1775,78 @@ fn encode_query(v: &str) -> String {
     out
 }
 
-/// 壳层皮肤包 CSS（assets/shell-skin/eac-default/，v6 Task 1.1）：
-/// /skin/tokens.css 与 /skin/controls.css 经回环 HTTP 伺服给壳页。
-/// 只放行包内固定的两个文件名（无路径穿越面）；皮肤包缺失时返回
-/// 空体 —— 壳页 token 消费处带 fallback 字面量，降级可读。
-fn shell_skin_css(file: &str) -> String {
-    if !matches!(file, "tokens.css" | "controls.css") {
+#[derive(serde::Deserialize)]
+struct UiSkinDefaultRegistration {
+    directory: String,
+}
+
+#[derive(serde::Deserialize)]
+struct UiSkinRegistry {
+    default: UiSkinDefaultRegistration,
+    assets: Vec<String>,
+}
+
+fn ui_skin_root() -> PathBuf {
+    resource_root()
+        .join("dsh-desktop")
+        .join("assets")
+        .join("ui-skin")
+}
+
+fn ui_skin_registry() -> Option<UiSkinRegistry> {
+    let source = std::fs::read_to_string(ui_skin_root().join("registry.json")).ok()?;
+    let registry: UiSkinRegistry = serde_json::from_str(&source).ok()?;
+    ui_skin_directory_is_safe(&registry.default.directory).then_some(registry)
+}
+
+fn ui_skin_directory_is_safe(directory: &str) -> bool {
+    !directory.is_empty()
+        && !directory.contains(['/', '\\'])
+        && directory != "."
+        && directory != ".."
+}
+
+fn ui_skin_asset_is_registered(file: &str) -> bool {
+    !file.is_empty()
+        && !file
+            .split('/')
+            .any(|segment| segment.is_empty() || segment == "..")
+        && ui_skin_registry()
+            .is_some_and(|registry| registry.assets.iter().any(|asset| asset == file))
+}
+
+fn ui_skin_asset(file: &str) -> String {
+    let Some(registry) = ui_skin_registry() else {
+        return String::new();
+    };
+    if !registry.assets.iter().any(|asset| asset == file) {
         return String::new();
     }
-    std::fs::read_to_string(
-        resource_root()
-            .join("dsh-desktop")
-            .join("assets")
-            .join("shell-skin")
-            .join("eac-default")
-            .join(file),
-    )
-    .unwrap_or_default()
+    std::fs::read_to_string(ui_skin_root().join(registry.default.directory).join(file))
+        .unwrap_or_default()
+}
+
+fn ui_skin_css_bundle() -> String {
+    ui_skin_registry()
+        .map(|registry| {
+            registry
+                .assets
+                .iter()
+                .filter(|asset| asset.ends_with(".css"))
+                .map(|asset| ui_skin_asset(asset))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
 }
 
 fn shell_http_status(path: &str) -> u16 {
     let route = path.split('?').next().unwrap_or("");
-    if route == "/"
-        || route == "/inject/bridge.js"
-        || route.starts_with("/skin/")
-        || route == "/loading"
-        || route == "/died"
+    if route == "/" || route == "/inject/bridge.js" || route == "/loading" || route == "/died" {
+        200
+    } else if route
+        .strip_prefix("/skin/")
+        .is_some_and(ui_skin_asset_is_registered)
     {
         200
     } else {
@@ -1830,7 +1886,7 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
     } else if path.starts_with("/inject/bridge.js") {
         (BRIDGE_JS.to_string(), "application/javascript")
     } else if let Some(file) = path.split('?').next().unwrap_or("").strip_prefix("/skin/") {
-        (shell_skin_css(file), "text/css; charset=utf-8")
+        (ui_skin_asset(file), "text/css; charset=utf-8")
     } else if path.starts_with("/loading") {
         (loading_page(), "text/html; charset=utf-8")
     } else if path.starts_with("/died") {
@@ -1856,10 +1912,12 @@ async fn http_serve(mut stream: TcpStream, path: &str) -> std::io::Result<()> {
         (died_page(&log, &code), "text/html; charset=utf-8")
     } else {
         let page = format!(
-            "<!doctype html><meta charset=utf-8><title>DSH EAC Shell</title>{SHELL_SKIN_LINKS}\
-             <body style=\"font-family:var(--eac-shell-font-mono,Consolas,monospace);background:var(--eac-shell-bg-base,#0b1220);color:var(--eac-shell-text-primary,#dfe6ff)\">\
-             <h3>DSH EAC — Tauri ShellHost</h3><pre id=out>connecting…</pre>\
-             <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{}</script>",
+            "<!doctype html><html class=\"eac-shell\"><head><meta charset=utf-8><title>DSH EAC Shell</title>{UI_SKIN_LINKS}</head>\\
+             <body data-region=\"session\" data-control-name=\"session-root\" data-state=\"idle\">\\
+             <main data-control-name=\"system.default.shell-page\"><section data-control-name=\"system.default.shell-content\">\\
+             <h3 data-control-name=\"system.default.shell-title\">DSH EAC — Tauri ShellHost</h3>\\
+             <pre data-control-name=\"system.default.shell-status\" id=out>connecting…</pre></section></main>\\
+             <script>window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';{}</script></body></html>",
             ws_port(), BRIDGE_JS
         );
         (page, "text/html; charset=utf-8")

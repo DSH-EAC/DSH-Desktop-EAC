@@ -1,0 +1,21 @@
+{
+  "id": "system.default.slot",
+  "name": "EAC minimal region slots",
+  "type": "slot",
+  "version": "2.0.0",
+  "owner": "io.github.dsh-eac",
+  "compatibility": {
+    "profile": "dsh-desktop-eac-ui-skin-profile@^0.3",
+    "forceable": false
+  },
+  "regions": [
+    { "name": "top-sidebar", "controlSlot": "top-sidebar.control", "styleSlot": "top-sidebar.style", "defaultZIndex": 2147483000 },
+    { "name": "bottom-sidebar", "controlSlot": "bottom-sidebar.control", "styleSlot": "bottom-sidebar.style", "defaultZIndex": 100 },
+    { "name": "left-sidebar", "controlSlot": "left-sidebar.control", "styleSlot": "left-sidebar.style", "defaultZIndex": 100 },
+    { "name": "right-sidebar", "controlSlot": "right-sidebar.control", "styleSlot": "right-sidebar.style", "defaultZIndex": 100 },
+    { "name": "session", "controlSlot": "session.control", "styleSlot": "session.style", "defaultZIndex": 0 },
+    { "name": "overlay", "controlSlot": "overlay.control", "styleSlot": "overlay.style", "defaultZIndex": 5000 }
+  ],
+  "instanceKinds": ["popup", "dialog", "floating-window"],
+  "description": "Host-owned region registry. Instance kinds use their creator's control and style packages and never enter the region binding table."
+}
