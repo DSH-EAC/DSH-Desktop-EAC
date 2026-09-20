@@ -38,6 +38,19 @@ test('fetch-kernel DEFAULT_TAG 与 package.json 内核钉一致', () => {
     `fetch-kernel DEFAULT_TAG=${m![1]} != package.json 内核钉=${kernelVersion}`);
 });
 
+test('fetch-kernel 钉版 commit 表覆盖 DEFAULT_TAG（issue #393：零 API 请求）', () => {
+  // 钉版 tag 必须在 KERNEL_TAG_COMMITS 里有 40 位小写十六进制记录，否则缓存冷时
+  // 又走 git ls-remote；更糟的是有人把回落改回匿名 REST API → CI 矩阵并发 403。
+  const src = readFileSync(join(ROOT, 'scripts', 'fetch-kernel.ts'), 'utf8');
+  const table = src.match(/const KERNEL_TAG_COMMITS: Record<string, string> = \{([\s\S]*?)\n\};/);
+  assert.ok(table, 'fetch-kernel.ts 未找到 KERNEL_TAG_COMMITS 钉版表');
+  const entry = new RegExp(`'dsh-v${kernelVersion.replace(/\./g, '\\.')}':\\s*'([0-9a-f]{40})'`).exec(table![1]!);
+  assert.ok(entry,
+    `KERNEL_TAG_COMMITS 缺少 'dsh-v${kernelVersion}' 的 40 位小写十六进制 commit（升内核时同步补）`);
+  assert.equal(src.includes('api.github.com'), false,
+    'fetch-kernel.ts 又出现了 api.github.com（匿名配额 → CI 矩阵并发随机 403）');
+});
+
 test('upgrade-test-441 内核断言与 package.json 内核钉一致', () => {
   // 5.3.3 批次 F：该脚本已归档到仓库根 docs/archive/（Electron 退役后不可再
   // 跑），钉子语义保留 —— 升内核仍须同步归档件里的硬断言，防止按旧文档
