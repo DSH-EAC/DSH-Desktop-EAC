@@ -140,7 +140,12 @@
     window.addEventListener('scroll', scheduleDevtoolsRefresh, { passive: true, capture: true });
     devtoolsObserver = new MutationObserver(function (records) {
       var portal = document.getElementById(DEVTOOLS_PORTAL_ID);
-      if (!portal || records.some(function (record) { return !portal.contains(record.target); })) {
+      if (!portal) {
+        scheduleDevtoolsRefresh();
+        return;
+      }
+      var activePortal = portal;
+      if (records.some(function (record) { return !activePortal.contains(record.target); })) {
         scheduleDevtoolsRefresh();
       }
     });
