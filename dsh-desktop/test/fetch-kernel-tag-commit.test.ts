@@ -36,6 +36,25 @@ const {
 
 const SHA = /^[0-9a-f]{40}$/;
 
+/**
+ * 文本里是否出现指向 GitHub REST API 主机（api.github.com）的 URL。
+ *
+ * 刻意不用 `source.includes('api.github.com')` 这类子串判断：子串出现在任意位置
+ * 都会命中（路径片段里、`api.github.com.evil.test` 里），既不可靠，也会被 CodeQL
+ * 按 js/incomplete-url-substring-sanitization（CWE-020）报错。
+ * 这里把候选 URL 解析出来，比较解析后的 **host**。
+ */
+function hitsGithubApiHost(source: string): boolean {
+  const urls = source.match(/https?:\/\/[^\s'"()\[\]]+/g) ?? [];
+  return urls.some((raw) => {
+    try {
+      return new URL(raw).host.toLowerCase() === 'api.github.com';
+    } catch {
+      return false;
+    }
+  });
+}
+
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, {
     cwd,
@@ -126,12 +145,12 @@ test('钉版表里的值必须是 40 位小写十六进制（防手抖写短 has
   );
 });
 
-test('源码里不再存在对 api.github.com 的调用（issue #393 的根因）', () => {
+test('源码里不再存在对 GitHub REST API 主机的调用（issue #393 的根因）', () => {
   const src = readFileSync(join(ROOT, 'scripts', 'fetch-kernel.ts'), 'utf8');
   assert.equal(
-    src.includes('api.github.com'),
+    hitsGithubApiHost(src),
     false,
-    'fetch-kernel.ts 又出现了 api.github.com —— 匿名配额会让 CI 矩阵并发时随机 403',
+    'fetch-kernel.ts 又出现了指向 GitHub REST API 主机的 URL —— 匿名配额会让 CI 矩阵并发时随机 403',
   );
 });
 
@@ -146,12 +165,12 @@ test('capture() 的失败信息带出退出码与 stderr（issue #393 的可诊�
 // CI 的 kernel 步骤跑在 `npm run build` 之前。只改 .ts 而漏提产物 → 线上
 // 依旧走匿名 REST API，issue #393 原样复现。以下三条把它钉死。
 
-test('编译产物 fetch-kernel.js 同样不再触达 api.github.com', () => {
+test('编译产物 fetch-kernel.js 同样不再触达 GitHub REST API 主机', () => {
   const artifact = readFileSync(join(ROOT, 'scripts', 'fetch-kernel.js'), 'utf8');
   assert.equal(
-    artifact.includes('api.github.com'),
+    hitsGithubApiHost(artifact),
     false,
-    'scripts/fetch-kernel.js 仍调用 api.github.com —— CI 在 npm run build 之前就执行它，必须同步提交产物',
+    'scripts/fetch-kernel.js 仍出现指向 GitHub REST API 主机的 URL —— CI 在 npm run build 之前就执行它，必须同步提交产物',
   );
 });
 
@@ -170,8 +189,12 @@ test('产物与源码的 DEFAULT_TAG / 钉版 commit 必须一致（防单边改
   const js = readFileSync(join(ROOT, 'scripts', 'fetch-kernel.js'), 'utf8');
   const tagOf = (src: string) => /const DEFAULT_TAG = '([^']+)'/.exec(src)?.[1];
   assert.equal(tagOf(js), tagOf(ts), 'fetch-kernel.js 与 .ts 的 DEFAULT_TAG 不一致');
-  const pinOf = (src: string) =>
-    new RegExp(`'${DEFAULT_TAG}':\\s*'([0-9a-f]{40})'`).exec(src)?.[1];
+  // 用行定位而不是把 DEFAULT_TAG 拼进正则：DEFAULT_TAG 含 '.'，拼进模式会被当
+  // 通配符解释（同 kernel-pin-consistency.test.ts 的 CodeQL js/incomplete-string-escaping）。
+  const pinOf = (src: string) => src
+    .split('\n')
+    .find((line) => line.trim().startsWith(`'${DEFAULT_TAG}':`))
+    ?.match(/'([0-9a-f]{40})'/)?.[1];
   const tsSha = pinOf(ts);
   assert.equal(pinOf(js), tsSha, 'fetch-kernel.js 与 .ts 的钉版 commit 不一致');
   assert.equal(tsSha, KERNEL_TAG_COMMITS[DEFAULT_TAG],

@@ -25,6 +25,20 @@ const kernelPrefixes = Object.values(pkg.dependencies)
 assert.ok(kernelPrefixes.length > 0, 'package.json 应有 file:vendor/kernel/<ver>/ 依赖');
 const kernelVersion = kernelPrefixes[0];
 
+// 源码里是否出现指向 GitHub REST API 主机的 URL（issue #393 的根因）。
+// 刻意不用子串判断：子串在任意位置都会命中（含 `api.github.com.evil.test`），
+// 既不可靠，也会被 CodeQL 按 js/incomplete-url-substring-sanitization 报错。
+function hitsGithubApiHost(source: string): boolean {
+  const urls = source.match(/https?:\/\/[^\s'"()\[\]]+/g) ?? [];
+  return urls.some((raw) => {
+    try {
+      return new URL(raw).host.toLowerCase() === 'api.github.com';
+    } catch {
+      return false;
+    }
+  });
+}
+
 test('package.json 所有内核依赖钉同一版本', () => {
   assert.ok(kernelPrefixes.every((v) => v === kernelVersion),
     'package.json 出现多个内核版本钉: ' + [...new Set(kernelPrefixes)].join(', '));
@@ -44,11 +58,17 @@ test('fetch-kernel 钉版 commit 表覆盖 DEFAULT_TAG（issue #393：零 API �
   const src = readFileSync(join(ROOT, 'scripts', 'fetch-kernel.ts'), 'utf8');
   const table = src.match(/const KERNEL_TAG_COMMITS: Record<string, string> = \{([\s\S]*?)\n\};/);
   assert.ok(table, 'fetch-kernel.ts 未找到 KERNEL_TAG_COMMITS 钉版表');
-  const entry = new RegExp(`'dsh-v${kernelVersion.replace(/\./g, '\\.')}':\\s*'([0-9a-f]{40})'`).exec(table![1]!);
-  assert.ok(entry,
-    `KERNEL_TAG_COMMITS 缺少 'dsh-v${kernelVersion}' 的 40 位小写十六进制 commit（升内核时同步补）`);
-  assert.equal(src.includes('api.github.com'), false,
-    'fetch-kernel.ts 又出现了 api.github.com（匿名配额 → CI 矩阵并发随机 403）');
+  // tag 用行前缀定位而非拼进正则：避免把 kernelVersion 里的正则元字符当模式
+  // 解释（CodeQL js/incomplete-string-escaping 提示的正是这类隐患）。
+  const expectedEntry = `'dsh-v${kernelVersion}':`;
+  const entryLine = table![1]!.split('\n').find((line) => line.trim().startsWith(expectedEntry));
+  assert.ok(entryLine !== undefined,
+    `KERNEL_TAG_COMMITS 缺少 'dsh-v${kernelVersion}' 的记录（升内核时同步补）`);
+  const sha = /'([0-9a-f]{40})'/.exec(entryLine!)?.[1];
+  assert.ok(sha !== undefined,
+    `KERNEL_TAG_COMMITS['dsh-v${kernelVersion}'] 必须是 40 位小写十六进制 commit: ${entryLine}`);
+  assert.equal(hitsGithubApiHost(src), false,
+    'fetch-kernel.ts 又出现了指向 GitHub REST API 主机的 URL（匿名配额 → CI 矩阵并发随机 403）');
 });
 
 test('upgrade-test-441 内核断言与 package.json 内核钉一致', () => {
