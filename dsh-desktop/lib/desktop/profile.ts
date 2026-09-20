@@ -27,7 +27,10 @@ export const DESKTOP_PROFILE = 'web-desktop';
 // 驱动 host + client 注入，overlay 配套行会被 removeBundledRowDuplicates
 // 去重（见 companion-sync.ts），故必须走 bundles 而非 patch 行。
 // dsh-raw-html —— VCP 视觉通感协议插件（消息 HTML 渲染为界面）。
-export const BUNDLED_BUILTIN_PLUGINS = ['dsh-raw-html'];
+// v6 Task 3.1（ADR 0006 v3 · 严格模式）：内置 bundle 插件随 assets/plugins
+// 资产面剥出 —— 最简 profile 只含官方 @deepseek-ai/dsh-base + dsh-web-app
+//（纯净 boot 实测 200 可达）。Task 3.3 接回插件时恢复此清单。
+export const BUNDLED_BUILTIN_PLUGINS: string[] = [];
 // 与官方 web profile 出厂模板一致（@deepseek-ai/dsh-base + dsh-web-app），
 // 外加内置 bundle 插件；仅用于全新 profile 播种。
 export const DESKTOP_PROFILE_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...BUNDLED_BUILTIN_PLUGINS];

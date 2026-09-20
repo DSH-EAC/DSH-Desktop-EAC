@@ -90,6 +90,15 @@
             Smoke = @('node gui-smoke.js')
         },
         @{
+            Name = 'shell-skins'
+            Domain = 'tauri-shell'
+            Pattern = '^dsh-desktop/assets/shell-skin/'
+            Reference = 'references/tauri-shell.md'
+            Level = 'targeted'
+            Tests = @('test/shell-skin-pack.test.ts')
+            Smoke = @()
+        },
+        @{
             Name = 'bundled-skills'
             Domain = 'presets-profile'
             Pattern = '^dsh-desktop/assets/skills/|syncBundledSkills'

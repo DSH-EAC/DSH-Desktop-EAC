@@ -87,17 +87,37 @@ function extractKeyTree(src, marker) {
 
 const bridgeTree = extractKeyTree(bridge, '(window as any).dshDesktop =');
 
+// v6 Task 3.3：原测试的必需键集是 v5 全量（21 键）。随 Task 3.1 接口收敛
+//（ADR 0006 v5）与 Task 3.3 分阶段接回，键集变化；断言拆成两组：
+//   A. 恒在组 —— 官方契约 + 壳最小控制面，任何阶段都不得缺失；
+//   B. 已接回组 —— 随插件接回恢复的 EAC 面，锁定「接回的不得回退」；
+// 未接回的能力（menu / floatWindow / pluginWizard / balance* / recovery 等）
+// 显式列为「不得出现」，防止以接回为名把 v6 收敛成果整体回退。
+const ALWAYS_PRESENT = ['protocolVersion', 'locale', 'plugins', 'updates', 'windowControls', 'boot'];
+const RESTORED_BY_TASK_3_3 = ['pluginManager', 'guard', 'fileDrop', 'getPathForFile',
+  'getInfo', 'revertFiles', 'openPath', 'openExternal'];
+// 依据 metaone01 2026-09-19 的裁决（按 ADR 0006）：
+//  - balance 不作内置，转为推荐插件（Task 4 范围）；其 balance* RPC 面不接回；
+//  - plugin-wizard 因后续会与其它插件管理功能冲突，明确不接入。
+// 因此下面这些键为**终态契约**（不再是"待裁决"状态），不得回归。
+const STILL_RETIRED = ['menu', 'floatWindow', 'phoneBridge', 'pluginUpdates', 'imagePaste',
+  'balancePrices', 'balanceModels', 'refreshBalance', 'restartService', 'copyText',
+  'pluginWizard', 'recovery', 'rescue'];
+
 test('bridge dshDesktop exposes the required namespaces（preload 退役后的单侧契约）', () => {
   // 基线锚点：防止解析器写歪导致解析出空树「假绿」。
   const tops = Object.keys(bridgeTree).filter((k) => !k.startsWith('_'));
-  for (const need of ['appVersion', 'windowControls', 'menu', 'getInfo', 'refreshBalance',
-    'restartService', 'floatWindow', 'guard', 'pluginWizard', 'pluginManager', 'pluginUpdates',
-    'imagePaste', 'balancePrices', 'balanceModels', 'revertFiles', 'openPath', 'openExternal',
-    'copyText', 'getPathForFile', 'recovery', 'rescue']) {
-    assert.ok(tops.includes(need), `bridge missing ${need}`);
+  assert.ok(tops.length >= 10, `bridge tree parsed too few keys: ${tops.join(',')}`);
+  for (const need of ALWAYS_PRESENT) {
+    assert.ok(tops.includes(need), `bridge missing（恒在） ${need}`);
+  }
+  for (const need of RESTORED_BY_TASK_3_3) {
+    assert.ok(tops.includes(need), `bridge missing（Task 3.3 已接回） ${need}`);
+  }
+  for (const dead of STILL_RETIRED) {
+    assert.ok(!tops.includes(dead), `bridge 不得回退已收敛能力: ${dead}`);
   }
   assert.ok(bridgeTree.windowControls.length >= 5, 'windowControls subkeys parsed');
-  assert.ok(bridgeTree.rescue.length >= 7, 'rescue subkeys parsed');
 });
 
 test('bridge keeps the introspection escape hatch for shell pages', () => {

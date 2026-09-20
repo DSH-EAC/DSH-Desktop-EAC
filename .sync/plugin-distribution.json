@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "agent-teams",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "balance",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "better-sidebar",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "change-review",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "client-file-changes",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "compact",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "composer-dynamic-island",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "computer-user",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "conversation-tweaks",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "dock-settings",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-dafeiyu",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-feature-toggles",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "retired", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-navbar",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-pet",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-pet-settings",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-phone",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-raw-html",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-session-manager",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-stt",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-undo",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-webui-prompt-optimizer",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "dsh-whale-widget",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "eac-core-bridge",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "eac-locale-compat",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "easy-setup",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "file-changes",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "file-drop-eac",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "float-window",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "font-custom",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "image-paste",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "meow-smooth",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "message-rewind",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "mobile-fix",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "offpeak",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "openclaw-bridge",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "picturereader",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "plugin-manager",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "plugin-shield",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "plugin-wizard",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "prompt-custom",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "settings-groups",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "settings-scroll-fix",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "side-session",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "skin-switch",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "soul-md",
+      "distributionClass": "recommended",
+      "delivery": "pack",
+      "pack": "dev.dsh-eac.desktop-recommended",
+      "migration": { "current": "bundled", "target": "pack", "state": "source-pending" }
+    },
+    {
+      "id": "terminal",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "think-zh-expand-eac",
+      "distributionClass": "external",
+      "delivery": "market",
+      "migration": { "current": "bundled", "target": "market", "state": "source-pending" }
+    },
+    {
+      "id": "unified-market",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    },
+    {
+      "id": "viewport-lock",
+      "distributionClass": "builtin",
+      "delivery": "bundled",
+      "migration": { "current": "bundled", "target": "bundled", "state": "migrated" }
+    }
+  ]
+}

@@ -5,20 +5,26 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { auditLinuxBundle } from '../../tauri-shell/audit-linux-bundle.mjs';
 
-const ELF = Buffer.from([
-  0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x03, 0x00, 0x3e, 0x00,
-]);
+function elf64(machine: number): Buffer {
+  const data = Buffer.alloc(20);
+  data.write('\x7fELF', 0, 'binary');
+  data.writeUInt8(2, 4);
+  data.writeUInt8(1, 5);
+  data.writeUInt16LE(machine, 18);
+  return data;
+}
 
-function fixture(): string {
+const ELF = elf64(62);
+const ELF_ARM64 = elf64(183);
+
+function fixture(elf = ELF): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'eac-linux-bundle-'));
   const runtime = path.join(root, 'dsh-desktop', 'vendor', 'node', 'node');
   const supervisor = path.join(root, 'dsh-desktop', 'native', 'supervisor', 'index.node');
   const snapshot = path.join(root, 'dsh-desktop', 'native', 'snapshot', 'index.node');
   for (const file of [runtime, supervisor, snapshot]) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, ELF);
+    fs.writeFileSync(file, elf);
   }
   fs.chmodSync(runtime, 0o755);
   return root;
@@ -28,6 +34,22 @@ test('Linux bundle audit accepts ELF runtime and native modules', () => {
   const root = fixture();
   try {
     assert.deepEqual(auditLinuxBundle(root), { filesChecked: 3, nativeModules: 2 });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Linux bundle audit accepts arm64 ELF and the matching node-pty prebuild', () => {
+  const root = fixture(ELF_ARM64);
+  const ptyBuild = path.join(root, 'dsh-desktop', 'node_modules', 'node-pty', 'build', 'Release', 'pty.node');
+  const ptyPrebuilt = path.join(root, 'dsh-desktop', 'node_modules', 'node-pty', 'prebuilds', 'linux-arm64', 'pty.node');
+  for (const file of [ptyBuild, ptyPrebuilt]) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, ELF_ARM64);
+  }
+  try {
+    assert.doesNotThrow(() => auditLinuxBundle(root, { targetArch: 'arm64' }));
+    assert.throws(() => auditLinuxBundle(root, { targetArch: 'x64' }), /not x64 ELF/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

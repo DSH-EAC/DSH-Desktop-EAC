@@ -1,0 +1,20 @@
+{
+  "id": "system.default",
+  "name": "EAC minimal built-in skin",
+  "type": "skin",
+  "version": "2.0.0",
+  "owner": "io.github.dsh-eac",
+  "compatibility": {
+    "profile": "dsh-desktop-eac-ui-skin-profile@^0.3",
+    "forceable": false
+  },
+  "control": {
+    "id": "system.default.control",
+    "version": "2.0.0"
+  },
+  "style": {
+    "id": "system.default.style",
+    "version": "2.0.0"
+  },
+  "description": "Default aggregate for independently replaceable control and style packages. The slot package is registered separately by the host profile."
+}

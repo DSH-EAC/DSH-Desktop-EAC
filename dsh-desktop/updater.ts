@@ -34,10 +34,8 @@ const NPM_MIRRORS: string[] = ['https://registry.npmmirror.com', 'https://regist
 //（npm 解析依赖时可能长时间静默，阈值取 300 秒）。
 const NPM_STALL_MS = 300 * 1000;
 
-const { readJsonFile } = require('./lib/plugin-copy') as {
+const { readJsonFile, writeJsonAtomic } = require('./lib/atomic-json') as {
   readJsonFile(file: string): Record<string, unknown> | null;
-};
-const { writeJsonAtomic } = require('./lib/atomic-json') as {
   writeJsonAtomic(file: string, value: unknown): void;
 };
 

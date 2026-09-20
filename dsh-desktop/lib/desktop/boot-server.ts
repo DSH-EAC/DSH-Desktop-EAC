@@ -160,18 +160,18 @@ async function startServer(unsafePortRetries = 4, overlays: string[] = []): Prom
       }
     } catch { /* 无旧日志/读取失败都不影响启动 */ }
     const out = fs.createWriteStream(dshWebLogPath(), { flags: 'a' });
-    ctx.log('dsh', `启动: "${nodeBin}" "${bin}" web --host 127.0.0.1 --port ${webPort}`);
+    ctx.log('dsh', `启动: "${nodeBin}" "${bin}" --profile ${ctx.getDesktopProfile()} --host 127.0.0.1 --port ${webPort}`);
     // --use-system-ca：让 dsh web 进程信任系统证书库（代理/MITM 场景下内置
     // node 的默认 CA 无法验证，导致插件市场等对外 fetch 失败）。
     const patchArgs = overlays
       .filter((p) => typeof p === 'string' && p && fs.existsSync(p))
       .flatMap((p) => ['--patch', p]);
-    // `--profile <name>` 直接在根命令上（本版本的 `web` 是 --profile web 的
-    // 硬编码别名，不接受父级 --profile）；--host/--port 透传给该 app。
+    // 0.1.5-rc.2 CLI 形态：`web` 子命令硬编码 --profile web 且拒绝根级
+    // --profile；桌面专属 profile（web-desktop）必须走根命令直启
+    //（`dsh --profile <name> [app args...]`，帮助示例
+    // `dsh --profile tui --resume <session>`）。0.1.3 的 `web` 别名容忍
+    // 后置 --profile，升级后需保持本顺序：根选项在前、app 参数在后。
     // --no-open：内核 openBrowser 默认 true 会每轮启动弹一个系统浏览器标签。
-    // 历史：5.3.0 期间的 spike 内核不认该参数（PR #249 有意移除防启动必死）；
-    // 最终 vendored alpha.1 的 dsh-web-app 恢复了支持，此处补回
-    //（boot-smoke 实证正常启动且不再弹浏览器），契约测试钉住「必须存在」。
     const proc = cp.spawn(
       nodeBin,
       ['--use-system-ca', bin, '--profile', ctx.getDesktopProfile(), '--host', '127.0.0.1', '--port', String(webPort), '--no-open', ...patchArgs],

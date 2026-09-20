@@ -1,152 +1,320 @@
-// v6 Task 1.1 回归：壳层皮肤包（assets/shell-skin/eac-default）与壳页
-// token 消费契约。
-//
-// 拆分前壳层 UI（Rust 内嵌页 / 磁盘壳页 / exit-overlay）的视觉全部硬编码；
-// 拆分后契约（ADR 0005）：
-//   1. 皮肤包三件套存在，skin.json 字段合法；
-//   2. tokens.css 是 --eac-shell-* 的单一事实源（壳页只消费不定义）；
-//   3. 消费处一律 var(--eac-shell-x, <fallback>)——fallback 保证皮肤包
-//      缺失时降级可读；
-//   4. 壳页不再出现拆分前的硬编码色（黑名单清零）；
-//   5. Rust 壳 http_serve 提供 /skin/ 路由（白名单伺服）。
-import { test } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (...p: string[]): string => readFileSync(join(root, ...p), 'utf8');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const skinRoot = join(repoRoot, 'dsh-desktop', 'assets', 'ui-skin', 'system-default');
+const profile = 'dsh-desktop-eac-ui-skin-profile@^0.3';
+const predefinedStates = [
+  'empty',
+  'idle',
+  'loading',
+  'running',
+  'success',
+  'warning',
+  'error',
+  'disabled',
+  'collapsed',
+  'hidden',
+  'docked',
+  'floating',
+  'detached',
+  'dragging',
+  'drop-target',
+  'dangerous',
+  'animating',
+] as const;
+const regions = [
+  'top-sidebar',
+  'bottom-sidebar',
+  'left-sidebar',
+  'right-sidebar',
+  'session',
+  'overlay',
+] as const;
+const instanceControls = [
+  'popup-surface',
+  'dialog-surface',
+  'dialog-backdrop',
+] as const;
+const productionConsumers = [
+  'tauri-shell/src/main.rs',
+  'tauri-shell/src/exit-overlay.js',
+  'tauri-shell/sidecar/bridge.ts',
+];
 
-const packDir = join(root, 'assets', 'shell-skin', 'eac-default');
-const mainRs = read('..', 'tauri-shell', 'src', 'main.rs');
-const overlay = read('..', 'tauri-shell', 'src', 'exit-overlay.js');
-
-/** 以平衡括号切分顶层逗号（fallback 可含逗号/嵌套 var）。 */
-function splitTopLevel(s: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let cur = '';
-  for (const ch of s) {
-    if (ch === '(') depth += 1;
-    if (ch === ')') depth -= 1;
-    if (ch === ',' && depth === 0) {
-      parts.push(cur);
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  parts.push(cur);
-  return parts;
+interface Compatibility {
+  profile: string;
+  forceable: boolean;
 }
 
-/** 解析源码中所有 var(--eac-shell-*) 消费为 [{ name, hasFallback }]。 */
-function parseShellVarConsumers(src: string): { name: string; hasFallback: boolean }[] {
+interface Declaration {
+  region: string;
+  controls?: string[];
+  states?: string[];
+}
+
+interface BaseManifest {
+  id: string;
+  type: 'skin' | 'control' | 'style' | 'slot';
+  version: string;
+  owner: string;
+  compatibility: Compatibility;
+}
+
+interface SkinManifest extends BaseManifest {
+  type: 'skin';
+  control: { id: string; version: string };
+  style: { id: string; version: string };
+}
+
+interface ControlManifest extends BaseManifest {
+  type: 'control';
+  declarations: Declaration[];
+  instanceControls: { kind: string; controls: string[] }[];
+  privateControls: string[];
+  consumers: string[];
+  assets: string[];
+}
+
+interface StyleManifest extends BaseManifest {
+  type: 'style';
+  declarations: Declaration[];
+  assets: string[];
+}
+
+interface SlotManifest extends BaseManifest {
+  type: 'slot';
+  regions: { name: string; controlSlot: string; styleSlot: string; defaultZIndex: number }[];
+}
+
+function read(...parts: string[]): string {
+  return readFileSync(join(repoRoot, ...parts), 'utf8');
+}
+
+function readSkinFile(...parts: string[]): string {
+  return readFileSync(join(skinRoot, ...parts), 'utf8');
+}
+
+function manifest<T>(...parts: string[]): T {
+  return JSON.parse(readSkinFile(...parts)) as T;
+}
+
+function tokenDefinitions(source: string): Set<string> {
+  return new Set(Array.from(source.matchAll(/(--eac-shell-[\w-]+)\s*:/g), (match) => match[1]!));
+}
+
+function tokenConsumers(source: string): { name: string; hasFallback: boolean }[] {
   const consumers: { name: string; hasFallback: boolean }[] = [];
-  const re = /var\(\s*(--eac-shell-[\w-]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(src)) !== null) {
-    // 从 var( 之后扫描到平衡的右括号
+  const tokenStart = /var\(\s*(--eac-shell-[\w-]+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenStart.exec(source)) !== null) {
     let depth = 1;
-    let i = re.lastIndex; // 指向 name 结束后的字符
-    let body = '';
-    while (i < src.length && depth > 0) {
-      const ch = src[i]!;
-      if (ch === '(') depth += 1;
-      if (ch === ')') depth -= 1;
-      if (depth > 0) body += ch;
-      i += 1;
+    let cursor = tokenStart.lastIndex;
+    let hasTopLevelComma = false;
+    let fallbackHasContent = false;
+
+    while (cursor < source.length && depth > 0) {
+      const char = source[cursor]!;
+      if (char === '(') depth += 1;
+      if (char === ')') depth -= 1;
+      if (depth === 1 && char === ',') {
+        hasTopLevelComma = true;
+      } else if (hasTopLevelComma && depth > 0 && !/\s/.test(char)) {
+        fallbackHasContent = true;
+      }
+      cursor += 1;
     }
-    const args = splitTopLevel(body);
-    consumers.push({ name: m[1]!, hasFallback: args.length > 1 && args.slice(1).join(',').trim().length > 0 });
-    re.lastIndex = i;
+
+    consumers.push({
+      name: match[1]!,
+      hasFallback: hasTopLevelComma && fallbackHasContent,
+    });
+    tokenStart.lastIndex = cursor;
   }
+
   return consumers;
 }
 
-/** 把每个 var(--eac-shell-*, fallback) 整体替换为占位符，用于裸色检查。 */
-function stripShellVars(src: string): string {
-  return src.replace(/var\(\s*--eac-shell-[\w-]+[^()]*(?:\([^()]*\)[^()]*)*\)/g, 'TOKEN');
-}
-
-test('壳层皮肤包文件存在且 skin.json 符合皮肤创作公约', () => {
-  for (const f of ['skin.json', 'tokens.css', 'controls.css', 'README.md']) {
-    assert.ok(existsSync(join(packDir, f)), `assets/shell-skin/eac-default/${f} missing`);
+test('default skin is split into independently identifiable packages', () => {
+  for (const path of [
+    '../registry.json',
+    'skin.json',
+    'README.md',
+    'control/control.json',
+    'control/layout.css',
+    'style/style.json',
+    'style/tokens.css',
+    'style/states.css',
+    'slot/slot.json',
+  ]) {
+    assert.equal(existsSync(join(skinRoot, path)), true, `${path} missing`);
   }
-  const manifest = JSON.parse(read('assets', 'shell-skin', 'eac-default', 'skin.json'));
-  assert.equal(manifest.id, 'system.default');
-  assert.equal(manifest.type, 'skin');
-  assert.equal(manifest.kind, 'shell-skin');
-  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
-  assert.match(manifest.owner, /^(?:[a-z0-9-]+\.){2,}[a-z0-9-]+$/);
-  assert.equal(manifest.compatibility.profile, 'dsh-desktop-eac-ui-skin-profile@^0.3');
-  assert.equal(manifest.compatibility.forceable, false);
-  assert.equal(manifest.control, 'system.shell-controls');
-  assert.equal(manifest.style, 'system.shell-style');
-  assert.equal(manifest.dependencies[manifest.control], manifest.version);
-  assert.equal(manifest.dependencies[manifest.style], manifest.version);
-  assert.ok(Array.isArray(manifest.assets) && manifest.assets.length > 0);
-  for (const f of manifest.assets) {
-    assert.ok(existsSync(join(packDir, f)), `skin.json assets 声明了不存在的 ${f}`);
-  }
-});
 
-test('tokens.css 只定义 --eac-shell-* token（单一事实源）', () => {
-  const tokens = read('assets', 'shell-skin', 'eac-default', 'tokens.css');
-  const defined = tokens.match(/--eac-shell-[\w-]+\s*:/g) || [];
-  assert.ok(defined.length >= 40, `token 数量异常（${defined.length}），拆分应产生完整 token 集`);
-  // controls.css 不写死颜色：只消费 token
-  const controls = read('assets', 'shell-skin', 'eac-default', 'controls.css');
-  assert.match(controls, /var\(--eac-shell-/, 'controls.css 必须消费 token');
-  // controls.css 的 var() 均在 fallback 内携带字面量
-  const bare = stripShellVars(controls);
-  assert.doesNotMatch(bare, /#[0-9a-fA-F]{6}\b/, 'controls.css fallback 之外不得出现硬编码 hex 色');
-});
+  const skin = manifest<SkinManifest>('skin.json');
+  const control = manifest<ControlManifest>('control', 'control.json');
+  const style = manifest<StyleManifest>('style', 'style.json');
+  const slot = manifest<SlotManifest>('slot', 'slot.json');
 
-test('壳页 token 消费处必须带 fallback 字面量（降级契约）', () => {
-  const consumers: [string, string][] = [
-    ['assets/onboarding.html', read('assets', 'onboarding.html')],
-    ['assets/recovery-center.html', read('assets', 'recovery-center.html')],
-    ['tauri-shell/src/exit-overlay.js', overlay],
-    ['tauri-shell/src/main.rs', mainRs],
-  ];
-  for (const [name, src] of consumers) {
-    const parsed = parseShellVarConsumers(src);
-    assert.ok(parsed.length > 0, `${name} 未消费任何 --eac-shell-* token`);
-    const noFallback = parsed.filter((c) => !c.hasFallback).map((c) => c.name);
-    assert.deepEqual(noFallback, [], `${name} 存在无 fallback 的 token 消费`);
-  }
-  // 两个磁盘壳页与 Rust 内嵌页都引用皮肤包
-  for (const p of ['assets/onboarding.html', 'assets/recovery-center.html']) {
-    assert.match(read(...(p.split('/') as ['assets', string])), /\/skin\/tokens\.css/, `${p} 必须引用皮肤包`);
-  }
-  assert.ok(mainRs.includes('var(--eac-shell-bg-base,#0b1220)'), 'main.rs 内嵌页须消费 bg-base token');
-  assert.ok(mainRs.includes('/skin/tokens.css'), 'main.rs 须注入皮肤包 link');
-});
+  assert.deepEqual([skin.type, control.type, style.type, slot.type], ['skin', 'control', 'style', 'slot']);
+  assert.deepEqual([skin.id, control.id, style.id, slot.id], [
+    'system.default',
+    'system.default.control',
+    'system.default.style',
+    'system.default.slot',
+  ]);
+  assert.deepEqual(skin.control, { id: control.id, version: control.version });
+  assert.deepEqual(skin.style, { id: style.id, version: style.version });
+  assert.deepEqual(control.assets, ['layout.css']);
+  assert.equal(Object.hasOwn(skin, 'slot'), false, 'skin must not aggregate a slot package');
 
-test('壳页不再持有拆分前的硬编码色（黑名单清零）', () => {
-  // 仅检查 var()/fallback 之外的裸色值。fallback 中的同值字面量是降级
-  // 契约的一部分，合法。
-  const banned = ['#0b1220', '#1b2a6b', '#dfe6ff', '#8b9ac4', '#5f6f9c', '#5b8cff'];
-  const targets: [string, string][] = [
-    ['assets/onboarding.html', read('assets', 'onboarding.html')],
-    ['assets/recovery-center.html', read('assets', 'recovery-center.html')],
-    ['tauri-shell/src/exit-overlay.js', overlay],
-    ['tauri-shell/src/main.rs', mainRs],
-  ];
-  for (const [name, src] of targets) {
-    const stripped = stripShellVars(src);
-    for (const hex of banned) {
-      assert.ok(!stripped.includes(hex), `${name} 仍含裸硬编码色 ${hex}`);
-    }
+  for (const item of [skin, control, style, slot]) {
+    assert.equal(item.owner, 'io.github.dsh-eac');
+    assert.equal(item.compatibility.profile, profile);
+    assert.equal(item.compatibility.forceable, false);
+    assert.doesNotMatch(JSON.stringify(item), /shell-skin/);
   }
 });
 
-test('http_serve 提供 /skin/ 白名单路由', () => {
-  assert.match(mainRs, /strip_prefix\("\/skin\/"\)/, '须有 /skin/ 路由');
-  assert.match(mainRs, /fn shell_skin_css/, '须有皮肤包文件伺服函数');
-  // 白名单：只放行包内固定文件名
-  const fn = mainRs.slice(mainRs.indexOf('fn shell_skin_css'), mainRs.indexOf('async fn http_serve'));
-  assert.match(fn, /matches!\(file, "tokens\.css" \| "controls\.css"\)/, '只放行 tokens.css/controls.css');
+test('slot, control, and style packages share the complete region contract', () => {
+  const control = manifest<ControlManifest>('control', 'control.json');
+  const style = manifest<StyleManifest>('style', 'style.json');
+  const slot = manifest<SlotManifest>('slot', 'slot.json');
+  const expected = [...regions].sort();
+
+  assert.deepEqual(control.declarations.map(({ region }) => region).sort(), expected);
+  assert.deepEqual(style.declarations.map(({ region }) => region).sort(), expected);
+  assert.deepEqual(slot.regions.map(({ name }) => name).sort(), expected);
+
+  for (const region of slot.regions) {
+    assert.equal(region.controlSlot, `${region.name}.control`);
+    assert.equal(region.styleSlot, `${region.name}.style`);
+    assert.equal(Number.isInteger(region.defaultZIndex), true);
+  }
+
+  const contractControls = new Set(control.declarations.flatMap(({ controls }) => controls ?? []));
+  for (const name of [
+    'sidebar-root',
+    'sidebar-content',
+    'sidebar-collapse-toggle',
+    'session-root',
+    'session-content',
+    'conversation-list',
+    'message-list',
+    'composer',
+    'composer-input',
+    'composer-actions',
+    'submit-button',
+    'stop-button',
+    'overlay-root',
+    'overlay-backdrop',
+    'overlay-content',
+    'overlay-close',
+  ]) {
+    assert.equal(contractControls.has(name), true, `missing contract control ${name}`);
+  }
+
+  const instances = new Set(control.instanceControls.flatMap(({ controls }) => controls));
+  for (const name of instanceControls) assert.equal(instances.has(name), true, `missing instance control ${name}`);
+  assert.equal(slot.regions.some(({ name }) => /popup|dialog|floating-window/.test(name)), false);
+  assert.ok(control.privateControls.length > 0);
+  assert.deepEqual(control.privateControls.filter((name) => !/^system\.default\.[a-z][a-z0-9-]*$/.test(name)), []);
+});
+
+test('all predefined states are declared and style-addressable without interaction aliases', () => {
+  const control = manifest<ControlManifest>('control', 'control.json');
+  const style = manifest<StyleManifest>('style', 'style.json');
+  const statesCss = readSkinFile('style', 'states.css');
+  const declaredControlStates = new Set(control.declarations.flatMap(({ states }) => states ?? []));
+  const declaredStyleStates = new Set(style.declarations.flatMap(({ states }) => states ?? []));
+
+  assert.deepEqual([...declaredControlStates].sort(), [...predefinedStates].sort());
+  assert.deepEqual([...declaredStyleStates].sort(), [...predefinedStates].sort());
+  for (const state of predefinedStates) {
+    assert.match(statesCss, new RegExp(`\\[data-state~=["']${state}["']\\]`), `missing selector for ${state}`);
+  }
+  for (const alias of ['default', 'hover', 'focus', 'pressed', 'selected', 'active']) {
+    assert.equal(declaredControlStates.has(alias), false, `${alias} is not a predefined state`);
+  }
+  assert.match(statesCss, /:hover/);
+  assert.match(statesCss, /:focus-visible/);
+  assert.match(statesCss, /:active/);
+  assert.match(statesCss, /\[aria-selected=["']true["']\]/);
+});
+
+test('style assets own the token interface without host-side visual declarations', () => {
+  const style = manifest<StyleManifest>('style', 'style.json');
+  assert.deepEqual(style.assets, ['tokens.css', 'states.css']);
+
+  const tokens = readSkinFile('style', 'tokens.css');
+  const states = readSkinFile('style', 'states.css');
+  const definitions = tokenDefinitions(tokens);
+  assert.ok(definitions.size > 0);
+
+  const consumers = tokenConsumers(states);
+  assert.ok(consumers.length > 0, 'style package must consume shell tokens');
+  assert.deepEqual(consumers.filter(({ hasFallback }) => !hasFallback), []);
+  assert.deepEqual(consumers.filter(({ name }) => !definitions.has(name)), []);
+
+  for (const path of productionConsumers) {
+    assert.doesNotMatch(read(...path.split('/')), /--eac-shell-/, `${path} bypasses the style package`);
+  }
+});
+
+test('runtime exposes stable region, control, and state anchors and loads the split style', () => {
+  const control = manifest<ControlManifest>('control', 'control.json');
+  assert.deepEqual(control.consumers, productionConsumers);
+
+  const main = read('tauri-shell', 'src', 'main.rs');
+  const overlay = read('tauri-shell', 'src', 'exit-overlay.js');
+  const bridge = read('tauri-shell', 'sidecar', 'bridge.ts');
+
+  assert.match(main, /\/skin\/control\/layout\.css/);
+  assert.match(main, /\/skin\/style\/tokens\.css/);
+  assert.match(main, /\/skin\/style\/states\.css/);
+  assert.match(main, /data-region=/);
+  assert.match(main, /data-control-name=/);
+  assert.match(main, /data-state=/);
+  assert.doesNotMatch(main, /\.join\("shell-skin"\)/);
+  assert.match(main, /\.join\("ui-skin"\)/);
+  assert.match(main, /registry\.default\.directory/);
+  assert.match(main, /registry\.json/);
+  assert.match(main, /ui_skin_directory_is_safe/);
+
+  for (const source of [overlay, bridge]) {
+    assert.match(source, /data-region/);
+    assert.match(source, /data-control-name/);
+  }
+  assert.match(overlay, /data-state/);
+  assert.match(overlay, /system\.default\.exit-/);
+  assert.match(overlay, /data-control-name=\"dialog-surface\"/);
+  assert.match(bridge, /top-sidebar/);
+  assert.match(bridge, /left-sidebar/);
+  assert.match(bridge, /right-sidebar/);
+  assert.match(bridge, /session/);
+  assert.match(bridge, /popup-surface/);
+  assert.match(bridge, /dialog-surface/);
+  const layout = readSkinFile('control', 'layout.css');
+  const states = readSkinFile('style', 'states.css');
+  assert.doesNotMatch(layout, /nth-child|\[class\*=/);
+  assert.match(layout, /button\[data-control-name\^="window-"\]/);
+  assert.match(states, /button\[data-control-name\^="window-"\]/);
+});
+
+test('retired surfaces stay outside the built-in packages', () => {
+  const retiredPageLanguage = /recovery(?:-center)?|onboarding|update|about|恢复中心|安全模式|向导/i;
+  const packageText = [
+    readSkinFile('skin.json'),
+    readSkinFile('README.md'),
+    readSkinFile('control', 'control.json'),
+    readSkinFile('style', 'style.json'),
+    readSkinFile('style', 'tokens.css'),
+    readSkinFile('style', 'states.css'),
+    readSkinFile('slot', 'slot.json'),
+  ].join('\n');
+
+  assert.doesNotMatch(packageText, retiredPageLanguage);
 });

@@ -1,0 +1,367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dsh-desktop:plugin-distribution.schema:v1",
+  "title": "DSH Desktop plugin distribution ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "plugins"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/plugin"
+      }
+    }
+  },
+  "$defs": {
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current",
+        "target",
+        "state"
+      ],
+      "properties": {
+        "current": {
+          "enum": [
+            "bundled",
+            "pack",
+            "market"
+          ]
+        },
+        "target": {
+          "enum": [
+            "bundled",
+            "pack",
+            "market",
+            "retired"
+          ]
+        },
+        "state": {
+          "enum": [
+            "source-pending",
+            "source-ready",
+            "removal-ready",
+            "migrated",
+            "retired"
+          ]
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "removalEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactComplete",
+        "lifecycleVerified",
+        "singleKernelVerified",
+        "installRecoveryReady",
+        "userConfigMigrationVerified",
+        "platformMatrixVerified"
+      ],
+      "properties": {
+        "artifactComplete": { "const": true },
+        "lifecycleVerified": { "const": true },
+        "singleKernelVerified": { "const": true },
+        "installRecoveryReady": { "const": true },
+        "userConfigMigrationVerified": { "const": true },
+        "platformMatrixVerified": { "const": true }
+      }
+    },
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "distributionClass",
+        "delivery",
+        "migration"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "distributionClass": {
+          "enum": [
+            "builtin",
+            "recommended",
+            "external"
+          ]
+        },
+        "delivery": {
+          "enum": [
+            "bundled",
+            "pack",
+            "market"
+          ]
+        },
+        "pack": {
+          "type": "string",
+          "const": "dev.dsh-eac.desktop-recommended"
+        },
+        "sourceRef": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^npm:(@?[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)?)$"
+            },
+            {
+              "pattern": "^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[a-f0-9]{40}$"
+            }
+          ],
+          "not": {
+            "pattern": "latest"
+          }
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "latest"
+          }
+        },
+        "integrity": {
+          "$ref": "#/$defs/integrity"
+        },
+        "patchConclusion": {
+          "enum": [
+            "not-patched",
+            "upstream-absorbed",
+            "eac-fork-published"
+          ]
+        },
+        "removalEvidence": {
+          "$ref": "#/$defs/removalEvidence"
+        },
+        "migration": {
+          "$ref": "#/$defs/migration"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "distributionClass": {
+                "const": "builtin"
+              }
+            },
+            "required": [
+              "distributionClass"
+            ]
+          },
+          "then": {
+            "properties": {
+              "delivery": {
+                "const": "bundled"
+              },
+              "migration": {
+                "properties": {
+                  "target": {
+                    "const": "bundled"
+                  },
+                  "state": {
+                    "const": "migrated"
+                  }
+                }
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "pack"
+                  ]
+                },
+                {
+                  "required": [
+                    "sourceRef"
+                  ]
+                },
+                {
+                  "required": [
+                    "version"
+                  ]
+                },
+                {
+                  "required": [
+                    "integrity"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "distributionClass": {
+                "const": "recommended"
+              }
+            },
+            "required": [
+              "distributionClass"
+            ]
+          },
+          "then": {
+            "required": [
+              "pack"
+            ],
+            "properties": {
+              "delivery": {
+                "const": "pack"
+              },
+              "migration": {
+                "properties": {
+                  "target": {
+                    "const": "pack"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "distributionClass": {
+                "const": "external"
+              }
+            },
+            "required": [
+              "distributionClass"
+            ]
+          },
+          "then": {
+            "properties": {
+              "delivery": {
+                "const": "market"
+              },
+              "migration": {
+                "properties": {
+                  "target": {
+                    "enum": [
+                      "market",
+                      "retired"
+                    ]
+                  }
+                }
+              }
+            },
+            "not": {
+              "required": [
+                "pack"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "properties": {
+                  "distributionClass": {
+                    "enum": [
+                      "recommended",
+                      "external"
+                    ]
+                  }
+                },
+                "required": [
+                  "distributionClass"
+                ]
+              },
+              {
+                "properties": {
+                  "migration": {
+                    "properties": {
+                      "state": {
+                        "enum": [
+                          "source-ready",
+                          "removal-ready",
+                          "migrated"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "migration"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "sourceRef",
+              "version",
+              "integrity"
+            ]
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "properties": {
+                  "distributionClass": {
+                    "enum": [
+                      "recommended",
+                      "external"
+                    ]
+                  }
+                },
+                "required": [
+                  "distributionClass"
+                ]
+              },
+              {
+                "properties": {
+                  "migration": {
+                    "properties": {
+                      "state": {
+                        "enum": [
+                          "removal-ready",
+                          "migrated"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "migration"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "patchConclusion",
+              "removalEvidence"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
