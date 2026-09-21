@@ -20,7 +20,8 @@
     ],
     "resources": {
       "staged-resources/sidecar/": "sidecar/",
-      "staged-resources/dsh-desktop/": "dsh-desktop/"
+      "staged-resources/dsh-desktop/": "dsh-desktop/",
+      "staged-resources/ui-skin-manager/": "ui-skin-manager/"
     },
     "windows": {
       "webviewInstallMode": {

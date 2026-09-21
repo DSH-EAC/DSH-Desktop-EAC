@@ -47,9 +47,14 @@ use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex as AMutex};
 use tokio_tungstenite::tungstenite::Message;
 
-// 窗口桥注入 = WS 回环客户端（单源）+ 桥胶水（build.rs 拼装 bridge-bundle.js）。
 const BRIDGE_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/bridge-bundle.js"));
 const WS_PORT: u16 = 19873;
+
+// Stage 5 manager bypass lock is validated by the feature-gated snapshot path.
+const SKIN_MANAGER_LOCK: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/skin-manager-artifact.lock.json"
+));
 static CHINESE_UI: OnceLock<bool> = OnceLock::new();
 
 // 桥端口回退：19873 被占（他程序占用/异常残留监听）时向上探测 25 个候选，
@@ -70,12 +75,18 @@ fn ws_port() -> u16 {
 /// 后页面上下文会重建；仅注入裸 BRIDGE_JS 会让客户端退回固定的
 /// 19873，端口发生回退时窗口控制全部失效。
 fn bridge_init_script() -> String {
-    let skin_css =
-        serde_json::to_string(&ui_skin_css_bundle()).unwrap_or_else(|_| "\"\"".to_string());
+    let manager_active = ui_skin_manager_snapshot().is_some();
+    let skin_css = if manager_active {
+        "\"\"".to_string()
+    } else {
+        serde_json::to_string(&ui_skin_css_bundle()).unwrap_or_else(|_| "\"\"".to_string())
+    };
+    let manager = ui_skin_manager_bootstrap_json();
     format!(
-        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\nwindow.__DSH_UI_SKIN_CSS__={};\n{}",
+        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\nwindow.__DSH_UI_SKIN_CSS__={};\nwindow.__DSH_UI_SKIN_MANAGER__={};\n{}",
         ws_port(),
         skin_css,
+        manager,
         BRIDGE_JS,
     )
 }
@@ -123,7 +134,7 @@ fn ui_text<'a>(zh: &'a str, en: &'a str) -> &'a str {
 mod shell_tests {
     use super::{
         is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status,
-        verified_resource_root,
+        ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -166,6 +177,27 @@ mod shell_tests {
         assert!(!is_sidecar_respawn_request("rescue.safe-mode"));
         assert!(!is_sidecar_respawn_request("chrome.init"));
         assert!(!is_sidecar_respawn_request("plugins.list"));
+    }
+
+    #[test]
+    fn manager_flag_is_disabled_by_default_and_reads_pinned_snapshot_when_enabled() {
+        std::env::remove_var("DSH_UI_SKIN_MANAGER");
+        assert!(!ui_skin_manager_enabled());
+        std::env::set_var("DSH_UI_SKIN_MANAGER", "1");
+        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
+        assert_eq!(snapshot.package, "system.default");
+        assert_eq!(snapshot.generation, 1);
+        assert_eq!(snapshot.assets["control/layout.css"], "control-layout.css");
+        std::env::remove_var("DSH_UI_SKIN_MANAGER");
+    }
+
+    #[test]
+    fn manager_snapshot_rejects_unknown_or_unsafe_assets() {
+        std::env::set_var("DSH_UI_SKIN_MANAGER", "1");
+        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
+        assert!(snapshot.assets.get("../escape.css").is_none());
+        assert!(snapshot.assets.get("unknown.css").is_none());
+        std::env::remove_var("DSH_UI_SKIN_MANAGER");
     }
 
     #[test]
@@ -1793,6 +1825,109 @@ fn ui_skin_root() -> PathBuf {
         .join("ui-skin")
 }
 
+#[derive(Clone, Debug, serde::Deserialize)]
+struct UiSkinManagerSnapshot {
+    package: String,
+    version: String,
+    digest: String,
+    generation: u64,
+    assets: HashMap<String, String>,
+    #[serde(rename = "slotAssets", default)]
+    slot_assets: HashMap<String, Vec<String>>,
+    fault: Option<String>,
+}
+
+fn ui_skin_manager_enabled() -> bool {
+    matches!(
+        std::env::var("DSH_UI_SKIN_MANAGER").as_deref(),
+        Ok("1") | Ok("true")
+    )
+}
+
+fn ui_skin_manager_root() -> PathBuf {
+    let root = resource_root();
+    let packaged = root
+        .join("ui-skin-manager")
+        .join("resolved")
+        .join("system.default");
+    if packaged.is_dir() {
+        packaged
+    } else {
+        root.join("tauri-shell")
+            .join("artifacts")
+            .join("resolved")
+            .join("system.default")
+    }
+}
+
+fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
+    if !ui_skin_manager_enabled() {
+        return None;
+    }
+    let path = ui_skin_manager_root().join("snapshot.json");
+    let source = std::fs::read_to_string(path).ok()?;
+    let lock: Value = serde_json::from_str(SKIN_MANAGER_LOCK).ok()?;
+    let locked_default_digest = lock
+        .pointer("/default/sha256")
+        .and_then(Value::as_str)
+        .map(str::to_owned)?;
+    let snapshot: UiSkinManagerSnapshot = serde_json::from_str(&source).ok()?;
+    (snapshot.package == "system.default"
+        && snapshot.version == "2.0.0"
+        && snapshot.digest == format!("sha256:{locked_default_digest}")
+        && snapshot.fault.is_none()
+        && snapshot
+            .assets
+            .keys()
+            .all(|asset| ui_skin_asset_path_is_safe(asset)))
+    .then_some(snapshot)
+}
+
+fn ui_skin_asset_path_is_safe(file: &str) -> bool {
+    !file.is_empty()
+        && !file.starts_with('/')
+        && !file.contains('\\')
+        && !file
+            .split('/')
+            .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+}
+
+fn ui_skin_manager_asset(file: &str) -> Option<String> {
+    let snapshot = ui_skin_manager_snapshot()?;
+    let relative = snapshot.assets.get(file)?;
+    if !ui_skin_asset_path_is_safe(file) || !ui_skin_asset_path_is_safe(relative) {
+        return None;
+    }
+    std::fs::read_to_string(ui_skin_manager_root().join(relative)).ok()
+}
+
+fn ui_skin_manager_bootstrap_json() -> String {
+    let Some(snapshot) = ui_skin_manager_snapshot() else {
+        return "{}".to_string();
+    };
+    let slots = snapshot
+        .slot_assets
+        .iter()
+        .map(|(slot, assets)| {
+            let css = assets
+                .iter()
+                .filter_map(|asset| ui_skin_manager_asset(asset))
+                .collect::<Vec<_>>()
+                .join("\n");
+            (slot, css)
+        })
+        .collect::<HashMap<_, _>>();
+    serde_json::to_string(&serde_json::json!({
+        "enabled": true,
+        "package": snapshot.package,
+        "version": snapshot.version,
+        "digest": snapshot.digest,
+        "generation": snapshot.generation,
+        "slots": slots,
+    }))
+    .unwrap_or_else(|_| "{}".to_string())
+}
+
 fn ui_skin_registry() -> Option<UiSkinRegistry> {
     let source = std::fs::read_to_string(ui_skin_root().join("registry.json")).ok()?;
     let registry: UiSkinRegistry = serde_json::from_str(&source).ok()?;
@@ -1807,6 +1942,9 @@ fn ui_skin_directory_is_safe(directory: &str) -> bool {
 }
 
 fn ui_skin_asset_is_registered(file: &str) -> bool {
+    if ui_skin_manager_snapshot().is_some() {
+        return ui_skin_manager_asset(file).is_some();
+    }
     !file.is_empty()
         && !file
             .split('/')
@@ -1816,6 +1954,9 @@ fn ui_skin_asset_is_registered(file: &str) -> bool {
 }
 
 fn ui_skin_asset(file: &str) -> String {
+    if let Some(asset) = ui_skin_manager_asset(file) {
+        return asset;
+    }
     let Some(registry) = ui_skin_registry() else {
         return String::new();
     };
@@ -1827,6 +1968,15 @@ fn ui_skin_asset(file: &str) -> String {
 }
 
 fn ui_skin_css_bundle() -> String {
+    if let Some(snapshot) = ui_skin_manager_snapshot() {
+        return snapshot
+            .assets
+            .keys()
+            .filter(|asset| asset.ends_with(".css"))
+            .filter_map(|asset| ui_skin_manager_asset(asset))
+            .collect::<Vec<_>>()
+            .join("\n");
+    }
     ui_skin_registry()
         .map(|registry| {
             registry
@@ -1842,6 +1992,15 @@ fn ui_skin_css_bundle() -> String {
 
 fn shell_http_status(path: &str) -> u16 {
     let route = path.split('?').next().unwrap_or("");
+    if ui_skin_manager_snapshot().is_some() {
+        if let Some(asset) = route.strip_prefix("/skin/") {
+            return if ui_skin_manager_asset(asset).is_some() {
+                200
+            } else {
+                404
+            };
+        }
+    }
     if route == "/" || route == "/inject/bridge.js" || route == "/loading" || route == "/died" {
         200
     } else if route

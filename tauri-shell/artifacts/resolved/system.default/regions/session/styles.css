@@ -1,0 +1,9 @@
+[data-region="session"] { }
+
+[data-region="session"][data-control-name="session-root"] {
+  min-height: 100vh;
+}
+
+html[data-dsh-title-bar-height] [data-region="session"][data-control-name="session-root"] {
+  transition: none !important;
+}

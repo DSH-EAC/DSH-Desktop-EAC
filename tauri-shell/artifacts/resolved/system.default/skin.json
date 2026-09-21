@@ -1,0 +1,277 @@
+{
+  "apiVersion": "dsh.eac.ui-skin/v1",
+  "kind": "SkinPackage",
+  "metadata": {
+    "id": "system.default",
+    "version": "2.0.0",
+    "name": "System Default",
+    "author": "DSH-EAC"
+  },
+  "engines": {
+    "manager": "^1.0.0",
+    "hostProfile": "^0.3.0"
+  },
+  "dependencies": [],
+  "contributions": [
+    {
+      "id": "top-sidebar.main",
+      "slot": "top-sidebar",
+      "entry": "regions/top-sidebar/entry.js",
+      "assets": [
+        "regions/top-sidebar/styles.css",
+        "shared/tokens.css",
+        "shared/common.css"
+      ],
+      "style": {
+        "entry": "regions/top-sidebar/styles.css",
+        "assets": [
+          "shared/tokens.css",
+          "shared/common.css"
+        ]
+      },
+      "requires": {
+        "capabilities": [],
+        "slotKind": [
+          "region"
+        ],
+        "slotScope": [
+          "window"
+        ]
+      },
+      "lifecycle": {
+        "mount": "mount",
+        "health": "health",
+        "unmount": "unmount"
+      }
+    },
+    {
+      "id": "bottom-sidebar.main",
+      "slot": "bottom-sidebar",
+      "entry": "regions/bottom-sidebar/entry.js",
+      "assets": [
+        "regions/bottom-sidebar/styles.css",
+        "shared/tokens.css",
+        "shared/common.css"
+      ],
+      "style": {
+        "entry": "regions/bottom-sidebar/styles.css",
+        "assets": [
+          "shared/tokens.css",
+          "shared/common.css"
+        ]
+      },
+      "requires": {
+        "capabilities": [],
+        "slotKind": [
+          "region"
+        ],
+        "slotScope": [
+          "window"
+        ]
+      },
+      "lifecycle": {
+        "mount": "mount",
+        "health": "health",
+        "unmount": "unmount"
+      }
+    },
+    {
+      "id": "left-sidebar.main",
+      "slot": "left-sidebar",
+      "entry": "regions/left-sidebar/entry.js",
+      "assets": [
+        "regions/left-sidebar/styles.css",
+        "shared/tokens.css",
+        "shared/common.css"
+      ],
+      "style": {
+        "entry": "regions/left-sidebar/styles.css",
+        "assets": [
+          "shared/tokens.css",
+          "shared/common.css"
+        ]
+      },
+      "requires": {
+        "capabilities": [],
+        "slotKind": [
+          "region"
+        ],
+        "slotScope": [
+          "window"
+        ]
+      },
+      "lifecycle": {
+        "mount": "mount",
+        "health": "health",
+        "unmount": "unmount"
+      }
+    },
+    {
+      "id": "right-sidebar.main",
+      "slot": "right-sidebar",
+      "entry": "regions/right-sidebar/entry.js",
+      "assets": [
+        "regions/right-sidebar/styles.css",
+        "shared/tokens.css",
+        "shared/common.css"
+      ],
+      "style": {
+        "entry": "regions/right-sidebar/styles.css",
+        "assets": [
+          "shared/tokens.css",
+          "shared/common.css"
+        ]
+      },
+      "requires": {
+        "capabilities": [],
+        "slotKind": [
+          "region"
+        ],
+        "slotScope": [
+          "window"
+        ]
+      },
+      "lifecycle": {
+        "mount": "mount",
+        "health": "health",
+        "unmount": "unmount"
+      }
+    },
+    {
+      "id": "session.main",
+      "slot": "session",
+      "entry": "regions/session/entry.js",
+      "assets": [
+        "regions/session/styles.css",
+        "shared/tokens.css",
+        "shared/common.css"
+      ],
+      "style": {
+        "entry": "regions/session/styles.css",
+        "assets": [
+          "shared/tokens.css",
+          "shared/common.css"
+        ]
+      },
+      "requires": {
+        "capabilities": [],
+        "slotKind": [
+          "region"
+        ],
+        "slotScope": [
+          "window"
+        ]
+      },
+      "lifecycle": {
+        "mount": "mount",
+        "health": "health",
+        "unmount": "unmount"
+      }
+    },
+    {
+      "id": "overlay.main",
+      "slot": "overlay",
+      "entry": "regions/overlay/entry.js",
+      "assets": [
+        "regions/overlay/styles.css",
+        "shared/tokens.css",
+        "shared/common.css"
+      ],
+      "style": {
+        "entry": "regions/overlay/styles.css",
+        "assets": [
+          "shared/tokens.css",
+          "shared/common.css"
+        ]
+      },
+      "requires": {
+        "capabilities": [],
+        "slotKind": [
+          "region"
+        ],
+        "slotScope": [
+          "window"
+        ]
+      },
+      "lifecycle": {
+        "mount": "mount",
+        "health": "health",
+        "unmount": "unmount"
+      }
+    }
+  ],
+  "assets": [
+    {
+      "path": "regions/bottom-sidebar/entry.js",
+      "sha256": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13"
+    },
+    {
+      "path": "regions/bottom-sidebar/styles.css",
+      "sha256": "10b4ee9a9eedff4b622d038a650ed6070804a3a93a03b56547986889af6ba623"
+    },
+    {
+      "path": "regions/left-sidebar/entry.js",
+      "sha256": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13"
+    },
+    {
+      "path": "regions/left-sidebar/styles.css",
+      "sha256": "fb90579a3cb5c9bd8baadb55192140a699dbe1ecc667d4552ec82dd792d440fd"
+    },
+    {
+      "path": "regions/overlay/entry.js",
+      "sha256": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13"
+    },
+    {
+      "path": "regions/overlay/styles.css",
+      "sha256": "e41bf032fc83ac49956ad0fb2e08b959cdcf2898e889a5987d81696040bc88c0"
+    },
+    {
+      "path": "regions/right-sidebar/entry.js",
+      "sha256": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13"
+    },
+    {
+      "path": "regions/right-sidebar/styles.css",
+      "sha256": "8d5f0d607fae133c6ce9ae7f4e39cb6b577b06fad263daf6824becc6ea811738"
+    },
+    {
+      "path": "regions/session/entry.js",
+      "sha256": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13"
+    },
+    {
+      "path": "regions/session/styles.css",
+      "sha256": "638a39c2b68c6d01e9f7f6dea624d5b2b63279469cb4808dcb9eac1890826bbc"
+    },
+    {
+      "path": "regions/top-sidebar/entry.js",
+      "sha256": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13"
+    },
+    {
+      "path": "regions/top-sidebar/styles.css",
+      "sha256": "107ff007d6fc5710d3832ed917d723f7191ff0fedcbc6dbf9c3c684b8847ff15"
+    },
+    {
+      "path": "shared/common.css",
+      "sha256": "fcc19b2671d32e8a8d3b8388b14cd33f29158a108f73001345a4718fd38b968e"
+    },
+    {
+      "path": "shared/tokens.css",
+      "sha256": "9e6c8e8bff39cebbbf0ef88b9f26dae044a46eb674c837846fd261d242eea1bd"
+    }
+  ],
+  "integrity": {
+    "regions/bottom-sidebar/entry.js": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13",
+    "regions/bottom-sidebar/styles.css": "10b4ee9a9eedff4b622d038a650ed6070804a3a93a03b56547986889af6ba623",
+    "regions/left-sidebar/entry.js": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13",
+    "regions/left-sidebar/styles.css": "fb90579a3cb5c9bd8baadb55192140a699dbe1ecc667d4552ec82dd792d440fd",
+    "regions/overlay/entry.js": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13",
+    "regions/overlay/styles.css": "e41bf032fc83ac49956ad0fb2e08b959cdcf2898e889a5987d81696040bc88c0",
+    "regions/right-sidebar/entry.js": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13",
+    "regions/right-sidebar/styles.css": "8d5f0d607fae133c6ce9ae7f4e39cb6b577b06fad263daf6824becc6ea811738",
+    "regions/session/entry.js": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13",
+    "regions/session/styles.css": "638a39c2b68c6d01e9f7f6dea624d5b2b63279469cb4808dcb9eac1890826bbc",
+    "regions/top-sidebar/entry.js": "734cdcfd7b99112494523d9b1a517085bb5ee32714727970af9db59a49f64e13",
+    "regions/top-sidebar/styles.css": "107ff007d6fc5710d3832ed917d723f7191ff0fedcbc6dbf9c3c684b8847ff15",
+    "shared/common.css": "fcc19b2671d32e8a8d3b8388b14cd33f29158a108f73001345a4718fd38b968e",
+    "shared/tokens.css": "9e6c8e8bff39cebbbf0ef88b9f26dae044a46eb674c837846fd261d242eea1bd"
+  }
+}

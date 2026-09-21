@@ -254,7 +254,7 @@ jobs:
 
       - name: Assemble staged runtime
         working-directory: ${{ github.workspace }}
-        run: node tauri-shell/stage-resources.mjs --target=${{ matrix.target }}
+        run: node tauri-shell/stage-resources.mjs --target=${{ matrix.target }} --skip-npm
 
       - name: Verify staged closure and bundle integrity
         working-directory: ${{ github.workspace }}

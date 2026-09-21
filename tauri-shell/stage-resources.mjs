@@ -9,6 +9,7 @@
 //
 // 用法：node stage-resources.mjs [--target=win32|linux|darwin] [--skip-npm]
 
+import { createHash } from 'node:crypto';
 import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, readFileSync, statSync, readdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
@@ -248,6 +249,26 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills +
   if (existsSync(uiSkin)) {
     cpSync(uiSkin, path.join(staged, 'dsh-desktop', 'assets', 'ui-skin'), { recursive: true });
     console.log('[stage] UI skin packages staged');
+  }
+  // Stage 5 manager bypass: only pinned artifacts named in the lock file are
+  // copied; no branch, registry URL, or mutable source is consulted at runtime.
+  const managerArtifacts = path.join(root, 'tauri-shell', 'artifacts');
+  const managerLockPath = path.join(root, 'tauri-shell', 'skin-manager-artifact.lock.json');
+  if (existsSync(managerArtifacts) && existsSync(managerLockPath)) {
+    const lock = JSON.parse(readFileSync(managerLockPath, 'utf8'));
+    const expected = new Map([
+      [lock.manager.artifact, lock.manager.sha256],
+      [lock.default.artifact, lock.default.sha256],
+    ]);
+    for (const [name, digest] of expected) {
+      const artifact = path.join(managerArtifacts, name);
+      if (!existsSync(artifact)) throw new Error(`[stage] locked artifact missing: ${name}`);
+      const actual = createHash('sha256').update(readFileSync(artifact)).digest('hex');
+      if (actual !== digest) throw new Error(`[stage] locked artifact digest mismatch: ${name}`);
+    }
+    cpSync(managerArtifacts, path.join(staged, 'ui-skin-manager'), { recursive: true });
+    cpSync(managerLockPath, path.join(staged, 'ui-skin-manager', 'artifact.lock.json'));
+    console.log('[stage] pinned UI skin manager artifacts staged');
   }
   // v6 Task 3.3：内置插件随行。只拷当前已接回的内置插件目录
   //（ADR 0008 builtin 集合的子集；syncCompanionPlugins 对目录缺失的插件

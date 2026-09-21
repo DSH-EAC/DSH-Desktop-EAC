@@ -208,6 +208,21 @@
   }
 
   function injectUiSkin(): void {
+    var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
+    if (manager && manager.enabled === true && manager.slots) {
+      var generation = String(manager.generation);
+      Object.keys(manager.slots).forEach(function (slot) {
+        var id = 'dsh-ui-skin-' + slot + '-' + generation;
+        if (document.getElementById(id)) return;
+        var tag = document.createElement('style');
+        tag.id = id;
+        tag.setAttribute('data-skin-slot', slot);
+        tag.setAttribute('data-skin-generation', generation);
+        tag.textContent = String(manager.slots[slot] || '');
+        document.head.appendChild(tag);
+      });
+      return;
+    }
     if (document.getElementById('dsh-ui-skin')) return;
     var tag = document.createElement('style');
     tag.id = 'dsh-ui-skin';

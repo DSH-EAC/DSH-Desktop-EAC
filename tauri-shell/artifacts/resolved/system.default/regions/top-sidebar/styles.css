@@ -1,0 +1,94 @@
+[data-region="top-sidebar"] { }
+
+[data-region="top-sidebar"][data-control-name="sidebar-root"] {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 2147483000;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 10px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+[data-region="top-sidebar"] [data-control-name="sidebar-content"],
+[data-region="top-sidebar"] [data-control-name="window-actions"] {
+  display: flex;
+  align-items: center;
+}
+
+[data-region="top-sidebar"] [data-control-name="sidebar-content"] {
+  min-width: 0;
+  gap: 8px;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-actions"] {
+  gap: 2px;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-icon"] {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: block;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-badge"] {
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+[data-region="top-sidebar"] button[data-control-name^="window-"],
+[data-region="top-sidebar"] [role="button"][data-control-name^="window-"] {
+  width: 30px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+[data-region="top-sidebar"][data-control-name="sidebar-root"] {
+  background: var(--eac-shell-bg-elevated, rgba(11, 18, 32, .74));
+  border-bottom: 1px solid var(--eac-shell-border-weak, rgba(255, 255, 255, .07));
+  backdrop-filter: blur(16px) saturate(1.5);
+  cursor: default;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-icon"] {
+  border-radius: 6px;
+  background: var(--eac-shell-text-primary, #dfe6ff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+
+[data-region="top-sidebar"] [data-control-name="window-title"] {
+  color: var(--eac-shell-text-primary, #dfe6ff);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+[data-region="top-sidebar"] [data-control-name="window-badge"] {
+  border: 1px solid var(--eac-shell-border, rgba(255, 255, 255, .1));
+  border-radius: 999px;
+  color: var(--eac-shell-text-tertiary, #5f6f9c);
+  font: 10px var(--eac-shell-font-mono, Consolas, monospace);
+}
+
+[data-region="top-sidebar"] button[data-control-name^="window-"],
+[data-region="top-sidebar"] [role="button"][data-control-name^="window-"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--eac-shell-text-secondary, #8b9ac4);
+}
+
+[data-region="top-sidebar"] button[data-control-name^="window-"]:hover,
+[data-region="top-sidebar"] [role="button"][data-control-name^="window-"]:hover {
+  background: var(--eac-shell-surface-hover, rgba(255, 255, 255, .09));
+  color: var(--eac-shell-text-primary, #dfe6ff);
+}
+
+[data-region="top-sidebar"] [data-control-name="window-close"]:hover {
+  background: var(--eac-shell-danger, #ff7a85);
+  color: var(--eac-shell-text-on-accent, #fff);
+}
