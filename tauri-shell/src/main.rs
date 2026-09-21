@@ -136,7 +136,7 @@ fn ui_text<'a>(zh: &'a str, en: &'a str) -> &'a str {
 mod shell_tests {
     use super::{
         is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status,
-        ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
+        ui_skin_asset, ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
