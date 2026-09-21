@@ -42,6 +42,8 @@ The host consumes only manager outputs that have passed package, path, digest, c
 
 EAC rejects a snapshot with an unsupported profile, unknown slot, mismatched digest, stale generation, or asset outside the resolved inventory. It does not repeat package discovery, dependency resolution, user selection, health policy, previous-known-good retention, or rollback ordering.
 
+EAC's official `.dshpack` Feature Pack structure is a supported distribution container for a Skin only when its metadata declares exactly one UI Skin payload. The manager extracts that inner `SkinPackage` and applies its own schema, path, asset, digest, capability, trust, and lifecycle checks; a generic `.dshpack` containing plugins, presets, or skills is not a Skin input. EAC owns outer Feature Pack indexing and provenance, while the manager owns the inner package contract and activation decision.
+
 The existing `/skin/` or replacement resource channel keeps canonical path resolution, inventory whitelist, MIME restrictions, and traversal/symlink escape rejection. It serves only resolved assets for the active/staged generation. A URL or local path never becomes authority by itself.
 
 ### 4. Capability and recovery boundary
