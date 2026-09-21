@@ -51,7 +51,7 @@ const BRIDGE_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/bridge-bundle.js
 const WS_PORT: u16 = 19873;
 
 // The manager path is the v6 default. DSH_UI_SKIN_MANAGER_ROLLBACK is a
-// one-release emergency switch for operators; it only selects the embedded
+// one-release emergency switch for operators; it only selects the embedded fallback
 // recovery styles and never restores the removed EAC source tree.
 const SKIN_MANAGER_LOCK: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
