@@ -104,7 +104,7 @@
 
 ### AIO 版（Windows x64 · All-in-One）
 
-> **DSHEAC AIO** 是独立于 5.x 主线的 **All-in-One 精致个人终端**：一个安装包备齐 dsh 内核、插件市场与完整桌面体验，开箱即用；与正式版相互隔离（独立 app data 与 `dsh-home`，默认不读取 5.x / v4Lite / 旧 EAC 或 CLI 数据），可并存安装。当前版本 **AIO v1.2.0**（源码分支 `aio-v1`，随 [aio-v1.2.0 Release](https://github.com/zouyuxuan122/DSH-Desktop-EAC/releases/tag/aio-v1.2.0) 一同发布）。
+> AIO v1 不属于 v6 UI Skin 迁移范围，旧版资料仅作历史记录；不得将其恢复为 EAC shell-skin 或默认 Skin 来源。
 
 | 文件                                                                                                                                         | 说明                                                                                   | 大小    |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------- |
@@ -151,6 +151,16 @@
 - 依赖：Tauri 2 + webkit2gtk-4.1（debian 系安装 `libwebkit2gtk-4.1-dev` 等构建依赖见仓库 CI）；AppImage 自带运行时，构建基线 Ubuntu 22.04。
 - 桌面配置目录：`~/.config/deepseek-harness-eac`（XDG）；dsh 数据仍在 `~/.dsh`（与 CLI 共享）。
 - 剪贴板等系统集成依赖桌面环境的 `wl-copy`/`xclip`/`xsel`，通知依赖 `notify-send`；缺失时对应能力自动降级为「外部依赖」，不伪装成功。
+
+### v6 Skin source and offline assembly
+
+The official `system.default@2.0.0` source is maintained only in
+`dsh-desktop-eac-default-skins`. EAC embeds the exact manager/default artifacts
+listed in `tauri-shell/skin-manager-artifact.lock.json`; staging verifies their
+SHA-256 digests and does not read mutable branches or network URLs. Host slots
+and capabilities are defined by `tauri-shell/host-profile.json`. The manager is
+the default path; `DSH_UI_SKIN_MANAGER_ROLLBACK=1` is a one-release emergency
+fallback switch and never restores the deleted source tree.
 
 ### 首次使用
 

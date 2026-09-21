@@ -6,7 +6,9 @@
 - EAC 基线: origin/dev
 
 实现范围
-- 以 DSH_UI_SKIN_MANAGER=1/true 作为受控 opt-in；关闭或 snapshot 校验失败时保留 registry 静态链。
+- manager path is the v6 default; `DSH_UI_SKIN_MANAGER_ROLLBACK=1` is the one-release emergency fallback switch.
+- rollback selects host-embedded recovery styles only; it never restores the removed registry or EAC default source tree.
+- EAC consumes a verified manager snapshot, resolved assets, generation, fault state, and host profile.
 - main.rs 消费已验证的 snapshot、resolved assets、generation、fault，并保留 HTTP 白名单与路径穿越防护。
 - sidecar bridge 按 slot 注入带 generation 的 style 节点；同一 generation 不重复注入。
 - stage-resources.mjs 校验 lock 指定 artifact 的 SHA-256 后，将资源装配到 ui-skin-manager/；tauri.conf.json 显式映射该资源根。
