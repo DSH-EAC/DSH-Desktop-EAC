@@ -49,6 +49,15 @@ test('构建、Rust 与 staged runtime 在四个平台架构上运行并隔离�
   assert.match(stagedJob, /Set up stable Rust for Windows resources[\s\S]*?Fetch Windows Cargo dependencies[\s\S]*?cargo fetch --locked[\s\S]*?Assemble staged runtime/);
 });
 
+test('Rust 测试前装配锁定的 skin manager 资源', () => {
+  const rustJob = jobBlock('rust-shell');
+  assert.match(rustJob, /Prepare Tauri resource directory for Rust tests/);
+  assert.match(rustJob, /skin-manager-artifact\.lock\.json/);
+  assert.match(rustJob, /const staged=root\+'\/staged-resources'/);
+  assert.match(rustJob, /fs\.cpSync\(root\+'\/artifacts',staged\+'\/ui-skin-manager'/);
+  assert.match(rustJob, /fs\.copyFileSync\(root\+'\/host-profile\.json',staged\+'\/ui-skin-manager\/host-profile\.json'/);
+});
+
 // CodeQL `actions/missing-workflow-permissions`（CWE-275）：没有显式
 // permissions 时 GITHUB_TOKEN 会继承仓库/组织默认权限（2023-02 之前创建的
 // 仓库默认可写），违反最小权限。该查询接受 workflow 级或 job 级 permissions，
