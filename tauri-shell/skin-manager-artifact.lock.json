@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "featureFlag": "DSH_UI_SKIN_MANAGER",
+  "hostProfile": "dsh-desktop-eac-ui-skin-profile@^0.3",
+  "manager": {
+    "package": "@dsh-eac/ui-skin-manager",
+    "version": "0.1.0-preview.1",
+    "sourceCommit": "a023b018c3751f731370917d74a40bed79e28342",
+    "ciRun": 35560125000,
+    "artifact": "dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz",
+    "sha256": "13a4c5dbd1a31c9512f535a9c14f5072f933f284634f6763e569e65614a63378"
+  },
+  "default": {
+    "package": "system.default",
+    "version": "2.0.0",
+    "sourceCommit": "01774c0026338a376b3644c622a581f575387edc",
+    "ciRun": 35552771052,
+    "artifact": "system.default-2.0.0.dshpack.tar",
+    "sha256": "0b3eca8493f83306fb1b8f40c0c4d2d4b368f5453b2456c5e5d942a751c483b6"
+  },
+  "resolvedRoot": "resolved/system.default",
+  "generation": 1
+}

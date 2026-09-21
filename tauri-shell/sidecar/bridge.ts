@@ -208,12 +208,73 @@
   }
 
   function injectUiSkin(): void {
+    var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
+    if (manager && manager.enabled === true && manager.slots) {
+      var generation = String(manager.generation);
+      Object.keys(manager.slots).forEach(function (slot) {
+        var id = 'dsh-ui-skin-' + slot + '-' + generation;
+        if (document.getElementById(id)) return;
+        var tag = document.createElement('style');
+        tag.id = id;
+        tag.setAttribute('data-skin-slot', slot);
+        tag.setAttribute('data-skin-generation', generation);
+        tag.textContent = String(manager.slots[slot] || '');
+        document.head.appendChild(tag);
+      });
+      return;
+    }
     if (document.getElementById('dsh-ui-skin')) return;
     var tag = document.createElement('style');
     tag.id = 'dsh-ui-skin';
     tag.textContent = String((window as any).__DSH_UI_SKIN_CSS__ || '');
     document.head.appendChild(tag);
   }
+
+  // Generation-aware host bridge. Candidate styles are staged before the
+  // previous generation is removed; the manager receives an explicit ack.
+  (function installUiSkinTransactionBridge(): void {
+    var activeGeneration = 0;
+    var activeSlots: Record<string, string> = {};
+    var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
+    if (manager && Number.isFinite(Number(manager.generation))) activeGeneration = Number(manager.generation);
+    function acknowledge(generation: number, ok: boolean, error?: string): void {
+      window.dispatchEvent(new CustomEvent('dsh-ui-skin-transaction-ack', {
+        detail: {generation: generation, context: 'webview', ok: ok, error: error || undefined}
+      }));
+    }
+    window.addEventListener('dsh-ui-skin-transaction', function (event: Event): void {
+      var detail = (event as CustomEvent).detail || {};
+      var generation = Number(detail.generation);
+      var slots = detail.slots as Record<string, unknown> | undefined;
+      if (!Number.isSafeInteger(generation) || generation <= activeGeneration || !slots) {
+        acknowledge(generation, false, 'STALE_OR_INVALID_GENERATION');
+        return;
+      }
+      var transactionSlots = slots;
+      var staged: HTMLStyleElement[] = [];
+      try {
+        Object.keys(transactionSlots).forEach(function (slot): void {
+          var style = document.createElement('style');
+          style.id = 'dsh-ui-skin-' + slot + '-' + generation;
+          style.setAttribute('data-skin-slot', slot);
+          style.setAttribute('data-skin-generation', String(generation));
+          style.textContent = String(transactionSlots[slot] || '');
+          document.head.appendChild(style);
+          staged.push(style);
+        });
+        Object.keys(activeSlots).forEach(function (slot): void {
+          var old = document.querySelectorAll('[data-skin-slot="' + slot + '"][data-skin-generation="' + activeGeneration + '"]');
+          old.forEach(function (node): void { node.remove(); });
+        });
+        activeSlots = Object.fromEntries(Object.keys(transactionSlots).map(function (slot): [string, string] { return [slot, String(transactionSlots[slot] || '')]; }));
+        activeGeneration = generation;
+        acknowledge(generation, true);
+      } catch (error) {
+        staged.forEach(function (style): void { style.remove(); });
+        acknowledge(generation, false, error instanceof Error ? error.message : String(error));
+      }
+    });
+  })();
 
   function nameUiSkinAnchors(): void {
     function name(selector: string, region: string, control: string): void {
