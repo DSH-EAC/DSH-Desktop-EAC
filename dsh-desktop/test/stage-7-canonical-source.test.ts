@@ -97,6 +97,11 @@ test('offline staging consumes only pinned manager and default artifacts', () =>
   assert.doesNotMatch(stage, /github\.com|raw\x2f|origin\x2f/);
 });
 
+test('Rust test staging preserves the manager resource directory contract', () => {
+  const workflow = read('.github', 'workflows', 'ci.yml');
+  assert.match(workflow, /staged-resources\/ui-skin-manager/);
+});
+
 test('legacy shell-skin and AIO v1 are not restored', () => {
   const adr = read('docs', 'adr', '0010-canonical-default-skin-source.md');
   assert.match(adr, /shell-skin/);
