@@ -250,15 +250,15 @@
         acknowledge(generation, false, 'STALE_OR_INVALID_GENERATION');
         return;
       }
-      var activeSlotsForTransaction = slots;
+      var transactionSlots = slots;
       var staged: HTMLStyleElement[] = [];
       try {
-        Object.keys(activeSlotsForTransaction).forEach(function (slot): void {
+        Object.keys(transactionSlots).forEach(function (slot): void {
           var style = document.createElement('style');
           style.id = 'dsh-ui-skin-' + slot + '-' + generation;
           style.setAttribute('data-skin-slot', slot);
           style.setAttribute('data-skin-generation', String(generation));
-          style.textContent = String(activeSlotsForTransaction[slot] || '');
+          style.textContent = String(transactionSlots[slot] || '');
           document.head.appendChild(style);
           staged.push(style);
         });
@@ -266,7 +266,7 @@
           var old = document.querySelectorAll('[data-skin-slot="' + slot + '"][data-skin-generation="' + activeGeneration + '"]');
           old.forEach(function (node): void { node.remove(); });
         });
-        activeSlots = Object.fromEntries(Object.keys(activeSlotsForTransaction).map(function (slot): [string, string] { return [slot, String(activeSlotsForTransaction[slot] || '')]; }));
+        activeSlots = Object.fromEntries(Object.keys(transactionSlots).map(function (slot): [string, string] { return [slot, String(transactionSlots[slot] || '')]; }));
         activeGeneration = generation;
         acknowledge(generation, true);
       } catch (error) {

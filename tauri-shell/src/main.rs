@@ -139,7 +139,10 @@ mod shell_tests {
         ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
     };
     use std::fs;
+    use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    static SKIN_MANAGER_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn recognizes_chinese_locale_variants_only() {
@@ -183,6 +186,7 @@ mod shell_tests {
 
     #[test]
     fn manager_is_enabled_by_default_and_rollback_selects_embedded_fallback() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
         std::env::remove_var("DSH_UI_SKIN_MANAGER");
         std::env::remove_var("DSH_UI_SKIN_MANAGER_ROLLBACK");
         assert!(ui_skin_manager_enabled());
@@ -198,6 +202,7 @@ mod shell_tests {
 
     #[test]
     fn manager_snapshot_rejects_unknown_or_unsafe_assets() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
         std::env::set_var("DSH_UI_SKIN_MANAGER", "1");
         let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
         assert!(snapshot.assets.get("../escape.css").is_none());
