@@ -94,7 +94,7 @@ jobs:
         working-directory: ${{ github.workspace }}/tauri-shell
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
-        run: npx -y @tauri-apps/cli@2 build
+        run: npx -y @tauri-apps/cli@2 build --verbose
 
       - name: Build portable package
         if: runner.os == 'Windows'
