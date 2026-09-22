@@ -19,7 +19,7 @@
 - ✅ **会话删除与归档管理（v4）**：会话行菜单「删除对话」+ 设置内归档恢复/删除面板（官方只有归档，运行时补丁幂等打通全链路）
 - ✅ **微信 ClawBot / OpenClaw 桥（v4）**：设置页「ClawBot」栏扫码绑定微信官方 ClawBot 小程序，微信里直接驱动常驻 DSH 会话（每用户独立会话/工作区/白名单）；OpenAI 兼容端点供 OpenClaw 网关接入
 - ✅ **会话完成系统通知**：agent 任务跑完时弹 Windows 系统通知，点击回到窗口
-- ✅ **界面皮肤**：设置页「皮肤」标签页内置 10 款 Web UI 皮肤（9 款 dsh-web-ui 皮肤 + 1 款深海女仆工坊），互斥切换、默认不启用、重启生效；随包标注出处与许可（详见「界面皮肤」章节）
+- ✅ **界面皮肤**：v6 通过 Skin manager 按槽位加载精确锁定的 `system.default` artifact；默认内容源码归 `dsh-desktop-eac-default-skins`，EAC 只装配 pinned artifact，并保留一版紧急回退开关。
 - ✅ **内置社区插件套件**（v2.0 起，详见「内置社区插件」章节）：插件市场 / 外置视觉模型 / 长期记忆 / soul.md 人设卡 / 移动端适配修复，全部随包分发、开箱即用
 - ✅ **崩溃急救与撤销（v4，dsh-undo-savepoint）**：配置与插件代码树快照、undo/redo、一键安全模式、密钥脱敏 vault —— 配置改坏、dsh 起不来也能救
 - ✅ **插件启停管理（v4）**：设置页「插件 → 管理」不重启切换任意插件启停（含默认禁用的大肥鱼桌宠）
@@ -251,7 +251,7 @@ dsh-desktop/
 ├── balance.js            # DeepSeek 账户余额查询（主进程）
 ├── session-watcher.js    # 会话完成监听（zstd 多帧解码 + turn/end 检测）
 ├── preload.js            # 沙箱预加载（自绘玻璃标题栏 + 窗口控制/菜单 IPC + 余额事件桥）
-├── assets/               # 加载页、更新进度页、图标、托盘图标、配套 dsh 插件
+├── assets/               # 加载页、更新进度页、图标、托盘图标、配套 dsh 插件（默认 Skin 源码在独立 canonical 仓库）
 │   └── plugins/          # 桌面壳配套（dsh-balance、dsh-file-changes、dsh-terminal、
 │                         # dsh-easy-setup、dsh-skin-switch）+ 内置社区插件
 │                         # （dsh-unified-market、dsh-soul-md、dsh-web-mobile-fix，

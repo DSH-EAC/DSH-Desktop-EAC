@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": "system.default",
   "version": "2.0.0",
-  "digest": "sha256:0b3eca8493f83306fb1b8f40c0c4d2d4b368f5453b2456c5e5d942a751c483b6",
+  "digest": "sha256:eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e",
   "generation": 1,
   "assets": {
     "control/layout.css": "control-layout.css",
