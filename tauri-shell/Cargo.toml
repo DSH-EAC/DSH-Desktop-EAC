@@ -16,6 +16,7 @@ tokio = { version = "1", features = ["rt", "net", "macros", "io-util", "process"
 tokio-tungstenite = "0.24"
 futures-util = "0.3"
 http = "1"
+sha2 = "0.10"
 
 # Windows 原生外链/文件打开、语言环境检测及任务栏 Big 图标（WM_SETICON）：
 # 经 ShellExecuteW、Globalization API 和 USER32 直接调用。版本对齐依赖树既有 0.61.x。

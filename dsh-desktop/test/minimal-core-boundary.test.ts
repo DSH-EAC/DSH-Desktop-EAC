@@ -15,8 +15,8 @@ const platform = read('dsh-desktop', 'lib', 'desktop', 'platform.ts');
 const skinAssets = [
   read('tauri-shell', 'host-profile.json'),
   read('tauri-shell', 'skin-manager-artifact.lock.json'),
-  read('tauri-shell', 'artifacts', 'resolved', 'system.default', 'skin.json'),
-  read('tauri-shell', 'artifacts', 'resolved', 'system.default', 'snapshot.json'),
+  read('tauri-shell', 'artifacts', 'resolved', 'skin.json'),
+  read('tauri-shell', 'artifacts', 'resolved', 'snapshot.json'),
 ].join('\n');
 
 test('minimal shell has no recovery center entry points', () => {

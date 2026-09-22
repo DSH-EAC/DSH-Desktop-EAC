@@ -293,6 +293,48 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills�
     }
     cpSync(managerArtifacts, path.join(staged, 'ui-skin-manager'), { recursive: true });
     cpSync(managerLockPath, path.join(staged, 'ui-skin-manager', 'artifact.lock.json'));
+    // 逐槽快照一致性（Task 6.2.3）：消费根是**快照根**，包身份不再写进路径。
+    // 装配前独立复核 manager 产出的 snapshot.json：默认包身份必须等于 lock、
+    // 每条资源必须落在本代目录内且字节摘要一致。这样"宿主只消费已验证坐标"
+    // 在打包期就成立，而不是等运行时才发现载荷是坏的。
+    {
+      const resolvedRoot = path.join(managerArtifacts, lock.resolvedRoot ?? 'resolved');
+      const snapshotPath = path.join(resolvedRoot, lock.snapshot ?? 'snapshot.json');
+      if (!existsSync(snapshotPath)) {
+        throw new Error(`[stage] resolved snapshot missing: ${snapshotPath}`);
+      }
+      const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+      if (snapshot.schema !== 'dsh-eac-active-binding-snapshot@1') {
+        throw new Error(`[stage] unexpected snapshot schema: ${snapshot.schema}`);
+      }
+      if (snapshot.fault !== null) throw new Error('[stage] the resolved snapshot carries a fault');
+      if (snapshot.generation !== lock.generation) {
+        throw new Error(`[stage] snapshot generation ${snapshot.generation} != lock ${lock.generation}`);
+      }
+      for (const binding of snapshot.bindings ?? []) {
+        if (binding.package.id !== lock.default.package) continue;
+        if (binding.package.version !== lock.default.version
+          || binding.package.digest !== `sha256:${lock.default.sha256}`) {
+          throw new Error(
+            `[stage] ${binding.slot} binds the default package id with a version/digest the build lock `
+            + `does not record: ${binding.package.version} ${binding.package.digest}`,
+          );
+        }
+      }
+      for (const asset of snapshot.assets ?? []) {
+        const expected = `gen-${snapshot.generation}/${asset.key}`;
+        if (asset.path !== expected) {
+          throw new Error(`[stage] ${asset.key} resolves to ${asset.path}, expected ${expected}`);
+        }
+        const file = path.join(resolvedRoot, ...asset.path.split('/'));
+        if (!existsSync(file)) throw new Error(`[stage] resolved asset missing: ${asset.path}`);
+        const actual = `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`;
+        if (actual !== asset.sha256) {
+          throw new Error(`[stage] resolved asset digest mismatch: ${asset.path}`);
+        }
+      }
+      console.log(`[stage] verified resolved snapshot: ${snapshot.bindings.length} slots, ${snapshot.assets.length} assets`);
+    }
     console.log('[stage] pinned UI skin manager artifacts staged');
   }
   // v6 Task 3.3：内置插件随行。只拷当前已接回的内置插件目录

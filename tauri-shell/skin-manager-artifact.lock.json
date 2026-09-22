@@ -18,6 +18,8 @@
     "artifact": "system.default-2.0.0.dshpack.tar",
     "sha256": "eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e"
   },
-  "resolvedRoot": "resolved/system.default",
+  "resolvedRoot": "resolved",
+  "snapshot": "snapshot.json",
+  "provenance": "manifest.json",
   "generation": 1
 }

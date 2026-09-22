@@ -1,0 +1,19 @@
+{
+  "schema": "dsh-eac-resolved-provenance@1",
+  "producer": "ui-skin-manager/publish-default-snapshot",
+  "artifact": {
+    "name": "system.default-2.0.0.dshpack.tar",
+    "sha256": "eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e",
+    "package": "system.default",
+    "version": "2.0.0",
+    "sourceCommit": "1ebb02a77d2f67161183ec8db8d532bc99bba95b"
+  },
+  "profile": {
+    "id": "dsh-desktop-eac-ui-skin-profile",
+    "version": "0.3.0"
+  },
+  "generation": 1,
+  "snapshotSha256": "31eff8c9cc9ad8300974da7443ac4c462fdb05890e9edd373ff9c651d459e516",
+  "resolvedAssets": 8,
+  "resolvedBytes": 8
+}

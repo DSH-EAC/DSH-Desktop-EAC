@@ -11,7 +11,8 @@ const json = <T>(...parts: string[]): T => JSON.parse(read(...parts)) as T;
 
 const lockPath = ['tauri-shell', 'skin-manager-artifact.lock.json'];
 const hostProfilePath = ['tauri-shell', 'host-profile.json'];
-const snapshotPath = ['tauri-shell', 'artifacts', 'resolved', 'system.default', 'snapshot.json'];
+const resolvedRootPath = ['tauri-shell', 'artifacts', 'resolved'];
+const snapshotPath = ['tauri-shell', 'artifacts', 'resolved', 'snapshot.json'];
 const defaultArtifact = ['tauri-shell', 'artifacts', 'system.default-2.0.0.dshpack.tar'];
 const managerArtifact = ['tauri-shell', 'artifacts', 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz'];
 const removedSource = [
@@ -58,7 +59,6 @@ test('host profile owns topology while the default artifact owns contributions',
     'tauri-shell',
     'artifacts',
     'resolved',
-    'system.default',
     'skin.json',
   );
   assert.equal(artifactManifest.metadata.id, 'system.default');
@@ -79,22 +79,34 @@ test('offline staging consumes only pinned manager and default artifacts', () =>
   const stage = read('tauri-shell', 'stage-resources.mjs');
   const config = read('tauri-shell', 'tauri.conf.json');
   const lock = json<{ manager: { artifact: string; sha256: string }; default: { artifact: string; sha256: string } }>(...lockPath);
-  const snapshot = json<{ package: string; version: string; digest: string }>(...snapshotPath);
+  const snapshot = json<{
+    schema: string;
+    bindings: { slot: string; package: { id: string; version: string; digest: string } }[];
+  }>(...snapshotPath);
   assert.equal(existsSync(eac(...defaultArtifact)), true);
   assert.equal(existsSync(eac(...managerArtifact)), true);
   assert.equal(lock.default.artifact, 'system.default-2.0.0.dshpack.tar');
   assert.equal(lock.manager.artifact, 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz');
   assert.match(lock.default.sha256, /^[a-f0-9]{64}$/);
   assert.match(lock.manager.sha256, /^[a-f0-9]{64}$/);
-  assert.equal(snapshot.package, 'system.default');
-  assert.equal(snapshot.version, '2.0.0');
-  assert.equal(snapshot.digest, `sha256:${lock.default.sha256}`);
+  // 6.2.3：快照是逐槽绑定，默认制品身份只能从 bindings 里逐条核对。
+  assert.equal(snapshot.schema, 'dsh-eac-active-binding-snapshot@1');
+  const defaultBindings = snapshot.bindings.filter(({ package: pkg }) => pkg.id === lock.default.package);
+  assert.ok(defaultBindings.length > 0, '默认制品必须至少在一个 slot 上生效');
+  for (const binding of defaultBindings) {
+    assert.equal(binding.package.version, lock.default.version);
+    assert.equal(binding.package.digest, `sha256:${lock.default.sha256}`);
+  }
   assert.match(stage, /createHash/);
   assert.match(stage, /lock\.manager\.artifact/);
   assert.match(stage, /lock\.default\.artifact/);
   assert.match(stage, /locked artifact digest mismatch/);
   assert.match(config, /staged-resources\/ui-skin-manager/);
   assert.doesNotMatch(stage, /github\.com|raw\x2f|origin\x2f/);
+  // 消费根是快照根：装配拷贝的是 `artifacts/`（内含 resolved/snapshot.json），
+  // 而不是某个包目录。
+  assert.equal(existsSync(eac(...resolvedRootPath, 'snapshot.json')), true);
+  assert.equal(existsSync(eac(...resolvedRootPath, 'manifest.json')), true);
 });
 
 test('Rust test staging preserves the manager resource directory contract', () => {

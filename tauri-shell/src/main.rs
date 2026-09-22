@@ -141,10 +141,11 @@ fn ui_text<'a>(zh: &'a str, en: &'a str) -> &'a str {
 mod shell_tests {
     use super::{
         is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status, ui_skin_asset,
-        ui_skin_fallback_coordinate_matches_lock, ui_skin_manager_enabled,
-        ui_skin_manager_snapshot, verified_resource_root,
+        ui_skin_asset_is_registered, ui_skin_fallback_coordinate_matches_lock,
+        ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
     };
     use std::fs;
+    use std::path::PathBuf;
     use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -198,24 +199,299 @@ mod shell_tests {
         std::env::remove_var("DSH_UI_SKIN_MANAGER");
         std::env::remove_var("DSH_UI_SKIN_MANAGER_ROLLBACK");
         assert!(ui_skin_manager_enabled());
-        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
-        assert_eq!(snapshot.package, "system.default");
-        assert_eq!(snapshot.generation, 1);
-        assert_eq!(snapshot.assets["control/layout.css"], "control-layout.css");
+        // 恢复通道永远只服务 embedded 白名单，与快照是否可用无关。
+        assert!(ui_skin_asset("style/tokens.css").contains("--eac-shell"));
+        assert!(ui_skin_asset_is_registered("control/layout.css"));
+        assert!(!ui_skin_asset_is_registered("tokens.css"));
         std::env::set_var("DSH_UI_SKIN_MANAGER_ROLLBACK", "1");
         assert!(!ui_skin_manager_enabled());
+        assert!(ui_skin_manager_snapshot().is_none());
         assert!(ui_skin_asset("style/tokens.css").contains("--eac-shell"));
         std::env::remove_var("DSH_UI_SKIN_MANAGER_ROLLBACK");
     }
 
+    /// 装配一份真实的 `<resolvedRoot>/snapshot.json` + `gen-N/` 树，返回快照根。
+    fn write_snapshot_fixture(
+        generation: u64,
+        package: &str,
+        asset_key: &str,
+        css: &str,
+        overrides: Option<&str>,
+    ) -> std::path::PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before unix epoch")
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("dsh-snapshot-{}-{nonce}", std::process::id()));
+        let relative = format!("gen-{generation}/{asset_key}");
+        let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(path.parent().expect("asset parent")).expect("create generation dir");
+        fs::write(&path, css).expect("write asset");
+        let digest = format!("sha256:{}", super::sha256_hex(css.as_bytes()));
+        let mut snapshot = serde_json::json!({
+            "schema": super::ACTIVE_SNAPSHOT_SCHEMA,
+            "profile": {"id": "dsh-desktop-eac-ui-skin-profile", "version": "0.3.0"},
+            "generation": generation,
+            "createdAt": "2026-09-23T00:00:00.000Z",
+            "bindings": super::ui_skin_profile_slots()
+                .iter()
+                .map(|slot| serde_json::json!({
+                    "slot": slot,
+                    "package": {"id": package, "version": "1.0.0", "digest": format!("sha256:{}", "a".repeat(64))},
+                    "contribution": format!("{slot}.main"),
+                    "generation": generation,
+                    "state": "active"
+                }))
+                .collect::<Vec<_>>(),
+            "assets": [{"key": asset_key, "path": relative, "sha256": digest}],
+            "slotAssets": super::ui_skin_profile_slots()
+                .iter()
+                .map(|slot| (slot.clone(), serde_json::json!([asset_key])))
+                .collect::<serde_json::Map<_, _>>(),
+            "fault": null
+        });
+        if let Some(patch) = overrides {
+            let patch: Value = serde_json::from_str(patch).expect("override json");
+            let (Value::Object(base), Value::Object(extra)) = (&mut snapshot, patch) else {
+                panic!("override must be an object");
+            };
+            for (key, value) in extra {
+                base.insert(key, value);
+            }
+        }
+        fs::write(
+            root.join(super::ACTIVE_SNAPSHOT_FILE),
+            serde_json::to_string_pretty(&snapshot).expect("snapshot json"),
+        )
+        .expect("write snapshot");
+        root
+    }
+
     #[test]
-    fn manager_snapshot_rejects_unknown_or_unsafe_assets() {
+    fn snapshot_verifier_accepts_a_real_external_coordinate() {
         let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
-        std::env::set_var("DSH_UI_SKIN_MANAGER", "1");
-        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
-        assert!(snapshot.assets.get("../escape.css").is_none());
-        assert!(snapshot.assets.get("unknown.css").is_none());
-        std::env::remove_var("DSH_UI_SKIN_MANAGER");
+        // 一个**非 system.default** 的包：宿主不再假设 active 包名。
+        let root = write_snapshot_fixture(
+            7,
+            "io.github.dsh-eac-community.fixture-session",
+            "io.github.dsh-eac-community.fixture-session/regions/session/styles.css",
+            "[data-region=\"session\"]{color:#9d7cd8}\n",
+            None,
+        );
+        std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
+        let verified = super::ui_skin_manager_snapshot().expect("verified snapshot");
+        assert_eq!(verified.generation, 7);
+        assert_eq!(verified.bindings.len(), 6);
+        assert!(verified
+            .bindings
+            .iter()
+            .all(|binding| binding.package.id == "io.github.dsh-eac-community.fixture-session"));
+        // `/skin/` 只服务这份白名单：登记过的 key 200，其他一律 404。
+        assert_eq!(
+            shell_http_status("/skin/io.github.dsh-eac-community.fixture-session/regions/session/styles.css"),
+            200
+        );
+        assert_eq!(shell_http_status("/skin/system.default/regions/session/styles.css"), 404);
+        assert_eq!(shell_http_status("/skin/../../secret.css"), 404);
+        assert_eq!(shell_http_status("/skin/..%2f..%2fsecret.css"), 404);
+        std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
+        fs::remove_dir_all(root).expect("remove snapshot fixture");
+    }
+
+    #[test]
+    fn snapshot_verifier_rejects_every_invalid_shape() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        let key = "io.example.pkg/regions/session/styles.css";
+        let css = "[data-region=\"session\"]{}\n";
+
+        // 未知 schema / 错误 profile 版本 / 0 代 / 带 fault / 缺 slot / 越代资源路径 /
+        // 未解析的 slotAssets 引用 —— 逐个都必须拒绝。
+        let cases: Vec<(&str, String)> = vec![
+            ("unknown schema", r#"{"schema":"dsh-eac-active-binding-snapshot@2"}"#.to_string()),
+            (
+                "foreign profile version",
+                r#"{"profile":{"id":"dsh-desktop-eac-ui-skin-profile","version":"0.4.0"}}"#.to_string(),
+            ),
+            ("zero generation", r#"{"generation":0}"#.to_string()),
+            ("carries a fault", r#"{"fault":"HEALTH"}"#.to_string()),
+            ("a slot is missing", r#"{"bindings":[]}"#.to_string()),
+            ("asset path from another generation", r#"{"assets":[{"key":"io.example.pkg/regions/session/styles.css","path":"gen-6/io.example.pkg/regions/session/styles.css","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}"#.to_string()),
+            ("slotAssets references an unresolved key", r#"{"slotAssets":{"session":["io.example.pkg/nope.css"]}}"#.to_string()),
+            ("a binding is not active", r#"{"bindings":[{"slot":"top-sidebar","package":{"id":"io.example.pkg","version":"1.0.0","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"contribution":"top-sidebar.main","generation":7,"state":"staged"}]}"#.to_string()),
+        ];
+        for (label, patch) in cases {
+            let root = write_snapshot_fixture(7, "io.example.pkg", key, css, Some(&patch));
+            std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
+            assert!(
+                super::ui_skin_manager_snapshot().is_none(),
+                "{label} must be refused"
+            );
+            std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
+            fs::remove_dir_all(root).expect("remove snapshot fixture");
+        }
+
+        // 默认包名不可借用：id 是 system.default 时，version/digest 必须逐字段等于
+        // build lock 的默认制品坐标（fixture 给的是全 a 摘要，必须被拒）。
+        let root = write_snapshot_fixture(7, "system.default", key, css, None);
+        std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
+        assert!(
+            super::ui_skin_manager_snapshot().is_none(),
+            "a snapshot may not bind the default package id to a digest the build lock does not record"
+        );
+        std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
+        fs::remove_dir_all(root).expect("remove snapshot fixture");
+    }
+
+    #[test]
+    fn snapshot_verifier_accepts_the_real_manager_published_resolved_tree() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        // 真实产物，不是夹具：`artifacts/resolved` 由 manager 的 publish 流程产出
+        //（见 work/verify/mgr/tools/publish-default-snapshot.mjs），包含 snapshot.json、
+        // manifest.json（产出记录）、skin.json 与 gen-1/ 资源树。
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("artifacts")
+            .join("resolved");
+        std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
+
+        let verified = super::ui_skin_manager_snapshot().expect("the published snapshot must verify");
+        assert!(verified.generation >= 1);
+        // 六个 slot 全覆盖，且默认包的 version/digest 与 build lock 逐字段一致。
+        assert_eq!(verified.bindings.len(), super::ui_skin_profile_slots().len());
+        for binding in &verified.bindings {
+            assert_eq!(binding.package.id, "system.default");
+            assert!(super::default_binding_matches_lock(binding));
+        }
+        // 每条被解析的资源都能真的服务出来，并且字节与快照记录的摘要一致
+        //（ui_skin_manager_asset 内部会重新哈希）。
+        assert!(!verified.inventory.is_empty());
+        for key in verified.inventory.keys() {
+            assert!(
+                super::ui_skin_manager_asset(key).is_some(),
+                "{key} is listed in the snapshot but cannot be served"
+            );
+        }
+        // `/skin/` 只服务这份白名单；未登记 key 与任何穿越形态都是 404。
+        for key in verified.inventory.keys() {
+            assert_eq!(shell_http_status(&format!("/skin/{key}")), 200);
+        }
+        assert_eq!(shell_http_status("/skin/system.default/skin.json"), 404);
+        assert_eq!(shell_http_status("/skin/gen-1/system.default/shared/tokens.css"), 404);
+        assert_eq!(shell_http_status("/skin/../snapshot.json"), 404);
+
+        // 每个 slot 都能拿到非空 CSS，且 bootstrap 暴露逐槽包身份。
+        let bootstrap: Value =
+            serde_json::from_str(&super::ui_skin_manager_bootstrap_json()).expect("bootstrap json");
+        assert_eq!(bootstrap.get("enabled").and_then(Value::as_bool), Some(true));
+        assert_eq!(
+            bootstrap.get("generation").and_then(Value::as_u64),
+            Some(verified.generation)
+        );
+        let slots = bootstrap.get("slots").and_then(Value::as_object).expect("slots");
+        assert_eq!(slots.len(), super::ui_skin_profile_slots().len());
+        for (slot, css) in slots {
+            assert!(
+                css.as_str().is_some_and(|css| !css.trim().is_empty()),
+                "slot {slot} was served no CSS"
+            );
+        }
+        let bindings = bootstrap.get("bindings").and_then(Value::as_array).expect("bindings");
+        assert_eq!(bindings.len(), super::ui_skin_profile_slots().len());
+        for binding in bindings {
+            assert_eq!(binding.get("id").and_then(Value::as_str), Some("system.default"));
+            assert_eq!(binding.get("version").and_then(Value::as_str), Some("2.0.0"));
+        }
+
+        std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
+    }
+
+    /// 真第三方证据包（可选）：把 `DSH_SKIN_EVIDENCE_RESOLVED` 指向 manager CLI
+    ///（`bin/skin-catalog.mjs publish --select <slot>=<第三方包>@<版本>`）产出的
+    /// resolved 根，宿主必须接受它并只服务它的白名单。未设置时跳过，CI 不依赖外部路径。
+    #[test]
+    fn snapshot_verifier_accepts_a_real_third_party_evidence_bundle() {
+        let Ok(root) = std::env::var("DSH_SKIN_EVIDENCE_RESOLVED") else {
+            eprintln!("[shell] DSH_SKIN_EVIDENCE_RESOLVED unset: skipping the third-party evidence check");
+            return;
+        };
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
+
+        let verified = super::ui_skin_manager_snapshot().expect("the third-party snapshot must verify");
+        // 恰好一个 slot 归第三方，其余仍是默认制品 —— 这正是"一槽生效、其他槽不被污染"。
+        let third_party: Vec<&str> = verified
+            .bindings
+            .iter()
+            .filter(|binding| binding.package.id != "system.default")
+            .map(|binding| binding.slot.as_str())
+            .collect();
+        assert_eq!(third_party.len(), 1, "exactly one slot must be owned by the third party");
+        let owner = third_party[0];
+        let binding = verified
+            .bindings
+            .iter()
+            .find(|binding| binding.slot == owner)
+            .expect("the third-party binding");
+        assert!(
+            binding.package.id.starts_with("io.github."),
+            "the third-party package id must be an external coordinate, got {}",
+            binding.package.id
+        );
+        // 默认包的绑定仍然逐字段等于 build lock：第三方生效不得改动默认制品身份。
+        for binding in verified.bindings.iter().filter(|b| b.package.id == "system.default") {
+            assert!(super::default_binding_matches_lock(binding));
+        }
+        // 第三方资源按 key 可服务，其他 slot 的默认资源照旧。
+        for key in verified.inventory.keys() {
+            assert!(
+                super::ui_skin_manager_asset(key).is_some(),
+                "{key} is listed in the third-party snapshot but cannot be served"
+            );
+        }
+        // 默认包名不再出现在资源路径里：第三方 key 与默认 key 共用同一条消费路径。
+        assert!(verified
+            .inventory
+            .keys()
+            .any(|key| key.starts_with("io.github.")));
+        assert!(verified.inventory.keys().any(|key| key.starts_with("system.default/")));
+        // 未登记资源一律 404，第三方包名也不是通行证。
+        assert_eq!(shell_http_status("/skin/io.github.nope/x.css"), 404);
+        assert_eq!(shell_http_status("/skin/skin.json"), 404);
+
+        std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
+    }
+
+    #[test]
+    fn served_asset_must_match_the_recorded_digest() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        let key = "io.example.pkg/regions/session/styles.css";
+        let root = write_snapshot_fixture(3, "io.example.pkg", key, "[data-region=\"session\"]{}\n", None);
+        std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
+        assert_eq!(shell_http_status(&format!("/skin/{key}")), 200);
+
+        // 装好之后被替换的资源：摘要不符即 404，不会冒充白名单内容。
+        let installed = root.join(format!("gen-3/{key}").replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::write(&installed, "/* replaced */\n").expect("replace asset");
+        assert_eq!(shell_http_status(&format!("/skin/{key}")), 404);
+
+        std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
+        fs::remove_dir_all(root).expect("remove snapshot fixture");
+    }
+
+    #[test]
+    fn asset_key_whitelist_rejects_absolute_and_traversal_keys() {
+        assert!(super::ui_skin_asset_key_is_safe("system.default/shared/tokens.css"));
+        assert!(super::ui_skin_asset_key_is_safe("io.github.a-b_c/x/y.css"));
+        assert!(!super::ui_skin_asset_key_is_safe(""));
+        assert!(!super::ui_skin_asset_key_is_safe("/etc/passwd"));
+        assert!(!super::ui_skin_asset_key_is_safe("C:/Windows/win.ini"));
+        assert!(!super::ui_skin_asset_key_is_safe("../outside.css"));
+        assert!(!super::ui_skin_asset_key_is_safe("a/../../b.css"));
+        assert!(!super::ui_skin_asset_key_is_safe("a//b.css"));
+        assert!(!super::ui_skin_asset_key_is_safe("a\\b.css"));
+        assert!(!super::ui_skin_asset_key_is_safe("a/b.css?x=1"));
+        assert!(!super::ui_skin_asset_key_is_safe("a/b.css\n"));
+        assert!(!super::ui_skin_asset_key_is_safe("a/%2e%2e/b.css"));
     }
 
     #[test]
@@ -252,10 +528,13 @@ mod shell_tests {
             fallback.get("version").and_then(Value::as_str),
             Some("2.0.0")
         );
-        // 第三方 active 摘要不得冒充默认回退坐标：快照坐标必须仍是 system.default。
-        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
-        assert_eq!(snapshot.package, "system.default");
-        assert_eq!(snapshot.digest, locked_digest);
+        // 第三方 active 摘要不得冒充默认回退坐标：回退坐标恒为 lock 的默认制品，
+        // 快照只影响 active 消费面，改不动回退路径（6.2.3 起快照里已无单一
+        // `package/digest` 字段，逐槽身份在 bindings 里）。
+        assert_eq!(
+            fallback.get("digest").and_then(Value::as_str),
+            Some(locked_digest.as_str())
+        );
     }
 
     #[test]
@@ -1928,16 +2207,278 @@ fn encode_query(v: &str) -> String {
     out
 }
 
+/// 消费面契约：`dsh-eac-active-binding-snapshot@1`（跨仓接口版本表）。
+///
+/// 宿主**不**再假设 active 包叫 `system.default`：坐标、资源与 generation 全部来自 manager
+/// 产出的快照，宿主只做验证与消费。第三方包与默认包走同一条路径，唯一区别是包 id。
+///
+/// 宿主校验（任一不满足即整体拒绝，绝不部分放行）：
+///   * schema 必须精确等于冻结版本；
+///   * `profile.{id,version}` 必须等于编进二进制的 HostProfile（版本不符即不消费）；
+///   * 每个 HostProfile slot 恰好一条 binding，且不出现 profile 之外的 slot；
+///   * binding.state 为 active、binding.generation 不超前于 snapshot.generation；
+///   * 每个资源的 `path` 必须等于 `gen-<snapshot.generation>/<key>`——坐标、资源与
+///     generation 三者同代，跨代快照无法把旧代资源冒充成新代；
+///   * `slotAssets` 引用的 key 必须都在资源清单里，且清单里不存在无人可服务的资源；
+///   * 资源 key/path 只允许 `[A-Za-z0-9._/-]` 且不含 `.`/`..` 段——`/skin/` 因此只可能
+///     命中白名单资源，不可能被当成任意本地路径读取。
+///
+/// 宿主**不**做的事：不重写包选择策略、不删除任何校验来"支持第三方"、不把 manager 的
+/// 生命周期/回滚策略搬进 Rust。默认制品的独立恢复路径（embedded fallback +
+/// DSH_UI_SKIN_MANAGER_ROLLBACK + lock 钉住的默认制品）与快照消费完全解耦。
 #[derive(Clone, Debug, serde::Deserialize)]
-struct UiSkinManagerSnapshot {
-    package: String,
+struct UiSkinManagerProfile {
+    id: String,
+    version: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct UiSkinManagerPackage {
+    id: String,
     version: String,
     digest: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct UiSkinManagerBinding {
+    slot: String,
+    package: UiSkinManagerPackage,
+    contribution: String,
     generation: u64,
-    assets: HashMap<String, String>,
+    state: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct UiSkinManagerAsset {
+    key: String,
+    path: String,
+    sha256: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct UiSkinManagerSnapshot {
+    schema: String,
+    profile: UiSkinManagerProfile,
+    generation: u64,
+    #[serde(rename = "createdAt")]
+    created_at: String,
+    bindings: Vec<UiSkinManagerBinding>,
+    assets: Vec<UiSkinManagerAsset>,
     #[serde(rename = "slotAssets", default)]
     slot_assets: HashMap<String, Vec<String>>,
     fault: Option<String>,
+}
+
+const ACTIVE_SNAPSHOT_SCHEMA: &str = "dsh-eac-active-binding-snapshot@1";
+const ACTIVE_SNAPSHOT_FILE: &str = "snapshot.json";
+/// 资源 key 白名单：越界字符无法进入 `/skin/` 路由，也无法拼出目录穿越。
+fn ui_skin_asset_key_is_safe(key: &str) -> bool {
+    !key.is_empty()
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/' | b'-'))
+        && !key.starts_with('/')
+        && !key.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..")
+}
+
+fn ui_skin_digest_is_well_formed(digest: &str) -> bool {
+    let Some(hex) = digest.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// 已验证快照：只有通过全部校验的快照才会变成这个类型，消费面拿不到未验证的数据。
+#[derive(Clone, Debug)]
+struct VerifiedSnapshot {
+    generation: u64,
+    bindings: Vec<UiSkinManagerBinding>,
+    inventory: HashMap<String, UiSkinManagerAsset>,
+    slot_assets: HashMap<String, Vec<String>>,
+}
+
+/// 编进二进制的 HostProfile 声明的 slot 集合（快照必须完整覆盖它）。
+fn ui_skin_profile_slots() -> Vec<String> {
+    let Ok(profile) = serde_json::from_str::<Value>(HOST_PROFILE) else {
+        return Vec::new();
+    };
+    profile
+        .get("slots")
+        .and_then(Value::as_array)
+        .map(|slots| {
+            slots
+                .iter()
+                .filter_map(|slot| slot.get("id").and_then(Value::as_str).map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn ui_skin_profile_identity() -> Option<(String, String)> {
+    let profile: Value = serde_json::from_str(HOST_PROFILE).ok()?;
+    let id = profile.get("id").and_then(Value::as_str)?.to_owned();
+    let version = profile.get("version").and_then(Value::as_str)?.to_owned();
+    Some((id, version))
+}
+
+/// 全量校验一份快照。返回 `None` 即拒绝，并把原因写到 stderr（诊断不静默）。
+fn verify_ui_skin_snapshot(snapshot: &UiSkinManagerSnapshot) -> Option<VerifiedSnapshot> {
+    let reject = |reason: String| -> Option<VerifiedSnapshot> {
+        eprintln!("[shell] refusing UI skin snapshot: {reason}");
+        None
+    };
+    if snapshot.schema != ACTIVE_SNAPSHOT_SCHEMA {
+        return reject(format!(
+            "schema {} is not {ACTIVE_SNAPSHOT_SCHEMA}",
+            snapshot.schema
+        ));
+    }
+    let Some((profile_id, profile_version)) = ui_skin_profile_identity() else {
+        return reject("the compiled HostProfile is unreadable".to_string());
+    };
+    if snapshot.profile.id != profile_id || snapshot.profile.version != profile_version {
+        return reject(format!(
+            "profile {}@{} does not match the compiled HostProfile {}@{profile_version}",
+            snapshot.profile.id, snapshot.profile.version, profile_id
+        ));
+    }
+    if snapshot.generation < 1 {
+        return reject(format!("generation {} is not positive", snapshot.generation));
+    }
+    if snapshot.fault.is_some() {
+        return reject("the snapshot carries a fault".to_string());
+    }
+    if snapshot.created_at.is_empty() {
+        return reject("createdAt is empty".to_string());
+    }
+
+    let slots = ui_skin_profile_slots();
+    if slots.is_empty() {
+        return reject("the compiled HostProfile declares no slots".to_string());
+    }
+    let mut bound: Vec<String> = Vec::new();
+    for binding in &snapshot.bindings {
+        if !slots.contains(&binding.slot) {
+            return reject(format!("{} is not a slot of the compiled HostProfile", binding.slot));
+        }
+        if bound.contains(&binding.slot) {
+            return reject(format!("{} is bound more than once", binding.slot));
+        }
+        if binding.state != "active" {
+            return reject(format!("{} is bound with state {}", binding.slot, binding.state));
+        }
+        if binding.generation > snapshot.generation {
+            return reject(format!(
+                "{} binding generation {} is newer than the snapshot generation {}",
+                binding.slot, binding.generation, snapshot.generation
+            ));
+        }
+        if binding.package.id.is_empty() || binding.contribution.is_empty() {
+            return reject(format!("{} has an empty package id or contribution", binding.slot));
+        }
+        if !ui_skin_digest_is_well_formed(&binding.package.digest) {
+            return reject(format!(
+                "{} package digest {} is not sha256:<64 hex>",
+                binding.slot, binding.package.digest
+            ));
+        }
+        if !default_binding_matches_lock(binding) {
+            return reject(format!(
+                "{} binds the default package id with a version/digest the build lock does not record",
+                binding.slot
+            ));
+        }
+        bound.push(binding.slot.clone());
+    }
+    for slot in &slots {
+        if !bound.contains(slot) {
+            return reject(format!("slot {slot} has no binding"));
+        }
+    }
+
+    let mut inventory: HashMap<String, UiSkinManagerAsset> = HashMap::new();
+    for asset in &snapshot.assets {
+        if !ui_skin_asset_key_is_safe(&asset.key) {
+            return reject(format!("asset key {} is not a safe relative path", asset.key));
+        }
+        if inventory.contains_key(&asset.key) {
+            return reject(format!("asset key {} is declared twice", asset.key));
+        }
+        if !ui_skin_digest_is_well_formed(&asset.sha256) {
+            return reject(format!("asset {} digest {} is not sha256:<64 hex>", asset.key, asset.sha256));
+        }
+        // 坐标、资源与 generation 同代：资源只能落在本代目录里。
+        let expected = format!("gen-{}/{}", snapshot.generation, asset.key);
+        if asset.path != expected {
+            return reject(format!(
+                "asset {} resolves to {}, expected {expected} (assets must belong to the snapshot generation)",
+                asset.key, asset.path
+            ));
+        }
+        inventory.insert(asset.key.clone(), asset.clone());
+    }
+
+    let mut referenced: Vec<String> = Vec::new();
+    let mut slot_assets: HashMap<String, Vec<String>> = HashMap::new();
+    for (slot, keys) in &snapshot.slot_assets {
+        if !slots.contains(slot) {
+            return reject(format!("slotAssets names {slot}, which is not a HostProfile slot"));
+        }
+        if keys.is_empty() {
+            return reject(format!("slot {slot} is served no asset"));
+        }
+        for key in keys {
+            if !inventory.contains_key(key) {
+                return reject(format!("slot {slot} references {key}, which is not resolved"));
+            }
+            if !referenced.contains(key) {
+                referenced.push(key.clone());
+            }
+        }
+        slot_assets.insert(slot.clone(), keys.clone());
+    }
+    for slot in &slots {
+        if !slot_assets.contains_key(slot) {
+            return reject(format!("slot {slot} is bound but served no asset"));
+        }
+    }
+    // 清单里不允许存在无人可服务的资源：白名单等于快照本身，不多一个字节。
+    for key in inventory.keys() {
+        if !referenced.contains(key) {
+            return reject(format!("{key} is resolved but no slot may serve it"));
+        }
+    }
+
+    Some(VerifiedSnapshot {
+        generation: snapshot.generation,
+        bindings: snapshot.bindings.clone(),
+        inventory,
+        slot_assets,
+    })
+}
+
+/// 默认制品的身份锁：`system.default` 是**不可强制**的默认包，它的 version/digest
+/// 只能来自 build lock（ADR 0003/0010）。任何快照里 id 等于 lock 默认包名的 binding
+/// 都必须带 lock 的 version 与 digest —— 否则第三方（或半可信快照）可以借默认包名
+/// 把自己的字节冒充成默认制品，回退链路的身份就失去意义。
+fn default_binding_matches_lock(binding: &UiSkinManagerBinding) -> bool {
+    let Ok(lock) = serde_json::from_str::<Value>(SKIN_MANAGER_LOCK) else {
+        return false;
+    };
+    let Some(package) = lock.pointer("/default/package").and_then(Value::as_str) else {
+        return false;
+    };
+    if binding.package.id != package {
+        // 非默认包：身份由 manager 的逐槽坐标决定，宿主不额外约束。
+        return true;
+    }
+    let (Some(version), Some(digest)) = (
+        lock.pointer("/default/version").and_then(Value::as_str),
+        lock.pointer("/default/sha256").and_then(Value::as_str),
+    ) else {
+        return false;
+    };
+    binding.package.version == version && binding.package.digest == format!("sha256:{digest}")
 }
 
 fn ui_skin_manager_enabled() -> bool {
@@ -1981,23 +2522,35 @@ fn ui_skin_fallback_coordinate_matches_lock() -> bool {
     fallback_coordinate_matches_lock(HOST_PROFILE, SKIN_MANAGER_LOCK)
 }
 
+/// manager 的消费根：`<resource_root>/ui-skin-manager/resolved`。
+///
+/// 6.2.3 起这里是**快照根**而不是"某个固定包目录"：`snapshot.json` 决定 active 坐标与资源，
+/// 各代资源落在 `gen-<n>/` 下。宿主不再把 `system.default` 写进路径，因此第三方 slot 与
+/// 默认 slot 走同一条消费路径（这也修掉了旧实现把资源根钉死在
+/// `resolved/system.default` 的硬编码）。
 fn ui_skin_manager_root() -> PathBuf {
+    // 测试钩子：仅在 debug 构建里允许把快照根指到临时目录，release 成品没有任何环境变量
+    // 能改变资源根（否则"任意本地路径"会从环境变量重新打开）。
+    #[cfg(debug_assertions)]
+    if let Ok(override_root) = std::env::var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE") {
+        if !override_root.is_empty() {
+            return PathBuf::from(override_root);
+        }
+    }
     let root = resource_root();
-    let packaged = root
-        .join("ui-skin-manager")
-        .join("resolved")
-        .join("system.default");
+    let packaged = root.join("ui-skin-manager").join("resolved");
     if packaged.is_dir() {
         packaged
     } else {
         root.join("tauri-shell")
             .join("artifacts")
             .join("resolved")
-            .join("system.default")
     }
 }
 
-fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
+/// 读取并**全量校验**快照。任何一步不通过都返回 `None`，宿主随即退回默认恢复路径
+/// （lock 钉住的默认制品 + embedded fallback），不会消费半可信数据。
+fn ui_skin_manager_snapshot() -> Option<VerifiedSnapshot> {
     if !ui_skin_manager_enabled() {
         return None;
     }
@@ -2006,41 +2559,61 @@ fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
         eprintln!("[shell] host-profile fallbackSkin coordinate drifted from the build lock");
         return None;
     }
-    let path = ui_skin_manager_root().join("snapshot.json");
+    let path = ui_skin_manager_root().join(ACTIVE_SNAPSHOT_FILE);
     let source = std::fs::read_to_string(path).ok()?;
-    let lock: Value = serde_json::from_str(SKIN_MANAGER_LOCK).ok()?;
-    let locked_default_digest = lock
-        .pointer("/default/sha256")
-        .and_then(Value::as_str)
-        .map(str::to_owned)?;
-    let snapshot: UiSkinManagerSnapshot = serde_json::from_str(&source).ok()?;
-    (snapshot.package == "system.default"
-        && snapshot.version == "2.0.0"
-        && snapshot.digest == format!("sha256:{locked_default_digest}")
-        && snapshot.fault.is_none()
-        && snapshot
-            .assets
-            .keys()
-            .all(|asset| ui_skin_asset_path_is_safe(asset)))
-    .then_some(snapshot)
+    let snapshot: UiSkinManagerSnapshot = match serde_json::from_str(&source) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            eprintln!("[shell] refusing UI skin snapshot: it does not parse: {error}");
+            return None;
+        }
+    };
+    verify_ui_skin_snapshot(&snapshot)
 }
 
-fn ui_skin_asset_path_is_safe(file: &str) -> bool {
-    !file.is_empty()
-        && !file.starts_with('/')
-        && !file.contains('\\')
-        && !file
-            .split('/')
-            .any(|segment| segment.is_empty() || segment == "." || segment == "..")
-}
-
-fn ui_skin_manager_asset(file: &str) -> Option<String> {
-    let snapshot = ui_skin_manager_snapshot()?;
-    let relative = snapshot.assets.get(file)?;
-    if !ui_skin_asset_path_is_safe(file) || !ui_skin_asset_path_is_safe(relative) {
+/// `/skin/` 只服务白名单资源：key 必须在快照清单里，落盘路径由快照给出且限制在本代目录内，
+/// 并且读出的字节必须命中快照记录的摘要。未登记 key、越界路径、摘要不符一律 `None`（HTTP 404），
+/// 不存在"任意本地路径"入口。
+fn ui_skin_manager_asset(key: &str) -> Option<String> {
+    if !ui_skin_asset_key_is_safe(key) {
         return None;
     }
-    std::fs::read_to_string(ui_skin_manager_root().join(relative)).ok()
+    let snapshot = ui_skin_manager_snapshot()?;
+    let asset = snapshot.inventory.get(key)?;
+    let root = ui_skin_manager_root();
+    let relative = Path::new(&asset.path);
+    if relative.is_absolute() {
+        return None;
+    }
+    let path = root.join(relative);
+    // 纵深防御：拼出的绝对路径必须仍在快照根内（verify 里已禁止 `.`/`..`/绝对路径，
+    // 这里再确认一次，避免将来有人放宽 key 白名单时静默打开任意读取）。
+    if !path.starts_with(&root) {
+        return None;
+    }
+    let bytes = std::fs::read(path).ok()?;
+    // 资源通道与摘要绑定：快照说这份资源是什么摘要，磁盘上就必须是什么字节。
+    // 这挡住"装好之后被替换/截断"的资源冒充白名单内容。
+    let digest = format!("sha256:{}", sha256_hex(&bytes));
+    if digest != asset.sha256 {
+        eprintln!(
+            "[shell] refusing UI skin asset {key}: bytes hash to {digest}, the snapshot records {}",
+            asset.sha256
+        );
+        return None;
+    }
+    String::from_utf8(bytes).ok()
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn ui_skin_manager_bootstrap_json() -> String {
@@ -2059,12 +2632,26 @@ fn ui_skin_manager_bootstrap_json() -> String {
             (slot, css)
         })
         .collect::<HashMap<_, _>>();
+    // 每个 slot 的包身份单独给出：一次 Apply 之后不同 slot 可以处于不同包/不同代，
+    // 单一 `package` 字段会把这个事实说错。
+    let packages = snapshot
+        .bindings
+        .iter()
+        .map(|binding| {
+            serde_json::json!({
+                "slot": binding.slot,
+                "id": binding.package.id,
+                "version": binding.package.version,
+                "digest": binding.package.digest,
+                "contribution": binding.contribution,
+                "generation": binding.generation,
+            })
+        })
+        .collect::<Vec<_>>();
     serde_json::to_string(&serde_json::json!({
         "enabled": true,
-        "package": snapshot.package,
-        "version": snapshot.version,
-        "digest": snapshot.digest,
         "generation": snapshot.generation,
+        "bindings": packages,
         "slots": slots,
     }))
     .unwrap_or_else(|_| "{}".to_string())
@@ -2107,21 +2694,16 @@ fn embedded_skin_asset(file: &str) -> Option<&'static str> {
 
 fn shell_http_status(path: &str) -> u16 {
     let route = path.split('?').next().unwrap_or("");
-    if ui_skin_manager_snapshot().is_some() {
-        if let Some(asset) = route.strip_prefix("/skin/") {
-            return if ui_skin_manager_asset(asset).is_some() {
-                200
-            } else {
-                404
-            };
-        }
+    if let Some(asset) = route.strip_prefix("/skin/") {
+        // 快照在装配中 / `/skin/` 只服务快照白名单资源；快照不可用时退回 embedded 白名单。
+        // 两条路径都只认登记过的 key，绝不把 URL 当本地路径解析。
+        return if ui_skin_asset_is_registered(asset) {
+            200
+        } else {
+            404
+        };
     }
     if route == "/" || route == "/inject/bridge.js" || route == "/loading" || route == "/died" {
-        200
-    } else if route
-        .strip_prefix("/skin/")
-        .is_some_and(ui_skin_asset_is_registered)
-    {
         200
     } else {
         404
