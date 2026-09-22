@@ -43,6 +43,8 @@ test('构建、Rust 与 staged runtime 在四个平台架构上运行并隔离�
   assert.match(workflow, /key: \$\{\{ runner\.os \}\}-\$\{\{ matrix\.arch \}\}-kernel/);
   assert.match(workflow, /Prepare Tauri resource directory for Rust tests/);
   const rustJob = jobBlock('rust-shell');
+  assert.match(rustJob, /(?:cpSync\(root\+'\/artifacts',staged\+'\/ui-skin-manager'|cpSync\('tauri-shell\/artifacts','tauri-shell\/staged-resources\/ui-skin-manager')/);
+  assert.match(rustJob, /skin-manager-artifact\.lock\.json/);
   assert.match(rustJob, /Fetch Windows Cargo dependencies[\s\S]*?cargo fetch --locked/);
   assert.match(rustJob, /Prepare Windows WebView2Loader resource[\s\S]*?prepare-webview2-loader\.mjs --arch=\$\{\{ matrix\.arch \}\}/);
   const stagedJob = jobBlock('staged-runtime');

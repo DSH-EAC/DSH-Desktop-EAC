@@ -1,7 +1,7 @@
 # ADR 0009: Built-in UI skin package split
 
 Date: 2026-09-19
-Status: Accepted (Task 1.4)
+Status: Historical baseline (superseded by ADR 0010)
 Supersedes: the current architecture described by ADR 0005 and ADR 0007
 
 ## Context
@@ -20,8 +20,9 @@ sidebars, overlay, session, popup, and dialog surfaces.
 
 ## Decision
 
-The built-in package set lives at
-`dsh-desktop/assets/ui-skin/system-default/`:
+The former built-in package set lived at
+`dsh-desktop/assets/ui-skin/system-default/`. This section records the
+migration baseline only; ADR 0010 removes that editable source from EAC.
 
 - `skin.json` aggregates only `system.default.control` and
   `system.default.style`.
@@ -32,8 +33,9 @@ The built-in package set lives at
   profile states to visual output.
 - `slot/slot.json` is registered independently. It defines the six host
   regions and their separate Control and Style slots.
-- `assets/ui-skin/registry.json` selects the default directory and explicitly
-  lists the loadable assets. Rust does not hard-code the package directory.
+- The historical `assets/ui-skin/registry.json` selected the default directory
+  and explicitly listed loadable assets. It was removed by ADR 0010; current
+  staging uses the manager snapshot and pinned artifact lock.
 
 The predefined regions are `top-sidebar`, `bottom-sidebar`, `left-sidebar`,
 `right-sidebar`, `session`, and `overlay`. Popup, dialog, and floating-window
@@ -50,15 +52,16 @@ fully qualified `system.default.*` namespace. The bridge only names upstream
 nodes that already have stable `data-*`, ARIA, or portal anchors; it does not
 promote CSS-module hashes into public skin APIs.
 
-The load order is Control layout, default Style tokens, then default Style
-state selectors. Shell pages load those files through the loopback HTTP route.
-The main Web UI receives the same registry-selected CSS as an initialization
-payload because it has a different origin. Missing or invalid registry assets
-produce an empty bundle rather than loading arbitrary paths.
+The historical load order was Control layout, default Style tokens, then
+default Style state selectors. The current EAC path consumes the manager's
+verified snapshot and pinned resolved artifact; it does not read the old
+registry or source directory.
 
-The old `assets/shell-skin` directories and `kind: shell-skin` extension are
-removed. ADR 0005 and ADR 0007 remain as historical records, but their package
+The old `assets/shell-skin` directories and `kind: shell-skin` extension remain
+removed. ADR 0005 and ADR 0007 remain historical records, but their package
 layout and loader decisions no longer describe the current implementation.
+ADR 0010 is the current source-of-truth decision and forbids restoring either
+the old source mirror or AIO v1.
 
 ## Consequences
 
@@ -74,7 +77,7 @@ The previously unpublished AIO package is removed instead of preserving a
 second obsolete package model. Reintroducing AIO requires a Style Package that
 implements this region/control/state contract and a real registry binding.
 
-## Verification
+## Historical verification
 
 - `dsh-desktop/test/shell-skin-pack.test.ts` validates package identities,
   region/control declarations, all 17 states, style selectors, runtime names,

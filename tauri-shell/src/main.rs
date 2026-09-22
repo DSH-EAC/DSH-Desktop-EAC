@@ -47,9 +47,16 @@ use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex as AMutex};
 use tokio_tungstenite::tungstenite::Message;
 
-// 窗口桥注入 = WS 回环客户端（单源）+ 桥胶水（build.rs 拼装 bridge-bundle.js）。
 const BRIDGE_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/bridge-bundle.js"));
 const WS_PORT: u16 = 19873;
+
+// The manager path is the v6 default. DSH_UI_SKIN_MANAGER_ROLLBACK is a
+// one-release emergency switch for operators; it only selects the embedded fallback
+// recovery styles and never restores the removed EAC source tree.
+const SKIN_MANAGER_LOCK: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/skin-manager-artifact.lock.json"
+));
 static CHINESE_UI: OnceLock<bool> = OnceLock::new();
 
 // 桥端口回退：19873 被占（他程序占用/异常残留监听）时向上探测 25 个候选，
@@ -70,12 +77,18 @@ fn ws_port() -> u16 {
 /// 后页面上下文会重建；仅注入裸 BRIDGE_JS 会让客户端退回固定的
 /// 19873，端口发生回退时窗口控制全部失效。
 fn bridge_init_script() -> String {
-    let skin_css =
-        serde_json::to_string(&ui_skin_css_bundle()).unwrap_or_else(|_| "\"\"".to_string());
+    let manager_active = ui_skin_manager_snapshot().is_some();
+    let skin_css = if manager_active {
+        "\"\"".to_string()
+    } else {
+        serde_json::to_string(&ui_skin_css_bundle()).unwrap_or_else(|_| "\"\"".to_string())
+    };
+    let manager = ui_skin_manager_bootstrap_json();
     format!(
-        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\nwindow.__DSH_UI_SKIN_CSS__={};\n{}",
+        "window.__DSH_BRIDGE_WS__='ws://127.0.0.1:{}/ws';\nwindow.__DSH_UI_SKIN_CSS__={};\nwindow.__DSH_UI_SKIN_MANAGER__={};\n{}",
         ws_port(),
         skin_css,
+        manager,
         BRIDGE_JS,
     )
 }
@@ -122,11 +135,14 @@ fn ui_text<'a>(zh: &'a str, en: &'a str) -> &'a str {
 #[cfg(test)]
 mod shell_tests {
     use super::{
-        is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status,
-        verified_resource_root,
+        is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status, ui_skin_asset,
+        ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
     };
     use std::fs;
+    use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    static SKIN_MANAGER_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn recognizes_chinese_locale_variants_only() {
@@ -166,6 +182,32 @@ mod shell_tests {
         assert!(!is_sidecar_respawn_request("rescue.safe-mode"));
         assert!(!is_sidecar_respawn_request("chrome.init"));
         assert!(!is_sidecar_respawn_request("plugins.list"));
+    }
+
+    #[test]
+    fn manager_is_enabled_by_default_and_rollback_selects_embedded_fallback() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        std::env::remove_var("DSH_UI_SKIN_MANAGER");
+        std::env::remove_var("DSH_UI_SKIN_MANAGER_ROLLBACK");
+        assert!(ui_skin_manager_enabled());
+        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
+        assert_eq!(snapshot.package, "system.default");
+        assert_eq!(snapshot.generation, 1);
+        assert_eq!(snapshot.assets["control/layout.css"], "control-layout.css");
+        std::env::set_var("DSH_UI_SKIN_MANAGER_ROLLBACK", "1");
+        assert!(!ui_skin_manager_enabled());
+        assert!(ui_skin_asset("style/tokens.css").contains("--eac-shell"));
+        std::env::remove_var("DSH_UI_SKIN_MANAGER_ROLLBACK");
+    }
+
+    #[test]
+    fn manager_snapshot_rejects_unknown_or_unsafe_assets() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        std::env::set_var("DSH_UI_SKIN_MANAGER", "1");
+        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
+        assert!(snapshot.assets.get("../escape.css").is_none());
+        assert!(snapshot.assets.get("unknown.css").is_none());
+        std::env::remove_var("DSH_UI_SKIN_MANAGER");
     }
 
     #[test]
@@ -1699,7 +1741,7 @@ async fn handle_conn(
     Ok(())
 }
 
-/// Built-in skin assets are loaded control first, then the bound style package.
+/// Skin assets are loaded control first, then the bound style package.
 const UI_SKIN_LINKS: &str = concat!(
     "<link rel=stylesheet href=\"/skin/control/layout.css\">",
     "<link rel=stylesheet href=\"/skin/style/tokens.css\">",
@@ -1775,73 +1817,155 @@ fn encode_query(v: &str) -> String {
     out
 }
 
-#[derive(serde::Deserialize)]
-struct UiSkinDefaultRegistration {
-    directory: String,
+#[derive(Clone, Debug, serde::Deserialize)]
+struct UiSkinManagerSnapshot {
+    package: String,
+    version: String,
+    digest: String,
+    generation: u64,
+    assets: HashMap<String, String>,
+    #[serde(rename = "slotAssets", default)]
+    slot_assets: HashMap<String, Vec<String>>,
+    fault: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
-struct UiSkinRegistry {
-    default: UiSkinDefaultRegistration,
-    assets: Vec<String>,
+fn ui_skin_manager_enabled() -> bool {
+    !matches!(
+        std::env::var("DSH_UI_SKIN_MANAGER_ROLLBACK").as_deref(),
+        Ok("1") | Ok("true")
+    )
 }
 
-fn ui_skin_root() -> PathBuf {
-    resource_root()
-        .join("dsh-desktop")
-        .join("assets")
-        .join("ui-skin")
+fn ui_skin_manager_root() -> PathBuf {
+    let root = resource_root();
+    let packaged = root
+        .join("ui-skin-manager")
+        .join("resolved")
+        .join("system.default");
+    if packaged.is_dir() {
+        packaged
+    } else {
+        root.join("tauri-shell")
+            .join("artifacts")
+            .join("resolved")
+            .join("system.default")
+    }
 }
 
-fn ui_skin_registry() -> Option<UiSkinRegistry> {
-    let source = std::fs::read_to_string(ui_skin_root().join("registry.json")).ok()?;
-    let registry: UiSkinRegistry = serde_json::from_str(&source).ok()?;
-    ui_skin_directory_is_safe(&registry.default.directory).then_some(registry)
+fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
+    if !ui_skin_manager_enabled() {
+        return None;
+    }
+    let path = ui_skin_manager_root().join("snapshot.json");
+    let source = std::fs::read_to_string(path).ok()?;
+    let lock: Value = serde_json::from_str(SKIN_MANAGER_LOCK).ok()?;
+    let locked_default_digest = lock
+        .pointer("/default/sha256")
+        .and_then(Value::as_str)
+        .map(str::to_owned)?;
+    let snapshot: UiSkinManagerSnapshot = serde_json::from_str(&source).ok()?;
+    (snapshot.package == "system.default"
+        && snapshot.version == "2.0.0"
+        && snapshot.digest == format!("sha256:{locked_default_digest}")
+        && snapshot.fault.is_none()
+        && snapshot
+            .assets
+            .keys()
+            .all(|asset| ui_skin_asset_path_is_safe(asset)))
+    .then_some(snapshot)
 }
 
-fn ui_skin_directory_is_safe(directory: &str) -> bool {
-    !directory.is_empty()
-        && !directory.contains(['/', '\\'])
-        && directory != "."
-        && directory != ".."
+fn ui_skin_asset_path_is_safe(file: &str) -> bool {
+    !file.is_empty()
+        && !file.starts_with('/')
+        && !file.contains('\\')
+        && !file
+            .split('/')
+            .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+}
+
+fn ui_skin_manager_asset(file: &str) -> Option<String> {
+    let snapshot = ui_skin_manager_snapshot()?;
+    let relative = snapshot.assets.get(file)?;
+    if !ui_skin_asset_path_is_safe(file) || !ui_skin_asset_path_is_safe(relative) {
+        return None;
+    }
+    std::fs::read_to_string(ui_skin_manager_root().join(relative)).ok()
+}
+
+fn ui_skin_manager_bootstrap_json() -> String {
+    let Some(snapshot) = ui_skin_manager_snapshot() else {
+        return "{}".to_string();
+    };
+    let slots = snapshot
+        .slot_assets
+        .iter()
+        .map(|(slot, assets)| {
+            let css = assets
+                .iter()
+                .filter_map(|asset| ui_skin_manager_asset(asset))
+                .collect::<Vec<_>>()
+                .join("\n");
+            (slot, css)
+        })
+        .collect::<HashMap<_, _>>();
+    serde_json::to_string(&serde_json::json!({
+        "enabled": true,
+        "package": snapshot.package,
+        "version": snapshot.version,
+        "digest": snapshot.digest,
+        "generation": snapshot.generation,
+        "slots": slots,
+    }))
+    .unwrap_or_else(|_| "{}".to_string())
 }
 
 fn ui_skin_asset_is_registered(file: &str) -> bool {
-    !file.is_empty()
-        && !file
-            .split('/')
-            .any(|segment| segment.is_empty() || segment == "..")
-        && ui_skin_registry()
-            .is_some_and(|registry| registry.assets.iter().any(|asset| asset == file))
+    ui_skin_manager_asset(file).is_some() || embedded_skin_asset(file).is_some()
 }
 
 fn ui_skin_asset(file: &str) -> String {
-    let Some(registry) = ui_skin_registry() else {
-        return String::new();
-    };
-    if !registry.assets.iter().any(|asset| asset == file) {
-        return String::new();
+    if let Some(asset) = ui_skin_manager_asset(file) {
+        return asset;
     }
-    std::fs::read_to_string(ui_skin_root().join(registry.default.directory).join(file))
-        .unwrap_or_default()
+    embedded_skin_asset(file).unwrap_or_default().to_string()
 }
 
 fn ui_skin_css_bundle() -> String {
-    ui_skin_registry()
-        .map(|registry| {
-            registry
-                .assets
-                .iter()
-                .filter(|asset| asset.ends_with(".css"))
-                .map(|asset| ui_skin_asset(asset))
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .unwrap_or_default()
+    ["control/layout.css", "style/tokens.css", "style/states.css"]
+        .iter()
+        .map(|asset| ui_skin_asset(asset))
+        .filter(|asset| !asset.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn embedded_skin_asset(file: &str) -> Option<&'static str> {
+    match file {
+        "control/layout.css" => Some(
+            ":root{--eac-shell-surface:#202124;--eac-shell-text:#f1f3f4;}\nbody{margin:0;background:var(--eac-shell-surface);color:var(--eac-shell-text);font:14px sans-serif;}\n",
+        ),
+        "style/tokens.css" => Some(
+            ":root{--eac-shell-surface:#202124;--eac-shell-text:#f1f3f4;--eac-shell-muted:#9aa0a6;}\n",
+        ),
+        "style/states.css" => Some(
+            "[data-state~=loading]{opacity:.8}[data-state~=error]{color:#f28b82}[data-state~=disabled]{opacity:.55}\n",
+        ),
+        _ => None,
+    }
 }
 
 fn shell_http_status(path: &str) -> u16 {
     let route = path.split('?').next().unwrap_or("");
+    if ui_skin_manager_snapshot().is_some() {
+        if let Some(asset) = route.strip_prefix("/skin/") {
+            return if ui_skin_manager_asset(asset).is_some() {
+                200
+            } else {
+                404
+            };
+        }
+    }
     if route == "/" || route == "/inject/bridge.js" || route == "/loading" || route == "/died" {
         200
     } else if route

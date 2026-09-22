@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eac.github.io/schemas/ui-skin/v1/host-profile.json",
+  "id": "dsh-desktop-eac-ui-skin-profile",
+  "version": "0.3.0",
+  "regions": [
+    "top-sidebar",
+    "bottom-sidebar",
+    "left-sidebar",
+    "right-sidebar",
+    "session",
+    "overlay"
+  ],
+  "slots": [
+    {"id": "top-sidebar", "region": "top-sidebar", "kind": "region", "scope": "window", "propsSchema": {}, "mountContract": "host-region-v1", "zIndexPolicy": {"default": 2147483000}, "capabilities": [], "fallbackSkin": "system.default"},
+    {"id": "bottom-sidebar", "region": "bottom-sidebar", "kind": "region", "scope": "window", "propsSchema": {}, "mountContract": "host-region-v1", "zIndexPolicy": {"default": 100}, "capabilities": [], "fallbackSkin": "system.default"},
+    {"id": "left-sidebar", "region": "left-sidebar", "kind": "region", "scope": "window", "propsSchema": {}, "mountContract": "host-region-v1", "zIndexPolicy": {"default": 100}, "capabilities": [], "fallbackSkin": "system.default"},
+    {"id": "right-sidebar", "region": "right-sidebar", "kind": "region", "scope": "window", "propsSchema": {}, "mountContract": "host-region-v1", "zIndexPolicy": {"default": 100}, "capabilities": [], "fallbackSkin": "system.default"},
+    {"id": "session", "region": "session", "kind": "region", "scope": "window", "propsSchema": {}, "mountContract": "host-region-v1", "zIndexPolicy": {"default": 0}, "capabilities": [], "fallbackSkin": "system.default"},
+    {"id": "overlay", "region": "overlay", "kind": "region", "scope": "window", "propsSchema": {}, "mountContract": "host-region-v1", "zIndexPolicy": {"default": 5000}, "capabilities": [], "fallbackSkin": "system.default"}
+  ],
+  "instanceKinds": ["popup", "dialog", "floating-window"],
+  "zIndexPolicy": {"owner": "host", "contributionMayEscape": false},
+  "capabilities": [
+    {"id": "io.github.dsh-eac.window.controls", "version": "1.0.0"},
+    {"id": "io.github.dsh-eac.dialog.close", "version": "1.0.0"},
+    {"id": "io.github.dsh-eac.diagnostics", "version": "1.0.0"},
+    {"id": "io.github.dsh-eac.ui.notifications", "version": "1.0.0"}
+  ],
+  "dshAdapters": [
+    {"dshRange": "0.1.5-rc.2", "mapping": "eac-dsh-adapter@1"},
+    {"dshRange": "0.1.6-alpha.2", "mapping": "eac-dsh-adapter@1"}
+  ],
+  "fallbackSkin": {
+    "id": "system.default",
+    "version": "2.0.0",
+    "digest": "sha256:0b3eca8493f83306fb1b8f40c0c4d2d4b368f5453b2456c5e5d942a751c483b6"
+  }
+}

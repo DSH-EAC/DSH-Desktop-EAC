@@ -5,10 +5,11 @@
 // 布局（= main.rs resource_root() 的约定）：
 //   staged-resources/sidecar/server.js|bridge.js|capability-stubs.js
 //   staged-resources/dsh-desktop/<Electron 时代的精确文件清单 + 生产 node_modules
-//                              + assets + vendor/node + vendor/npm>
+//                              + assets (host profile only) + vendor/node + vendor/npm>
 //
 // 用法：node stage-resources.mjs [--target=win32|linux|darwin] [--skip-npm]
 
+import { createHash } from 'node:crypto';
 import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, readFileSync, statSync, readdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
@@ -231,10 +232,10 @@ writeFileSync(path.join(staged, 'dsh-desktop', 'profile.txt'), 'full\n');
 // plugins（102MB）与 skins（26MB）属剥离集（Task 1.2/3.2/4/5/6 接回），
 // sdk-plugins / onboarding.html 随插件系统剥出（无插件可选则无向导）。
 // 保留：图标（壳层窗口/托盘消费）、主窗口 WS 客户端、
-// SOURCES.json（溯源台账随内核组件保留）、
-// skills（6KB，eac-desktop-tips 是对话内提示技能，非插件面），以及 ADR 0009
-// 定义的可独立注册 UI skin package set。
-console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills + UI skin packages）');
+// SOURCES.json（溯源台账随内核组件保留）以及 skills。
+// Default Skin source lives in dsh-desktop-eac-default-skins; EAC stages only
+// pinned artifacts below, never an editable source tree or active registry.
+console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills）');
 {
   const keep = [
     'icon.ico', 'icon.jpg', 'icon.png', 'tray-icon.png',
@@ -244,10 +245,30 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills +
     copyRequired(path.join(dd, 'assets', name), path.join(staged, 'dsh-desktop', 'assets', name), '本体资产');
   }
   cpSync(path.join(dd, 'assets', 'skills'), path.join(staged, 'dsh-desktop', 'assets', 'skills'), { recursive: true });
-  const uiSkin = path.join(dd, 'assets', 'ui-skin');
-  if (existsSync(uiSkin)) {
-    cpSync(uiSkin, path.join(staged, 'dsh-desktop', 'assets', 'ui-skin'), { recursive: true });
-    console.log('[stage] UI skin packages staged');
+  copyRequired(
+    path.join(root, 'tauri-shell', 'host-profile.json'),
+    path.join(staged, 'ui-skin-manager', 'host-profile.json'),
+    'UI skin HostProfile',
+  );
+  // Stage 5 manager bypass: only pinned artifacts named in the lock file are
+  // copied; no branch, registry URL, or mutable source is consulted at runtime.
+  const managerArtifacts = path.join(root, 'tauri-shell', 'artifacts');
+  const managerLockPath = path.join(root, 'tauri-shell', 'skin-manager-artifact.lock.json');
+  if (existsSync(managerArtifacts) && existsSync(managerLockPath)) {
+    const lock = JSON.parse(readFileSync(managerLockPath, 'utf8'));
+    const expected = new Map([
+      [lock.manager.artifact, lock.manager.sha256],
+      [lock.default.artifact, lock.default.sha256],
+    ]);
+    for (const [name, digest] of expected) {
+      const artifact = path.join(managerArtifacts, name);
+      if (!existsSync(artifact)) throw new Error(`[stage] locked artifact missing: ${name}`);
+      const actual = createHash('sha256').update(readFileSync(artifact)).digest('hex');
+      if (actual !== digest) throw new Error(`[stage] locked artifact digest mismatch: ${name}`);
+    }
+    cpSync(managerArtifacts, path.join(staged, 'ui-skin-manager'), { recursive: true });
+    cpSync(managerLockPath, path.join(staged, 'ui-skin-manager', 'artifact.lock.json'));
+    console.log('[stage] pinned UI skin manager artifacts staged');
   }
   // v6 Task 3.3：内置插件随行。只拷当前已接回的内置插件目录
   //（ADR 0008 builtin 集合的子集；syncCompanionPlugins 对目录缺失的插件
