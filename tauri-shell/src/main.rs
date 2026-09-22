@@ -223,6 +223,11 @@ mod shell_tests {
         // 回归门禁（Task 6.2.1）：host-profile.fallbackSkin 曾经是手写副本，
         // 抄的是切换前旧制品摘要 0b3eca84…，而 lock / 制品 / 快照都是
         // eb8142e4…。当时只有正则断言，漂移存活。此测试要求四处同源。
+        //
+        // 本测试经 ui_skin_manager_snapshot() 读取 DSH_UI_SKIN_MANAGER_ROLLBACK，
+        // 必须与改写该环境变量的测试持有同一互斥锁，否则并发下会读到别人的
+        // 中间态（审计 6.2.1 返工项）。
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
         assert!(
             ui_skin_fallback_coordinate_matches_lock(),
             "host-profile.fallbackSkin 与 lock 默认制品坐标漂移（回退坐标必须由 build lock 供给）"
@@ -311,6 +316,9 @@ mod shell_tests {
 
     #[test]
     fn retired_and_unknown_shell_pages_are_not_found() {
+        // shell_http_status() 经 ui_skin_manager_snapshot() 读 DSH_UI_SKIN_MANAGER_ROLLBACK，
+        // 与改写环境变量的测试共享同一互斥锁（审计 6.2.1 返工项）。
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
         let retired_page = format!("/{}-{}", "recovery", "center");
         assert_eq!(shell_http_status("/loading"), 200);
         assert_eq!(shell_http_status("/died?code=1"), 200);
@@ -351,6 +359,10 @@ mod shell_tests {
     fn retired_recovery_page_returns_http_404() {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+        // http_serve → shell_http_status → ui_skin_manager_snapshot 读同一环境变量，
+        // 必须持有同一互斥锁（审计 6.2.1 返工项）。锁在 runtime 之前获取，
+        // 不跨越 await 持有。
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
