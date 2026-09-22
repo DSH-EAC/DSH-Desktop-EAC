@@ -1,0 +1,100 @@
+name: Staged runtime artifact
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staged-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.7.0'
+  KERNEL_VERSION: '0.1.5-rc.2'
+
+jobs:
+  windows-x64:
+    name: Staged runtime artifact (windows/x64)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: dsh-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== 'x64') throw new Error('expected x64, got ' + process.arch)"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: dsh-desktop/package-lock.json
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@${{ env.PNPM_VERSION }} && pnpm --version
+
+      - name: Cache vendored kernel
+        uses: actions/cache@v4
+        with:
+          path: dsh-desktop/vendor/kernel
+          key: windows-x64-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
+
+      - name: Prepare vendored kernel
+        run: node scripts/fetch-kernel.js
+
+      - name: Install dependencies
+        run: npm run ci:install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit and contract tests
+        run: npm test
+
+      - name: Fetch bundled Node and npm runtimes
+        run: npm run fetch-runtime
+
+      - name: Set up stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Fetch Windows Cargo dependencies
+        working-directory: ${{ github.workspace }}\tauri-shell
+        run: cargo fetch --locked
+
+      - name: Assemble staged runtime
+        working-directory: ${{ github.workspace }}
+        run: node tauri-shell/stage-resources.mjs --target=win32 --skip-npm
+
+      - name: Verify staged closure and bundle integrity
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/verify-staged-runtime.mjs
+
+      - name: Run isolated minimal boot smoke
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/minimal-boot-smoke.mjs
+
+      - name: Check manifest drift
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/check-manifest-drift.mjs
+
+      - name: Upload staged runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: staged-runtime-windows-x64
+          path: tauri-shell/staged-resources
+          if-no-files-found: error
+          retention-days: 7
