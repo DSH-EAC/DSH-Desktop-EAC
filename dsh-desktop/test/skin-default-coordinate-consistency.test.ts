@@ -12,10 +12,12 @@
 //   1. tauri-shell/host-profile.json                        fallbackSkin.{id,version,digest}
 //   2. tauri-shell/skin-manager-artifact.lock.json          default.{package,version,sha256}
 //   3. tauri-shell/artifacts/system.default-2.0.0.dshpack.tar   实际字节 sha256
-//   4. tauri-shell/artifacts/resolved/system.default/snapshot.json  package/version/digest
+//   4. tauri-shell/artifacts/resolved/snapshot.json         逐槽 bindings 里默认包的 version/digest
+//      （6.2.3 起快照是逐槽结构，坐标由 manager 产出，见 tools/publish-default-snapshot.mjs）
 //
 // 同时防止「第三方 active 摘要」与「默认回退摘要」被混为一谈：默认回退坐标
-// 恒为 `system.default`，快照 digest 只能取自 lock，不能取自任何第三方绑定。
+// 恒为 `system.default`，默认包绑定的 digest 只能取自 lock，不能取自任何第三方绑定；
+// 反过来，第三方包也不能借默认包名冒充默认制品（壳层 `default_binding_matches_lock`）。
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
