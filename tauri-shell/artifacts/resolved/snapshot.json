@@ -5,7 +5,7 @@
     "version": "0.3.0"
   },
   "generation": 1,
-  "createdAt": "2026-09-22T22:10:19.354Z",
+  "createdAt": "2026-09-22T22:55:25.718Z",
   "bindings": [
     {
       "slot": "top-sidebar",
@@ -76,76 +76,76 @@
   ],
   "assets": [
     {
-      "key": "system.default/regions/bottom-sidebar/styles.css",
-      "path": "gen-1/system.default/regions/bottom-sidebar/styles.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/bottom-sidebar/styles.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/bottom-sidebar/styles.css",
       "sha256": "sha256:10b4ee9a9eedff4b622d038a650ed6070804a3a93a03b56547986889af6ba623"
     },
     {
-      "key": "system.default/regions/left-sidebar/styles.css",
-      "path": "gen-1/system.default/regions/left-sidebar/styles.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/left-sidebar/styles.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/left-sidebar/styles.css",
       "sha256": "sha256:fb90579a3cb5c9bd8baadb55192140a699dbe1ecc667d4552ec82dd792d440fd"
     },
     {
-      "key": "system.default/regions/overlay/styles.css",
-      "path": "gen-1/system.default/regions/overlay/styles.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/overlay/styles.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/overlay/styles.css",
       "sha256": "sha256:e41bf032fc83ac49956ad0fb2e08b959cdcf2898e889a5987d81696040bc88c0"
     },
     {
-      "key": "system.default/regions/right-sidebar/styles.css",
-      "path": "gen-1/system.default/regions/right-sidebar/styles.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/right-sidebar/styles.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/right-sidebar/styles.css",
       "sha256": "sha256:8d5f0d607fae133c6ce9ae7f4e39cb6b577b06fad263daf6824becc6ea811738"
     },
     {
-      "key": "system.default/regions/session/styles.css",
-      "path": "gen-1/system.default/regions/session/styles.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/session/styles.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/session/styles.css",
       "sha256": "sha256:638a39c2b68c6d01e9f7f6dea624d5b2b63279469cb4808dcb9eac1890826bbc"
     },
     {
-      "key": "system.default/regions/top-sidebar/styles.css",
-      "path": "gen-1/system.default/regions/top-sidebar/styles.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/top-sidebar/styles.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/top-sidebar/styles.css",
       "sha256": "sha256:107ff007d6fc5710d3832ed917d723f7191ff0fedcbc6dbf9c3c684b8847ff15"
     },
     {
-      "key": "system.default/shared/common.css",
-      "path": "gen-1/system.default/shared/common.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css",
       "sha256": "sha256:fcc19b2671d32e8a8d3b8388b14cd33f29158a108f73001345a4718fd38b968e"
     },
     {
-      "key": "system.default/shared/tokens.css",
-      "path": "gen-1/system.default/shared/tokens.css",
+      "key": "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
+      "path": "gen-1/system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
       "sha256": "sha256:9e6c8e8bff39cebbbf0ef88b9f26dae044a46eb674c837846fd261d242eea1bd"
     }
   ],
   "slotAssets": {
     "top-sidebar": [
-      "system.default/regions/top-sidebar/styles.css",
-      "system.default/shared/tokens.css",
-      "system.default/shared/common.css"
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/top-sidebar/styles.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css"
     ],
     "bottom-sidebar": [
-      "system.default/regions/bottom-sidebar/styles.css",
-      "system.default/shared/tokens.css",
-      "system.default/shared/common.css"
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/bottom-sidebar/styles.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css"
     ],
     "left-sidebar": [
-      "system.default/regions/left-sidebar/styles.css",
-      "system.default/shared/tokens.css",
-      "system.default/shared/common.css"
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/left-sidebar/styles.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css"
     ],
     "right-sidebar": [
-      "system.default/regions/right-sidebar/styles.css",
-      "system.default/shared/tokens.css",
-      "system.default/shared/common.css"
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/right-sidebar/styles.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css"
     ],
     "session": [
-      "system.default/regions/session/styles.css",
-      "system.default/shared/tokens.css",
-      "system.default/shared/common.css"
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/session/styles.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css"
     ],
     "overlay": [
-      "system.default/regions/overlay/styles.css",
-      "system.default/shared/tokens.css",
-      "system.default/shared/common.css"
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/regions/overlay/styles.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/tokens.css",
+      "system.default/2.0.0/eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e/shared/common.css"
     ]
   },
   "fault": null

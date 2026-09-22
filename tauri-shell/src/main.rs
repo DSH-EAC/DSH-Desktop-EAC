@@ -210,20 +210,26 @@ mod shell_tests {
         std::env::remove_var("DSH_UI_SKIN_MANAGER_ROLLBACK");
     }
 
-    /// 装配一份真实的 `<resolvedRoot>/snapshot.json` + `gen-N/` 树，返回快照根。
+    /// 装配一份真实的 `<resolvedRoot>/snapshot.json` + `gen-N/` 树，返回快照根与资源 key。
+    ///
+    /// `asset_path` 是包内路径；资源 key 与落盘路径由**不可变坐标**
+    /// `<package>/<version>/<archive sha256>` 派生，与绑定逐字段一致 —— 宿主会核对这一点。
     fn write_snapshot_fixture(
         generation: u64,
         package: &str,
-        asset_key: &str,
+        asset_path: &str,
         css: &str,
         overrides: Option<&str>,
-    ) -> std::path::PathBuf {
+    ) -> (std::path::PathBuf, String) {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock before unix epoch")
             .as_nanos();
         let root =
             std::env::temp_dir().join(format!("dsh-snapshot-{}-{nonce}", std::process::id()));
+        let package_digest = fixture_package_digest();
+        let address = super::ui_skin_package_address(package, "1.0.0", &package_digest);
+        let asset_key = format!("{address}/{asset_path}");
         let relative = format!("gen-{generation}/{asset_key}");
         let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
         fs::create_dir_all(path.parent().expect("asset parent")).expect("create generation dir");
@@ -238,16 +244,16 @@ mod shell_tests {
                 .iter()
                 .map(|slot| serde_json::json!({
                     "slot": slot,
-                    "package": {"id": package, "version": "1.0.0", "digest": format!("sha256:{}", "a".repeat(64))},
+                    "package": {"id": package, "version": "1.0.0", "digest": package_digest},
                     "contribution": format!("{slot}.main"),
                     "generation": generation,
                     "state": "active"
                 }))
                 .collect::<Vec<_>>(),
-            "assets": [{"key": asset_key, "path": relative, "sha256": digest}],
+            "assets": [{"key": asset_key.as_str(), "path": relative, "sha256": digest}],
             "slotAssets": super::ui_skin_profile_slots()
                 .iter()
-                .map(|slot| (slot.clone(), serde_json::json!([asset_key])))
+                .map(|slot| (slot.clone(), serde_json::json!([asset_key.as_str()])))
                 .collect::<serde_json::Map<_, _>>(),
             "fault": null
         });
@@ -265,17 +271,23 @@ mod shell_tests {
             serde_json::to_string_pretty(&snapshot).expect("snapshot json"),
         )
         .expect("write snapshot");
-        root
+        (root, asset_key)
+    }
+
+    /// 夹具里那份第三方包的坐标摘要（`sha256:aaaa…`）：`write_snapshot_fixture` 的绑定与资源 key
+    /// 都由它派生，因此两者必然逐字段一致 —— 宿主核对坐标时不会因为夹具自身漂移而误判。
+    fn fixture_package_digest() -> String {
+        format!("sha256:{}", "a".repeat(64))
     }
 
     #[test]
     fn snapshot_verifier_accepts_a_real_external_coordinate() {
         let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
         // 一个**非 system.default** 的包：宿主不再假设 active 包名。
-        let root = write_snapshot_fixture(
+        let (root, key) = write_snapshot_fixture(
             7,
             "io.github.dsh-eac-community.fixture-session",
-            "io.github.dsh-eac-community.fixture-session/regions/session/styles.css",
+            "regions/session/styles.css",
             "[data-region=\"session\"]{color:#9d7cd8}\n",
             None,
         );
@@ -288,9 +300,13 @@ mod shell_tests {
             .iter()
             .all(|binding| binding.package.id == "io.github.dsh-eac-community.fixture-session"));
         // `/skin/` 只服务这份白名单：登记过的 key 200，其他一律 404。
+        assert_eq!(shell_http_status(&format!("/skin/{key}")), 200);
+        // 坐标写法是接口的一部分：key 必须以 `<id>/<version>/<archive sha256>/` 开头。
+        assert!(key.starts_with("io.github.dsh-eac-community.fixture-session/1.0.0/"));
+        // 只写包名（旧写法）不是地址：同一包的两个版本会撞成同一个 key。
         assert_eq!(
             shell_http_status("/skin/io.github.dsh-eac-community.fixture-session/regions/session/styles.css"),
-            200
+            404
         );
         assert_eq!(shell_http_status("/skin/system.default/regions/session/styles.css"), 404);
         assert_eq!(shell_http_status("/skin/../../secret.css"), 404);
@@ -302,7 +318,11 @@ mod shell_tests {
     #[test]
     fn snapshot_verifier_rejects_every_invalid_shape() {
         let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
-        let key = "io.example.pkg/regions/session/styles.css";
+        let asset_path = "regions/session/styles.css";
+        let key = format!(
+            "io.example.pkg/1.0.0/{}/regions/session/styles.css",
+            "a".repeat(64)
+        );
         let css = "[data-region=\"session\"]{}\n";
 
         // 未知 schema / 错误 profile 版本 / 0 代 / 带 fault / 缺 slot / 越代资源路径 /
@@ -316,12 +336,46 @@ mod shell_tests {
             ("zero generation", r#"{"generation":0}"#.to_string()),
             ("carries a fault", r#"{"fault":"HEALTH"}"#.to_string()),
             ("a slot is missing", r#"{"bindings":[]}"#.to_string()),
-            ("asset path from another generation", r#"{"assets":[{"key":"io.example.pkg/regions/session/styles.css","path":"gen-6/io.example.pkg/regions/session/styles.css","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}"#.to_string()),
-            ("slotAssets references an unresolved key", r#"{"slotAssets":{"session":["io.example.pkg/nope.css"]}}"#.to_string()),
-            ("a binding is not active", r#"{"bindings":[{"slot":"top-sidebar","package":{"id":"io.example.pkg","version":"1.0.0","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"contribution":"top-sidebar.main","generation":7,"state":"staged"}]}"#.to_string()),
+            (
+                "asset path from another generation",
+                format!(
+                    r#"{{"assets":[{{"key":"{key}","path":"gen-6/{key}","sha256":"{}"}}]}}"#,
+                    "a".repeat(64)
+                ),
+            ),
+            (
+                "slotAssets references an unresolved key",
+                format!(r#"{{"slotAssets":{{"session":["{key}.nope"]}}}}"#),
+            ),
+            (
+                "a binding is not active",
+                format!(
+                    r#"{{"bindings":[{{"slot":"top-sidebar","package":{{"id":"io.example.pkg","version":"1.0.0","digest":"sha256:{}"}},"contribution":"top-sidebar.main","generation":7,"state":"staged"}}]}}"#,
+                    "a".repeat(64)
+                ),
+            ),
+            // 只写包名的旧 key 不是地址：它无法区分同一包的两个版本，必须被拒。
+            (
+                "an id-only asset key",
+                format!(
+                    r#"{{"assets":[{{"key":"io.example.pkg/{asset_path}","path":"gen-7/io.example.pkg/{asset_path}","sha256":"{}"}}],"slotAssets":{{"session":["io.example.pkg/{asset_path}"]}}}}"#,
+                    "a".repeat(64)
+                ),
+            ),
+            // 资源坐标与绑定坐标不一致：快照不得服务它没有绑定的包的字节。
+            (
+                "an asset addressed under an unbound coordinate",
+                format!(
+                    r#"{{"assets":[{{"key":"io.example.other/1.0.0/{}/{asset_path}","path":"gen-7/io.example.other/1.0.0/{}/{asset_path}","sha256":"{}"}}],"slotAssets":{{"session":["io.example.other/1.0.0/{}/{asset_path}"]}}}}"#,
+                    "a".repeat(64),
+                    "a".repeat(64),
+                    "a".repeat(64),
+                    "a".repeat(64)
+                ),
+            ),
         ];
         for (label, patch) in cases {
-            let root = write_snapshot_fixture(7, "io.example.pkg", key, css, Some(&patch));
+            let (root, _) = write_snapshot_fixture(7, "io.example.pkg", asset_path, css, Some(&patch));
             std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
             assert!(
                 super::ui_skin_manager_snapshot().is_none(),
@@ -333,7 +387,7 @@ mod shell_tests {
 
         // 默认包名不可借用：id 是 system.default 时，version/digest 必须逐字段等于
         // build lock 的默认制品坐标（fixture 给的是全 a 摘要，必须被拒）。
-        let root = write_snapshot_fixture(7, "system.default", key, css, None);
+        let (root, _) = write_snapshot_fixture(7, "system.default", asset_path, css, None);
         std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
         assert!(
             super::ui_skin_manager_snapshot().is_none(),
@@ -341,6 +395,29 @@ mod shell_tests {
         );
         std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
         fs::remove_dir_all(root).expect("remove snapshot fixture");
+    }
+
+    /// 同一包 id 的两个版本各占一个坐标：第二个版本的资源不会因为 key 相同被静默顶替。
+    #[test]
+    fn two_versions_of_one_package_id_are_two_addresses() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        let package = "io.example.pkg";
+        let digest_v1 = format!("sha256:{}", "a".repeat(64));
+        let key_v1 = format!("{}/1.0.0/{}/regions/session/styles.css", package, "a".repeat(64));
+        let key_v2 = format!("{}/2.0.0/{}/regions/session/styles.css", package, "b".repeat(64));
+        assert_ne!(key_v1, key_v2, "同一 id 的两个版本必须是两个地址");
+        assert_eq!(
+            super::ui_skin_package_address(package, "1.0.0", &digest_v1),
+            format!("{package}/1.0.0/{}", "a".repeat(64))
+        );
+        assert_eq!(super::ui_skin_asset_address(&key_v1).as_deref(), Some(format!("{package}/1.0.0/{}", "a".repeat(64)).as_str()));
+        assert_eq!(super::ui_skin_asset_address(&key_v2).as_deref(), Some(format!("{package}/2.0.0/{}", "b".repeat(64)).as_str()));
+        // 只写包名 / 缺版本 / 摘要不是 64 hex：都不是地址。
+        assert!(super::ui_skin_asset_address(&format!("{package}/regions/session/styles.css")).is_none());
+        assert!(super::ui_skin_asset_address(&format!("{package}/1.0.0/regions/session/styles.css")).is_none());
+        assert!(super::ui_skin_asset_address(&format!("{package}/1.0.0/{}/x.css", "A".repeat(64))).is_none());
+        assert!(super::ui_skin_asset_address(&format!("{package}/1.0.0/{}/x.css", "a".repeat(63))).is_none());
+        assert!(super::ui_skin_asset_address(&format!("{package}/1.0.0/{}/", "a".repeat(64))).is_none());
     }
 
     #[test]
@@ -464,8 +541,8 @@ mod shell_tests {
     #[test]
     fn served_asset_must_match_the_recorded_digest() {
         let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
-        let key = "io.example.pkg/regions/session/styles.css";
-        let root = write_snapshot_fixture(3, "io.example.pkg", key, "[data-region=\"session\"]{}\n", None);
+        let (root, key) =
+            write_snapshot_fixture(3, "io.example.pkg", "regions/session/styles.css", "[data-region=\"session\"]{}\n", None);
         std::env::set_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE", &root);
         assert_eq!(shell_http_status(&format!("/skin/{key}")), 200);
 
@@ -2288,6 +2365,39 @@ fn ui_skin_digest_is_well_formed(digest: &str) -> bool {
     hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+/// 绑定命名的**不可变坐标** `<id>/<version>/<archive sha256>`。
+///
+/// 资源 key 与落盘路径都由它派生，因此一个包的字节只能落在它自己的坐标下：同一包的两个版本
+/// 各自持有不同坐标，谁也无法顶替谁。
+fn ui_skin_package_address(id: &str, version: &str, digest: &str) -> String {
+    format!(
+        "{id}/{version}/{}",
+        digest.strip_prefix("sha256:").unwrap_or(digest)
+    )
+}
+
+/// 资源 key 的坐标前缀：key 必须是 `<id>/<version>/<64 hex>/<path>`，否则 `None`。
+///
+/// 只有 id 的旧写法（`<id>/<path>`）无法定位到唯一字节 —— 同一包的两个版本会撞成同一个 key，
+/// 一个版本被另一个静默顶替，所以它在这里被拒，而不是被当成"没写坐标但大概也行"。
+fn ui_skin_asset_address(key: &str) -> Option<String> {
+    let parts: Vec<&str> = key.split('/').collect();
+    if parts.len() < 4 {
+        return None;
+    }
+    let (id, version, digest) = (parts[0], parts[1], parts[2]);
+    if id.is_empty() || version.is_empty() {
+        return None;
+    }
+    if digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+        return None;
+    }
+    if parts[3..].iter().any(|segment| segment.is_empty()) {
+        return None;
+    }
+    Some(format!("{id}/{version}/{digest}"))
+}
+
 /// 已验证快照：只有通过全部校验的快照才会变成这个类型，消费面拿不到未验证的数据。
 #[derive(Clone, Debug)]
 struct VerifiedSnapshot {
@@ -2357,6 +2467,9 @@ fn verify_ui_skin_snapshot(snapshot: &UiSkinManagerSnapshot) -> Option<VerifiedS
         return reject("the compiled HostProfile declares no slots".to_string());
     }
     let mut bound: Vec<String> = Vec::new();
+    // 绑定命名的不可变坐标 `<id>/<version>/<archive sha256>`：每条被解析的资源都必须落在其中
+    // 之一，否则一个快照可以服务"它并未绑定的包"的字节。
+    let mut bound_addresses: Vec<String> = Vec::new();
     for binding in &snapshot.bindings {
         if !slots.contains(&binding.slot) {
             return reject(format!("{} is not a slot of the compiled HostProfile", binding.slot));
@@ -2388,6 +2501,11 @@ fn verify_ui_skin_snapshot(snapshot: &UiSkinManagerSnapshot) -> Option<VerifiedS
                 binding.slot
             ));
         }
+        bound_addresses.push(ui_skin_package_address(
+            &binding.package.id,
+            &binding.package.version,
+            &binding.package.digest,
+        ));
         bound.push(binding.slot.clone());
     }
     for slot in &slots {
@@ -2407,7 +2525,22 @@ fn verify_ui_skin_snapshot(snapshot: &UiSkinManagerSnapshot) -> Option<VerifiedS
         if !ui_skin_digest_is_well_formed(&asset.sha256) {
             return reject(format!("asset {} digest {} is not sha256:<64 hex>", asset.key, asset.sha256));
         }
-        // 坐标、资源与 generation 同代：资源只能落在本代目录里。
+        // 资源 key 必须带不可变坐标：id 单独不足以定位字节，同一包的两个版本会撞成同一个 key，
+        // 一个版本会被另一个静默顶替。
+        let address = ui_skin_asset_address(&asset.key);
+        let Some(address) = address else {
+            return reject(format!(
+                "asset key {} is not addressed as <id>/<version>/<archive sha256>/<path>",
+                asset.key
+            ));
+        };
+        if !bound_addresses.iter().any(|candidate| candidate == &address) {
+            return reject(format!(
+                "asset {} is addressed under {address}, which no binding names",
+                asset.key
+            ));
+        }
+        // 坐标、资源与 generation 同代：资源只能落在本代目录里，且路径就是 key 本身。
         let expected = format!("gen-{}/{}", snapshot.generation, asset.key);
         if asset.path != expected {
             return reject(format!(
@@ -2529,8 +2662,8 @@ fn ui_skin_fallback_coordinate_matches_lock() -> bool {
 /// 默认 slot 走同一条消费路径（这也修掉了旧实现把资源根钉死在
 /// `resolved/system.default` 的硬编码）。
 fn ui_skin_manager_root() -> PathBuf {
-    // 测试钩子：仅在 debug 构建里允许把快照根指到临时目录，release 成品没有任何环境变量
-    // 能改变资源根（否则"任意本地路径"会从环境变量重新打开）。
+    // 测试/验证钩子：仅在 debug 构建里允许把快照根指到临时目录，release 成品没有任何
+    // 环境变量能改变资源根（否则"任意本地路径"会从环境变量重新打开）。
     #[cfg(debug_assertions)]
     if let Ok(override_root) = std::env::var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE") {
         if !override_root.is_empty() {
@@ -2900,6 +3033,8 @@ fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {
                 set_current_web_url(url);
                 println!("[shell] web-ready → navigate: {}", url);
                 let url = url.to_string();
+                #[cfg(debug_assertions)]
+                spawn_skin_self_test(app, url.clone());
                 let app2 = app.clone();
                 let _ = app.run_on_main_thread(move || {
                     use tauri::Manager;
@@ -2974,10 +3109,128 @@ fn handle_sidecar_notify(app: &tauri::AppHandle, v: &Value) {
     }
 }
 
+/// Debug-only: read the *live* rendered skin state out of the real WebView2 window and write it to
+/// `DSH_SKIN_SELF_TEST`.
+///
+/// Why this exists instead of CDP: on this host the WebView2 runtime never binds its
+/// `--remote-debugging-port` (Chrome with the same flag does), so the DOM cannot be reached from
+/// outside the process. The host's own `eval_with_callback` runs the probe *inside* the very
+/// engine that renders the window, which is a stronger statement than an external CDP attach: the
+/// bytes we read are the bytes the user sees. Never compiled into a release build.
+#[cfg(debug_assertions)]
+const SKIN_SELF_TEST_PROBE: &str = r#"
+(function () {
+  try {
+    var manager = window.__DSH_UI_SKIN_MANAGER__ || null;
+    var tags = Array.prototype.map.call(document.querySelectorAll('style[data-skin-slot]'), function (n) {
+      return {
+        slot: n.getAttribute('data-skin-slot'),
+        generation: n.getAttribute('data-skin-generation'),
+        length: n.textContent.length,
+        text: n.textContent
+      };
+    });
+    var probe = function (sel) {
+      var el = document.querySelector(sel);
+      if (!el) return null;
+      var cs = getComputedStyle(el);
+      return {
+        background: cs.backgroundColor,
+        color: cs.color,
+        accent: cs.getPropertyValue('--eac-shell-accent').trim()
+      };
+    };
+    return JSON.stringify({
+      url: location.href,
+      title: document.title,
+      readyState: document.readyState,
+      managerEnabled: !!(manager && manager.enabled === true),
+      managerGeneration: manager ? manager.generation : null,
+      managerSlotCount: manager && manager.slots ? Object.keys(manager.slots).length : 0,
+      managerBindings: manager && manager.bindings ? manager.bindings : null,
+      skinTags: tags,
+      legacyTagPresent: !!document.getElementById('dsh-ui-skin'),
+      computed: {
+        sessionRoot: probe('[data-region="session"][data-control-name="session-root"]'),
+        sessionAny: probe('[data-region="session"]'),
+        topSidebar: probe('[data-region="top-sidebar"]'),
+        overlay: probe('[data-region="overlay"]'),
+        rootAccent: getComputedStyle(document.documentElement).getPropertyValue('--eac-shell-accent').trim()
+      }
+    });
+  } catch (error) {
+    return JSON.stringify({probeError: String(error)});
+  }
+})()
+"#;
+
+/// Wait for the real web UI, then evaluate the skin probe in-engine and write the JSON result.
+#[cfg(debug_assertions)]
+fn spawn_skin_self_test(app: &tauri::AppHandle, url: String) {
+    let out = match std::env::var("DSH_SKIN_SELF_TEST") {
+        Ok(path) if !path.trim().is_empty() => path,
+        _ => return,
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // The chrome bridge injects on DOMContentLoaded and the manager bootstrap is already in the
+        // initialization script, but the app shell still has to mount; poll until the probe sees
+        // both the bootstrap and the injected <style> tags, then write once and exit.
+        for attempt in 0..45 {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+            // 回调是 `Fn`（可能被多次调用），用 Mutex<Option<_>> 取一次就交出所有权。
+            let tx = std::sync::Mutex::new(Some(tx));
+            let app_eval = app.clone();
+            let ok = app.run_on_main_thread(move || {
+                use tauri::Manager;
+                if let Some(win) = app_eval.get_webview_window("main") {
+                    let _ = win.eval_with_callback(SKIN_SELF_TEST_PROBE, move |value| {
+                        if let Ok(mut slot) = tx.lock() {
+                            if let Some(sender) = slot.take() {
+                                let _ = sender.send(value);
+                            }
+                        }
+                    });
+                }
+            });
+            if ok.is_err() {
+                continue;
+            }
+            let raw = match tokio::time::timeout(std::time::Duration::from_secs(10), rx).await {
+                Ok(Ok(value)) => value,
+                _ => continue,
+            };
+            let trimmed = raw.trim_matches('"').replace("\\\"", "\"").replace("\\\\", "\\");
+            let parsed: Value = serde_json::from_str(&trimmed).unwrap_or(Value::Null);
+            let ready = parsed.get("managerEnabled").and_then(Value::as_bool) == Some(true)
+                && parsed
+                    .get("skinTags")
+                    .and_then(Value::as_array)
+                    .is_some_and(|tags| !tags.is_empty());
+            if ready || attempt == 44 {
+                let _ = std::fs::write(&out, serde_json::to_string_pretty(&parsed).unwrap_or_default());
+                println!("[self-test] skin probe written to {out}");
+                std::process::exit(if ready { 0 } else { 1 });
+            }
+        }
+        std::process::exit(1);
+    });
+    let _ = url;
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--bridge-test") {
         std::process::exit(run_bridge_test());
+    }
+    #[cfg(debug_assertions)]
+    if args.iter().any(|a| a == "--skin-self-test") {
+        // 由 DSH_SKIN_SELF_TEST 指向输出文件；这里只是让"想跑自检"显式出现在命令行上。
+        if std::env::var("DSH_SKIN_SELF_TEST").is_err() {
+            eprintln!("--skin-self-test requires DSH_SKIN_SELF_TEST=<path>");
+            std::process::exit(2);
+        }
     }
 
     let state = BRIDGE.get_or_init(|| BridgeState {
