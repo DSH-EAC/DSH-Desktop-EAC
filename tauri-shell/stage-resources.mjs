@@ -245,8 +245,9 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills�
     copyRequired(path.join(dd, 'assets', name), path.join(staged, 'dsh-desktop', 'assets', name), '本体资产');
   }
   cpSync(path.join(dd, 'assets', 'skills'), path.join(staged, 'dsh-desktop', 'assets', 'skills'), { recursive: true });
+  const hostProfilePath = path.join(root, 'tauri-shell', 'host-profile.json');
   copyRequired(
-    path.join(root, 'tauri-shell', 'host-profile.json'),
+    hostProfilePath,
     path.join(staged, 'ui-skin-manager', 'host-profile.json'),
     'UI skin HostProfile',
   );
@@ -256,6 +257,30 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills�
   const managerLockPath = path.join(root, 'tauri-shell', 'skin-manager-artifact.lock.json');
   if (existsSync(managerArtifacts) && existsSync(managerLockPath)) {
     const lock = JSON.parse(readFileSync(managerLockPath, 'utf8'));
+    // 默认回退坐标一致性（Task 6.2.1）：host-profile 的 fallbackSkin 是默认
+    // 回退坐标，必须与 lock 同源。历史上它是手写副本（10c6461 抄了切换前的
+    // 旧摘要 0b3eca84…，同批 lock 已是 eb8142e4…），而这里只校验制品摘要、
+    // 不比对 profile，漂移一路进包。装配前直接拒绝，避免产出坏坐标的载荷。
+    {
+      const profile = JSON.parse(readFileSync(hostProfilePath, 'utf8'));
+      const fallback = profile?.fallbackSkin;
+      const locked = {
+        id: lock.default.package,
+        version: lock.default.version,
+        digest: `sha256:${lock.default.sha256}`,
+      };
+      if (
+        fallback?.id !== locked.id
+        || fallback?.version !== locked.version
+        || fallback?.digest !== locked.digest
+      ) {
+        throw new Error(
+          `[stage] HostProfile fallbackSkin 与 lock 默认制品坐标漂移：`
+          + `profile=${fallback?.id}@${fallback?.version} ${fallback?.digest} `
+          + `lock=${locked.id}@${locked.version} ${locked.digest}`,
+        );
+      }
+    }
     const expected = new Map([
       [lock.manager.artifact, lock.manager.sha256],
       [lock.default.artifact, lock.default.sha256],

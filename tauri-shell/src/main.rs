@@ -57,6 +57,11 @@ const SKIN_MANAGER_LOCK: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/skin-manager-artifact.lock.json"
 ));
+// HostProfile 同样编进二进制：它的 fallbackSkin 是**默认回退坐标**，必须与
+// lock / 制品 / 快照同源。历史上它是手写副本（10c6461 抄了切换前的旧摘要
+// 0b3eca84…，而同批已把 lock 改成 eb8142e4…），打包期又不比对 lock，
+// 缺陷一直存活。这里让漂移在启动期就暴露，而不是只在 CI 里。
+const HOST_PROFILE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/host-profile.json"));
 static CHINESE_UI: OnceLock<bool> = OnceLock::new();
 
 // 桥端口回退：19873 被占（他程序占用/异常残留监听）时向上探测 25 个候选，
@@ -136,11 +141,14 @@ fn ui_text<'a>(zh: &'a str, en: &'a str) -> &'a str {
 mod shell_tests {
     use super::{
         is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status, ui_skin_asset,
-        ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
+        ui_skin_fallback_coordinate_matches_lock, ui_skin_manager_enabled,
+        ui_skin_manager_snapshot, verified_resource_root,
     };
     use std::fs;
     use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use serde_json::Value;
 
     static SKIN_MANAGER_ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -208,6 +216,97 @@ mod shell_tests {
         assert!(snapshot.assets.get("../escape.css").is_none());
         assert!(snapshot.assets.get("unknown.css").is_none());
         std::env::remove_var("DSH_UI_SKIN_MANAGER");
+    }
+
+    #[test]
+    fn fallback_coordinate_is_pinned_to_the_build_lock() {
+        // 回归门禁（Task 6.2.1）：host-profile.fallbackSkin 曾经是手写副本，
+        // 抄的是切换前旧制品摘要 0b3eca84…，而 lock / 制品 / 快照都是
+        // eb8142e4…。当时只有正则断言，漂移存活。此测试要求四处同源。
+        assert!(
+            ui_skin_fallback_coordinate_matches_lock(),
+            "host-profile.fallbackSkin 与 lock 默认制品坐标漂移（回退坐标必须由 build lock 供给）"
+        );
+        let profile: Value = serde_json::from_str(super::HOST_PROFILE).expect("host profile json");
+        let lock: Value = serde_json::from_str(super::SKIN_MANAGER_LOCK).expect("lock json");
+        let locked_digest = format!(
+            "sha256:{}",
+            lock["default"]["sha256"].as_str().expect("lock sha256")
+        );
+        let fallback = profile.get("fallbackSkin").expect("fallbackSkin");
+        assert_eq!(
+            fallback.get("digest").and_then(Value::as_str),
+            Some(locked_digest.as_str()),
+            "回退摘要必须等于 lock 的默认制品摘要"
+        );
+        assert_eq!(
+            fallback.get("id").and_then(Value::as_str),
+            Some("system.default")
+        );
+        assert_eq!(
+            fallback.get("version").and_then(Value::as_str),
+            Some("2.0.0")
+        );
+        // 第三方 active 摘要不得冒充默认回退坐标：快照坐标必须仍是 system.default。
+        let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
+        assert_eq!(snapshot.package, "system.default");
+        assert_eq!(snapshot.digest, locked_digest);
+    }
+
+    #[test]
+    fn stale_fallback_coordinate_is_rejected_by_the_gate() {
+        // 负向对照：把切换前的旧摘要注入 HostProfile 副本，门禁必须拒绝。
+        // 没有这条，门禁可能只是「恰好通过」，而不是真的在比对。
+        let stale = super::HOST_PROFILE.replace(
+            "sha256:eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e",
+            "sha256:0b3eca8493f83306fb1b8f40c0c4d2d4b368f5453b2456c5e5d942a751c483b6",
+        );
+        assert_ne!(stale, super::HOST_PROFILE, "负向样例未替换到目标摘要");
+        assert!(
+            !super::fallback_coordinate_matches_lock(&stale, super::SKIN_MANAGER_LOCK),
+            "旧回退坐标必须被门禁拒绝（0b3eca84… 不得通过）"
+        );
+        // 版本漂移同样必须拒绝，不能只看摘要（锚点取 fallbackSkin 块内的版本行，
+        // 否则会误改 HostProfile 自身的 profile 版本而测不到目标分支）。
+        let wrong_version = super::HOST_PROFILE.replace(
+            "\"version\": \"2.0.0\",\n    \"digest\"",
+            "\"version\": \"1.0.0\",\n    \"digest\"",
+        );
+        assert_ne!(
+            wrong_version,
+            super::HOST_PROFILE,
+            "版本负向样例未替换到目标行"
+        );
+        assert!(
+            !super::fallback_coordinate_matches_lock(&wrong_version, super::SKIN_MANAGER_LOCK),
+            "回退版本漂移必须被门禁拒绝"
+        );
+        // 包 id 漂移（第三方包名冒充默认回退）同样拒绝。
+        let wrong_id = super::HOST_PROFILE.replace(
+            "\"id\": \"system.default\",\n    \"version\": \"2.0.0\"",
+            "\"id\": \"io.example.third-party\",\n    \"version\": \"2.0.0\"",
+        );
+        assert_ne!(
+            wrong_id,
+            super::HOST_PROFILE,
+            "包 id 负向样例未替换到目标行"
+        );
+        assert!(
+            !super::fallback_coordinate_matches_lock(&wrong_id, super::SKIN_MANAGER_LOCK),
+            "第三方包名冒充默认回退坐标必须被拒绝"
+        );
+        // 空/损坏输入一律拒绝（fail-closed），不得默认放行。
+        assert!(!super::fallback_coordinate_matches_lock(
+            "{}",
+            super::SKIN_MANAGER_LOCK
+        ));
+        assert!(!super::fallback_coordinate_matches_lock(
+            super::HOST_PROFILE,
+            "{}"
+        ));
+        assert!(!super::fallback_coordinate_matches_lock(
+            "not json", "not json"
+        ));
     }
 
     #[test]
@@ -1836,6 +1935,40 @@ fn ui_skin_manager_enabled() -> bool {
     )
 }
 
+/// 默认回退坐标一致性：`host-profile.fallbackSkin` 必须与 lock 的默认制品
+/// 逐字段同源（ADR 0003：回退坐标由 build lock 供给）。
+///
+/// 这里是**运行时**门禁，而不是打包期脚本：坐标漂移（例如回退摘要抄的是
+/// 旧制品）会让默认启动链路消费错坐标，必须在装配快照之前就拒掉。
+/// 只校验 `fallbackSkin` 一处，避免把第三方 active 摘要当成默认回退摘要。
+fn fallback_coordinate_matches_lock(profile_source: &str, lock_source: &str) -> bool {
+    let Ok(lock) = serde_json::from_str::<Value>(lock_source) else {
+        return false;
+    };
+    let Ok(profile) = serde_json::from_str::<Value>(profile_source) else {
+        return false;
+    };
+    let Some(fallback) = profile.get("fallbackSkin") else {
+        return false;
+    };
+    let locked_package = lock.pointer("/default/package").and_then(Value::as_str);
+    let locked_version = lock.pointer("/default/version").and_then(Value::as_str);
+    let locked_digest = lock.pointer("/default/sha256").and_then(Value::as_str);
+    let (Some(package), Some(version), Some(digest)) =
+        (locked_package, locked_version, locked_digest)
+    else {
+        return false;
+    };
+    fallback.get("id").and_then(Value::as_str) == Some(package)
+        && fallback.get("version").and_then(Value::as_str) == Some(version)
+        && fallback.get("digest").and_then(Value::as_str) == Some(&format!("sha256:{digest}"))
+}
+
+/// 编进二进制的两份坐标：HostProfile 与 build lock。
+fn ui_skin_fallback_coordinate_matches_lock() -> bool {
+    fallback_coordinate_matches_lock(HOST_PROFILE, SKIN_MANAGER_LOCK)
+}
+
 fn ui_skin_manager_root() -> PathBuf {
     let root = resource_root();
     let packaged = root
@@ -1854,6 +1987,11 @@ fn ui_skin_manager_root() -> PathBuf {
 
 fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
     if !ui_skin_manager_enabled() {
+        return None;
+    }
+    // 回退坐标漂移时一律不装配快照：宁可走 embedded fallback，也不消费错坐标。
+    if !ui_skin_fallback_coordinate_matches_lock() {
+        eprintln!("[shell] host-profile fallbackSkin coordinate drifted from the build lock");
         return None;
     }
     let path = ui_skin_manager_root().join("snapshot.json");
