@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "qq98",
+  "name": "QQ2008 怀旧版",
+  "nameEn": "QQ2008 Retro",
+  "author": "dsh-web-ui",
+  "description": "根据 EAC/AIO 现有 QQ2008 怀旧客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["retro", "qq", "2008", "crystal-blue", "nostalgia"],
+  "prompt": "prompt.md",
+  "sources": [
+    {"project": "EAC", "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf", "repositoryPath": "dsh-desktop/assets/skins/qq98", "tree": "694484a0e3713799fdec098408f0ad7379bc1cc8"},
+    {"project": "AIO", "revision": "89757fa4b10d789e7bec028102569deefdceafc9", "repositoryPath": "assets/skins/qq98", "tree": "abd0b2438ceee984b473da449a78c4c685197d7e"}
+  ],
+  "references": {
+    "implementation": ["../../../skins/qq98/skin.json", "../../../skins/qq98/lib/client.js"],
+    "previews": {"light": "../../../skins/qq98/preview/light.png", "dark": "../../../skins/qq98/preview/dark.png"},
+    "license": {"spdx": "BSD-3-Clause", "path": "../../../skins/dsh-skins-LICENSE.txt"}
+  },
+  "target": {"surface": "dsh-client-web-ui", "themes": ["light", "dark"], "preserveBehavior": true},
+  "requiredPromptSections": ["设计目标", "视觉关键词", "色彩系统", "页面布局", "核心控件", "明暗主题", "动画与交互", "业务与接口边界", "可用素材", "验收标准"]
+}

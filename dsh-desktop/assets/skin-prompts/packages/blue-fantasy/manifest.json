@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "blue-fantasy",
+  "name": "蓝色幻想",
+  "nameEn": "Blue Fantasy",
+  "author": "powerdog996（DreamSkin 社区）· dsh-web-ui 适配",
+  "description": "根据 EAC/AIO 现有蓝色幻想客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["dreamskin", "whale", "indigo", "art", "translucent"],
+  "prompt": "prompt.md",
+  "sources": [
+    {"project": "EAC", "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf", "repositoryPath": "dsh-desktop/assets/skins/blue-fantasy", "tree": "b8e878d1a1460265aa21a8c99f4495bd15da7425"},
+    {"project": "AIO", "revision": "89757fa4b10d789e7bec028102569deefdceafc9", "repositoryPath": "assets/skins/blue-fantasy", "tree": "0bff405a809a0764b43aa972a4788a781e8a4ba3"}
+  ],
+  "references": {
+    "implementation": ["../../../skins/blue-fantasy/skin.json", "../../../skins/blue-fantasy/lib/client.js"],
+    "previews": {"light": "../../../skins/blue-fantasy/preview/light.png", "dark": "../../../skins/blue-fantasy/preview/dark.png"},
+    "license": {"spdx": "BSD-3-Clause", "path": "../../../skins/dsh-skins-LICENSE.txt"}
+  },
+  "target": {"surface": "dsh-client-web-ui", "themes": ["light", "dark"], "preserveBehavior": true},
+  "requiredPromptSections": ["设计目标", "视觉关键词", "色彩系统", "页面布局", "核心控件", "明暗主题", "动画与交互", "业务与接口边界", "可用素材", "验收标准"]
+}

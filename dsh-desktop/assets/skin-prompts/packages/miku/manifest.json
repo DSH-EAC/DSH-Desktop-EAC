@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "miku",
+  "name": "初音未来 · 电子歌姬",
+  "nameEn": "Hatsune Miku",
+  "author": "涂山苏苏",
+  "description": "根据 EAC/AIO 现有初音未来客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["miku", "vocaloid", "blue", "music", "idol", "waveform"],
+  "prompt": "prompt.md",
+  "sources": [
+    {
+      "project": "EAC",
+      "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf",
+      "repositoryPath": "dsh-desktop/assets/skins/miku",
+      "tree": "7753acc5382cf93da96a4904a904184344c7b2c6"
+    },
+    {
+      "project": "AIO",
+      "revision": "89757fa4b10d789e7bec028102569deefdceafc9",
+      "repositoryPath": "assets/skins/miku",
+      "tree": "2eb0bc6ac36dad94b0aeaf21f5246e575665d3cc"
+    }
+  ],
+  "references": {
+    "implementation": [
+      "../../../skins/miku/skin.json",
+      "../../../skins/miku/lib/client.js"
+    ],
+    "previews": {
+      "light": "../../../skins/miku/preview/light.png",
+      "dark": "../../../skins/miku/preview/dark.png"
+    },
+    "license": {
+      "spdx": "BSD-3-Clause",
+      "path": "../../../skins/dsh-skins-LICENSE.txt"
+    }
+  },
+  "target": {
+    "surface": "dsh-client-web-ui",
+    "themes": ["light", "dark"],
+    "preserveBehavior": true
+  },
+  "requiredPromptSections": [
+    "设计目标",
+    "视觉关键词",
+    "色彩系统",
+    "字体与排版",
+    "页面布局",
+    "核心控件",
+    "明暗主题",
+    "动画与交互",
+    "业务与接口边界",
+    "可用素材",
+    "验收标准"
+  ]
+}

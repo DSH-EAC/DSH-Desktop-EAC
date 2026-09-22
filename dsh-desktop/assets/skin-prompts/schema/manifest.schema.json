@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DSH-EAC/DSH-Desktop-EAC/schemas/skin-prompt-package-v1.json",
+  "title": "DSH 自定义皮肤 Prompt 包清单",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "id",
+    "name",
+    "author",
+    "prompt",
+    "sources",
+    "references",
+    "target",
+    "requiredPromptSections"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "skin-prompt-package"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nameEn": {
+      "type": "string",
+      "minLength": 1
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "prompt": {
+      "type": "string",
+      "pattern": "^prompt\\.md$"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project", "revision", "repositoryPath", "tree"],
+        "properties": {
+          "project": {
+            "enum": ["EAC", "AIO"]
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "repositoryPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tree": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        }
+      }
+    },
+    "references": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["implementation", "previews", "license"],
+      "properties": {
+        "implementation": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "previews": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["light", "dark"],
+          "properties": {
+            "light": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dark": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "license": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["spdx", "path"],
+          "properties": {
+            "spdx": {
+              "type": "string",
+              "minLength": 1
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "themes", "preserveBehavior"],
+      "properties": {
+        "surface": {
+          "const": "dsh-client-web-ui"
+        },
+        "themes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["light", "dark"]
+          }
+        },
+        "preserveBehavior": {
+          "const": true
+        }
+      }
+    },
+    "requiredPromptSections": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

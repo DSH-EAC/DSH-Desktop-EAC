@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "dragon-heir",
+  "name": "龙的传人",
+  "nameEn": "Dragon Heir",
+  "author": "dsh-web-ui",
+  "description": "根据 EAC/AIO 现有龙的传人客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["dragon", "loong", "chinese", "ink-wash", "great-wall", "dual-theme"],
+  "prompt": "prompt.md",
+  "sources": [
+    {"project": "EAC", "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf", "repositoryPath": "dsh-desktop/assets/skins/dragon-heir", "tree": "ccbca1175f63686cfd8368dea49a51966bf14cd6"},
+    {"project": "AIO", "revision": "89757fa4b10d789e7bec028102569deefdceafc9", "repositoryPath": "assets/skins/dragon-heir", "tree": "942ffeb4c8badf1f66f49b6efcd7a4ceff5d5d5c"}
+  ],
+  "references": {
+    "implementation": ["../../../skins/dragon-heir/skin.json", "../../../skins/dragon-heir/lib/client.js"],
+    "previews": {"light": "../../../skins/dragon-heir/preview/light.png", "dark": "../../../skins/dragon-heir/preview/dark.png"},
+    "license": {"spdx": "BSD-3-Clause", "path": "../../../skins/dsh-skins-LICENSE.txt"}
+  },
+  "target": {"surface": "dsh-client-web-ui", "themes": ["light", "dark"], "preserveBehavior": true},
+  "requiredPromptSections": ["设计目标", "视觉关键词", "色彩系统", "页面布局", "核心控件", "明暗主题", "动画与交互", "业务与接口边界", "可用素材", "验收标准"]
+}

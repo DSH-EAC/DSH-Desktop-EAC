@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "ths",
+  "name": "同花顺风格",
+  "nameEn": "Tonghuashun Trading",
+  "author": "dsh-web-ui",
+  "description": "根据 EAC/AIO 现有同花顺风格客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["stock", "trading", "terminal", "red"],
+  "prompt": "prompt.md",
+  "sources": [
+    {"project": "EAC", "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf", "repositoryPath": "dsh-desktop/assets/skins/ths", "tree": "ecc87faef3e52befc3ef8921be7d6e483ba5e068"},
+    {"project": "AIO", "revision": "89757fa4b10d789e7bec028102569deefdceafc9", "repositoryPath": "assets/skins/ths", "tree": "44270ab0eeae03a14f840074da46e894c0600f10"}
+  ],
+  "references": {
+    "implementation": ["../../../skins/ths/skin.json", "../../../skins/ths/lib/client.js"],
+    "previews": {"light": "../../../skins/ths/preview/light.png", "dark": "../../../skins/ths/preview/dark.png"},
+    "license": {"spdx": "BSD-3-Clause", "path": "../../../skins/dsh-skins-LICENSE.txt"}
+  },
+  "target": {"surface": "dsh-client-web-ui", "themes": ["light", "dark"], "preserveBehavior": true},
+  "requiredPromptSections": ["设计目标", "视觉关键词", "色彩系统", "页面布局", "核心控件", "明暗主题", "动画与交互", "业务与接口边界", "可用素材", "验收标准"]
+}

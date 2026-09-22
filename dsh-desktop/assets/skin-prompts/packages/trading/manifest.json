@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "trading",
+  "name": "交易终端",
+  "nameEn": "Trading Terminal",
+  "author": "dsh-web-ui",
+  "description": "根据 EAC/AIO 现有交易终端客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["stock", "trading", "ticker", "live", "terminal", "longbridge"],
+  "prompt": "prompt.md",
+  "sources": [
+    {"project": "EAC", "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf", "repositoryPath": "dsh-desktop/assets/skins/trading", "tree": "f0d514eaca38ba943d2310291e973093a5511582"},
+    {"project": "AIO", "revision": "89757fa4b10d789e7bec028102569deefdceafc9", "repositoryPath": "assets/skins/trading", "tree": "3612acab91ba0eb6a6e6087ee40a4d809a3cf313"}
+  ],
+  "references": {
+    "implementation": ["../../../skins/trading/skin.json", "../../../skins/trading/lib/client.js"],
+    "previews": {"light": "../../../skins/trading/preview/light.png", "dark": "../../../skins/trading/preview/dark.png"},
+    "license": {"spdx": "BSD-3-Clause", "path": "../../../skins/dsh-skins-LICENSE.txt"}
+  },
+  "target": {"surface": "dsh-client-web-ui", "themes": ["light", "dark"], "preserveBehavior": true},
+  "requiredPromptSections": ["设计目标", "视觉关键词", "色彩系统", "页面布局", "核心控件", "明暗主题", "动画与交互", "业务与接口边界", "可用素材", "验收标准"]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "minecraft",
+  "name": "Minecraft 方块世界",
+  "nameEn": "Minecraft Voxel",
+  "author": "dsh-web-ui",
+  "description": "根据 EAC/AIO 现有 Minecraft 方块世界客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["minecraft", "voxel", "pixel", "game", "panorama", "skybox"],
+  "prompt": "prompt.md",
+  "sources": [
+    {"project": "EAC", "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf", "repositoryPath": "dsh-desktop/assets/skins/minecraft", "tree": "51f7d8e86464e5c6a298cfd241de57e4b4ac8b98"},
+    {"project": "AIO", "revision": "89757fa4b10d789e7bec028102569deefdceafc9", "repositoryPath": "assets/skins/minecraft", "tree": "988560ed99b620d6e0c572d020a4fd911c50969e"}
+  ],
+  "references": {
+    "implementation": ["../../../skins/minecraft/skin.json", "../../../skins/minecraft/lib/client.js"],
+    "previews": {"light": "../../../skins/minecraft/preview/light.png", "dark": "../../../skins/minecraft/preview/dark.png"},
+    "license": {"spdx": "BSD-3-Clause", "path": "../../../skins/dsh-skins-LICENSE.txt"}
+  },
+  "target": {"surface": "dsh-client-web-ui", "themes": ["light", "dark"], "preserveBehavior": true},
+  "requiredPromptSections": ["设计目标", "视觉关键词", "色彩系统", "页面布局", "核心控件", "明暗主题", "动画与交互", "业务与接口边界", "可用素材", "验收标准"]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "skin-prompt-package",
+  "id": "xp",
+  "name": "Windows XP (Luna)",
+  "nameEn": "Windows XP Luna",
+  "author": "dsh-web-ui",
+  "description": "根据 EAC/AIO 现有 Windows XP Luna 客户端皮肤整理的 AI 创作与复刻说明。",
+  "tags": ["retro", "xp", "luna", "windows", "start-button"],
+  "prompt": "prompt.md",
+  "sources": [
+    {"project": "EAC", "revision": "26841f5ee83c154a9768cc0a9cec1d70078f0ddf", "repositoryPath": "dsh-desktop/assets/skins/xp", "tree": "b1b4cf81cd0249eab149fdfe1ffb30ed567fa68e"},
+    {"project": "AIO", "revision": "89757fa4b10d789e7bec028102569deefdceafc9", "repositoryPath": "assets/skins/xp", "tree": "e25e38a21eb215a3b99b711469c6fbf8d607b65c"}
+  ],
+  "references": {
+    "implementation": ["../../../skins/xp/skin.json", "../../../skins/xp/lib/client.js"],
+    "previews": {"light": "../../../skins/xp/preview/light.png", "dark": "../../../skins/xp/preview/dark.png"},
+    "license": {"spdx": "BSD-3-Clause", "path": "../../../skins/dsh-skins-LICENSE.txt"}
+  },
+  "target": {"surface": "dsh-client-web-ui", "themes": ["light", "dark"], "preserveBehavior": true},
+  "requiredPromptSections": ["设计目标", "视觉关键词", "色彩系统", "页面布局", "核心控件", "明暗主题", "动画与交互", "业务与接口边界", "可用素材", "验收标准"]
+}
