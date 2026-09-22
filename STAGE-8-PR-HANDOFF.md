@@ -21,9 +21,9 @@
 
 | 仓库 | 本地阶段分支 | 本地 HEAD | 远端当前事实 |
 |---|---|---|---|
-| `dsh-ui-skin-manager` | `stage-8-release-runbook`（基于已合并 `feat/stage-6-atomic-skin-switch`） | `7bcf5bfb6b83bcf9c8ac2f0fb8f9e95de96d7373` | 阶段 6 PR #9 已合并；未发现 `stage-8-release-runbook` 远端 branch/tag/release |
-| `dsh-desktop-eac-default-skins` | `stage-8-release-runbook`（基于已合并 `feat/stage-7-canonical-default-source`） | `bda0b948ee21f10651d5d390ab2c3a41d1632ef9` | 阶段 7 PR #2 已合并；未发现 `stage-8-release-runbook` 远端 branch/tag/release |
-| `DSH-Desktop-EAC` | `stage-8-release-runbook`（基于已合并阶段 7 head） | `80c777aa8a097e1ecb88d550533ed15531d13f28` | 阶段 7 PR #404 已合并且与本地候选同 head；未发现 `stage-8-release-runbook` 远端 branch/tag/release |
+| `dsh-ui-skin-manager` | `stage-8-release-runbook`（基于已合并 `feat/stage-6-atomic-skin-switch`） | `7bcf5bfb6b83bcf9c8ac2f0fb8f9e95de96d7373` | 已 push；远端 SHA 一致；CI run `35704298604` SUCCESS；无 stage-8 tag/release |
+| `dsh-desktop-eac-default-skins` | `stage-8-release-runbook`（基于已合并 `feat/stage-7-canonical-default-source`） | `bda0b948ee21f10651d5d390ab2c3a41d1632ef9` | 已 push；远端 SHA 一致；CI run `35704307695` SUCCESS；无 stage-8 tag/release |
+| `DSH-Desktop-EAC` | `stage-8-release-runbook`（产品基线 `80c777a…` 加本 runbook 文档提交） | 产品基线 `80c777aa8a097e1ecb88d550533ed15531d13f28` | 已 push runbook branch；docs-only push 未触发 Actions；无 stage-8 tag/release |
 
 复核时 manager 与 default-skins 工作树干净；EAC 共享工作树当前在 `fix/stage-7-ci-typescript-narrowing`，本地存在未提交用户变更，故没有切换、清理或声称其工作树干净。EAC 阶段 8 本地可读分支已在不切换工作树的前提下对齐至远端已合并且 CI 验证过的 `80c777a…`。本 handoff 不写入三个产品仓库；正式 tag 命名和 release 版本号必须在主人批准后按实际发布策略冻结，不在本地猜测。
 
@@ -142,7 +142,7 @@
 明确未执行：
 
 - 本机 compile/build/test/typecheck/WebView smoke：NOT RUN，遵循避免 freeze 的操作限制。
-- 当前阶段 8 三仓候选 branch 尚未 push；manager/default-skins 的阶段 PR 虽已合并，但没有阶段 8 tag/Release/asset。
+- 当前阶段 8 三仓候选 branch 已 push 并回读远端 SHA；manager/default-skins 新 branch CI 成功，但三仓均没有阶段 8 tag/Release/asset。
 - EAC 共享工作树存在未提交用户变更，未切换或清理；阶段 8 branch 指针已独立对齐到 `80c777a…`。
 - EAC macOS 构建/安装包、完整三平台安装包回读、升级/降级、offline install/restart、WebView smoke：NOT RUN；现有 CI 只证明 Linux/Windows x64/arm64 的 12 个 job。
 - 当前候选旧 manager 对新 schema 的拒绝矩阵、正式 provenance/attestation：NOT RUN。
@@ -164,7 +164,7 @@
 12. 发布、降级、撤回、previous-known-good 恢复 runbook 实际演练：FAIL（runbook 已完成，但实际演练尚未执行）。
 13. 首版无自动更新/watcher，日志 30 天、回滚 artifact 2 代，强制启用 30 秒自动恢复：PASS（contracts、stage 6 handoff、runbook scope）；生产接线与跨平台 E2E NOT RUN。
 
-结论：阶段 8 本地发布前验收与 runbook 文档 PASS；正式发布资格 FAIL/NOT READY，原因是阶段 8 候选未 push、CodeQL Python 未通过、缺少 macOS/安装包/WebView/旧 manager 拒绝矩阵/attestation/回滚演练证据。不得将此 artifact 表述为“已发布”。
+结论：阶段 8 本地发布前验收、runbook 文档与可读远端分支 PASS；正式发布资格 FAIL/NOT READY，原因是 EAC stage-8 docs-only push 未触发产品 CI、CodeQL Python 未通过、缺少 macOS/安装包/WebView/旧 manager 拒绝矩阵/attestation/回滚演练证据。不得将此 artifact 表述为“已发布”。
 
 ## 配置与迁移 Configuration & Migration
 
@@ -178,9 +178,9 @@
 
 以下每项均是外部不可逆或共享环境变更，未经主人明确批准不得执行：
 
-- [ ] push manager `stage-8-release-runbook` / 指定正式 release branch
-- [ ] push default-skins `stage-8-release-runbook` / 指定正式 release branch
-- [ ] push EAC `stage-8-release-runbook` / 指定正式 release branch
+- [x] push manager `stage-8-release-runbook`（已执行并回读远端 SHA/CI）
+- [x] push default-skins `stage-8-release-runbook`（已执行并回读远端 SHA/CI）
+- [x] push EAC `stage-8-release-runbook`（已执行并回读远端 SHA；docs-only push 未触发 CI）
 - [ ] 创建或合并三仓 PR
 - [ ] 创建 manager tag/Release 并上传 asset
 - [ ] 创建 default-skins tag/Release 并上传 artifact、checksums、provenance、release notes
@@ -194,8 +194,8 @@
 
 | 顺序 | 仓库 | 候选 commit | 拟发布 tag | 拟发布 assets / digest | 当前 CI / 发布状态 | 需主人批准的精确动作 |
 |---|---|---|---|---|---|---|
-| 1 | manager | `7bcf5bfb6b83bcf9c8ac2f0fb8f9e95de96d7373` | 待主人批准版本号后冻结 | 当前锁定候选 `dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz`, SHA-256 `13a4c5dbd1a31c9512f535a9c14f5072f933f284634f6763e569e65614a63378`；正式 release 必须重新生成并回读 digest | PR #9 MERGED；Node 22/24 与 artifact checks PASS；stage-8 branch/Release NOT RUN | 批准 push `stage-8-release-runbook`；批准创建指定 tag/Release；批准上传并回读 immutable asset/provenance/attestation |
-| 2 | default-skins | `bda0b948ee21f10651d5d390ab2c3a41d1632ef9` | 待主人批准版本号后冻结 | `system.default-2.0.0.dshpack.tar`, SHA-256 `eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e`；同时需要 `SHA256SUMS`、provenance、release notes | PR #2 MERGED；Node 22/24 validate PASS；stage-8 branch/Release NOT RUN | manager 发布回读 PASS 后，批准 push branch、创建指定 tag/Release、上传四类 assets 并回读 digest/attestation |
-| 3 | EAC | `80c777aa8a097e1ecb88d550533ed15531d13f28` | 待主人批准版本号后冻结 | 三平台安装包、SHA256SUMS、provenance/attestation：NOT BUILT，当前无可批准 digest | PR #404 MERGED；12/12 Linux/Windows Node/Rust/staged smoke PASS；CodeQL Python FAILURE；macOS/安装包/WebView NOT RUN | manager/default 发布回读 PASS 且 lock 更新后，批准 push branch、运行三平台 release CI；所有 gate PASS 后另行批准 tag/Release/assets |
+| 1 | manager | `7bcf5bfb6b83bcf9c8ac2f0fb8f9e95de96d7373` | 待主人批准版本号后冻结 | 当前锁定候选 `dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz`, SHA-256 `13a4c5dbd1a31c9512f535a9c14f5072f933f284634f6763e569e65614a63378`；正式 release 必须重新生成并回读 digest | stage-8 branch pushed；run `35704298604` SUCCESS；Release NOT RUN | 批准创建指定 tag/Release；批准上传并回读 immutable asset/provenance/attestation |
+| 2 | default-skins | `bda0b948ee21f10651d5d390ab2c3a41d1632ef9` | 待主人批准版本号后冻结 | `system.default-2.0.0.dshpack.tar`, SHA-256 `eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e`；同时需要 `SHA256SUMS`、provenance、release notes | stage-8 branch pushed；run `35704307695` SUCCESS；Release NOT RUN | manager 发布回读 PASS 后，批准创建指定 tag/Release、上传四类 assets 并回读 digest/attestation |
+| 3 | EAC | 产品基线 `80c777aa8a097e1ecb88d550533ed15531d13f28`；stage-8 branch 另含 runbook docs commit | 待主人批准版本号后冻结 | 三平台安装包、SHA256SUMS、provenance/attestation：NOT BUILT，当前无可批准 digest | stage-8 branch pushed；docs-only push 未触发 Actions；历史产品基线 CI 12/12 PASS；CodeQL Python FAILURE；macOS/安装包/WebView NOT RUN | manager/default 发布回读 PASS 且 lock 更新后，批准运行三平台 release CI；所有 gate PASS 后另行批准 tag/Release/assets |
 
 审批顺序不可合并：先批准 manager 的 branch/CI；其正式 Release 回读通过后再批准 default-skins；其 Release 回读通过后再批准 EAC lock 与 release CI。当前没有可靠依据填写三个正式 tag，也没有 EAC 安装包 digest，因此不得把“待冻结/NOT BUILT”替换为猜测值。
