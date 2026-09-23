@@ -83,6 +83,8 @@ const LIB_DESKTOP = [
   'install-profile.js', 'plugin-sync-registry.js',
   // Task 3.3 阶段 3：files.revert 的白名单根
   'file-roots.js',
+  // Task 6.2.4：skin.* 适配层（导入管理 UI 的 coordinator RPC）
+  'skin-manager.js',
 ];
 const SCRIPTS = [
   'patch-session-manage.js', 'patch-deps.js',

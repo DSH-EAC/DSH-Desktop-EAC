@@ -96,6 +96,8 @@ const bridgeTree = extractKeyTree(bridge, '(window as any).dshDesktop =');
 const ALWAYS_PRESENT = ['protocolVersion', 'locale', 'plugins', 'updates', 'windowControls', 'boot'];
 const RESTORED_BY_TASK_3_3 = ['pluginManager', 'guard', 'fileDrop', 'getPathForFile',
   'getInfo', 'revertFiles', 'openPath', 'openExternal'];
+// v6 Task 6.2.4：导入管理 UI 的 coordinator RPC 面（skin.* 的页面侧转发）。
+const ADDED_BY_TASK_6_2_4 = ['skinManager'];
 // 依据 metaone01 2026-09-19 的裁决（按 ADR 0006）：
 //  - balance 不作内置，转为推荐插件（Task 4 范围）；其 balance* RPC 面不接回；
 //  - plugin-wizard 因后续会与其它插件管理功能冲突，明确不接入。
@@ -113,6 +115,9 @@ test('bridge dshDesktop exposes the required namespaces（preload 退役后的�
   }
   for (const need of RESTORED_BY_TASK_3_3) {
     assert.ok(tops.includes(need), `bridge missing（Task 3.3 已接回） ${need}`);
+  }
+  for (const need of ADDED_BY_TASK_6_2_4) {
+    assert.ok(tops.includes(need), `bridge missing（Task 6.2.4 新增） ${need}`);
   }
   for (const dead of STILL_RETIRED) {
     assert.ok(!tops.includes(dead), `bridge 不得回退已收敛能力: ${dead}`);

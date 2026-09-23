@@ -41,6 +41,8 @@ const REQUIRED_FILES = [
   'dsh-desktop/lib/desktop/file-roots.js',
   'dsh-desktop/scripts/onboarding.js',
   'dsh-desktop/scripts/plugin-manager-patch.js',
+  // v6 Task 6.2.4：skin.* 适配层（sidecar mount('skin-manager') 的装配面）
+  'dsh-desktop/lib/desktop/skin-manager.js',
 ];
 
 const RETIRED_PATHS = [

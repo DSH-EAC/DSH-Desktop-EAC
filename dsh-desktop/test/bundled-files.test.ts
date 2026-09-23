@@ -75,6 +75,8 @@ test('装配清单只包含当前运行闭包与构建期职责', () => {
       // Task 3.3 三件套 + lib/desktop 依赖
       'guard-box.js', 'companion-sync.js', 'plugin-ops.js',
       'install-profile.js', 'plugin-sync-registry.js',
+      // Task 6.2.4：skin.* 适配层
+      'skin-manager.js',
     ],
     LIB_VNEXT: ['atomic-json.js', 'plugin-copy.js'],
     SCRIPTS: ['patch-session-manage.js', 'patch-deps.js', 'onboarding.js', 'plugin-manager-patch.js'],

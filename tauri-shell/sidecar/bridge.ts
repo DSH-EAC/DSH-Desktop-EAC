@@ -135,6 +135,27 @@
     guard: {
       action: function (action: string, value?: unknown) { return call('guard.action', { action: action, value: value }); },
     },
+    // ---- v6 Task 6.2.4：UI 皮肤管理器（coordinator RPC 的页面侧面）----
+    // 只做转发：选择 / 回滚 / 兼容性判定全在 manager 侧，页面不得另写策略。
+    // 每个方法都返回 {ok:true,...} 或 {ok:false, fault:{code,message,nextStep}}，
+    // 失败不走 reject —— UI 必须能拿到可定位的 code 与下一步，而不是一句 message。
+    skinManager: {
+      status: function () { return call('skin.status', {}); },
+      list: function () { return call('skin.list', {}); },
+      inspect: function (archivePath: string) { return call('skin.inspect', { archivePath: archivePath }); },
+      importArchive: function (archivePath: string, expectedArchiveSha256?: string) {
+        var params: Record<string, unknown> = { archivePath: archivePath };
+        if (typeof expectedArchiveSha256 === 'string' && expectedArchiveSha256) params.expectedArchiveSha256 = expectedArchiveSha256;
+        return call('skin.import', params);
+      },
+      select: function (slot: string, packageId: string, packageVersion: string) {
+        return call('skin.select', { slot: slot, packageId: packageId, packageVersion: packageVersion });
+      },
+      deselect: function (slot?: string) { return call('skin.deselect', slot ? { slot: slot } : {}); },
+      apply: function () { return call('skin.apply', {}); },
+      revert: function (slot?: string) { return call('skin.revert', slot ? { slot: slot } : {}); },
+      diagnose: function () { return call('skin.diagnose', {}); },
+    },
     fileDrop: {
       save: function (payload: Record<string, unknown>) { return call('file-drop.save', payload || {}); },
     },
