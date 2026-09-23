@@ -426,7 +426,9 @@ test('打包态：安装资源目录只读时 Apply 仍成功，且安装目录�
 
   // 安装目录只读（Windows 上 chmod 对目录 ACL 影响有限，但 NTFS 尊重只读位到
   // 文件创建/写入层级；无论如何本测试的关键断言是「内容零改动」）。
-  fs.chmodSync(packagedResolved, 0o444);
+  // Keep the directory readable/searchable on POSIX; the assertion is that the
+  // application does not write it, not that the test removes its own read access.
+  fs.chmodSync(packagedResolved, 0o555);
   fs.chmodSync(path.join(resources, 'ui-skin-manager'), 0o555);
 
   const adapter = freshPackagedAdapter({

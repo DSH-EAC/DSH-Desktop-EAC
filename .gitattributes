@@ -14,6 +14,12 @@
 *.ts text eol=lf
 *.rs text eol=lf
 *.toml text eol=lf
+
+# Generated resolved skin assets are digest-addressed bytes.  Git must not
+# normalize their line endings between Windows and Linux checkouts.
+tauri-shell/artifacts/resolved/**/*.css -text
+tauri-shell/artifacts/resolved/**/*.js -text
+tauri-shell/artifacts/resolved/**/*.json -text
 *.ps1 text eol=crlf
 *.nsh text eol=crlf
 
