@@ -177,16 +177,36 @@ function stateRoot(): { ok: true; path: string } | { ok: false; fault: SkinFault
   return { ok: true, path: path.join(base, MANAGER_DIR) };
 }
 
-/** 宿主消费根：镜像 main.rs `ui_skin_manager_root()` 的两段回退。 */
-function resolvedRoot(): string {
-  const override = devOverride('DSH_UI_SKIN_MANAGER_RESOLVED');
-  if (override) return override;
+/** 随包只读默认快照根：永远不被运行时改写，是「不可变默认回退」的载体。 */
+function packagedResolvedRoot(): string {
   const root = shellResourceRoot();
   const packaged = path.join(root, MANAGER_DIR, 'resolved');
   try {
     if (fs.statSync(packaged).isDirectory()) return packaged;
   } catch { /* 打包目录不存在，回退开发布局 */ }
   return path.join(root, 'tauri-shell', 'artifacts', 'resolved');
+}
+
+/**
+ * active 快照根（写入侧与宿主 Rust `ui_skin_manager_root()` 的读取链同源）：
+ *
+ *   - 开发态覆盖优先（打包态一律忽略，release 没有任何环境变量能改它）；
+ *   - 打包态：`<userData>/ui-skin-manager/resolved` —— **可写用户数据目录**。
+ *     Apply 发布的新世代只写这里；随包默认快照根保持只读，宿主在用户根没有
+ *     snapshot.json 时回退消费它。这修掉了旧实现把 active 写进安装资源目录
+ *     （生产可能只读、且一旦写入就毁掉不可变默认回退）的缺陷；
+ *   - 开发态：保持仓库布局的 `tauri-shell/artifacts/resolved`（与 Rust 开发回退一致）。
+ */
+function resolvedRoot(): string {
+  const override = devOverride('DSH_UI_SKIN_MANAGER_RESOLVED');
+  if (override) return override;
+  if (isPackaged()) {
+    const base = deps ? deps.userDataDir() : '';
+    // 拿不到用户数据目录时回退到只读默认根：status/diagnose 仍能渲染真实状态，
+    // openEnv 会因 stateRoot() 报错而拒绝任何写操作——不会假装可写。
+    if (base) return path.join(base, MANAGER_DIR, 'resolved');
+  }
+  return packagedResolvedRoot();
 }
 
 // ── 严格 tar 读取（只用于解包钉住的 npm-pack 制品） ──────────────────────────
@@ -651,6 +671,21 @@ async function openEnv(): Promise<{ok: true; env: ManagerEnv} | {ok: false; faul
       message: 'manager 状态根不可写: ' + String((error as Error).message || error),
       nextStep: '检查该目录权限/磁盘空间后重试',
       detail: {stateDir},
+    };
+    rememberFault(fault);
+    return {ok: false, fault};
+  }
+
+  // active 快照根也必须可写（打包态它在 <userData>/ui-skin-manager/resolved，
+  // 与只读的安装资源目录分离；拿不到可写根时宁可拒绝也不写只读默认根）。
+  try {
+    fs.mkdirSync(resolvedDir, {recursive: true});
+  } catch (error) {
+    const fault: SkinFault = {
+      code: 'RESOLVED_ROOT_UNWRITABLE',
+      message: 'active 快照根不可写: ' + String((error as Error).message || error),
+      nextStep: '检查用户数据目录权限/磁盘空间后重试；随包默认快照根是只读的，不会被改写',
+      detail: {resolvedDir},
     };
     rememberFault(fault);
     return {ok: false, fault};

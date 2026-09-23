@@ -71,6 +71,10 @@ static CHINESE_UI: OnceLock<bool> = OnceLock::new();
 // 19873 仅为无注入环境的兜底默认值，不与本机制耦合。
 static WS_PORT_EFFECTIVE: AtomicU16 = AtomicU16::new(WS_PORT);
 static PACKAGED_RESOURCE_ROOT: OnceLock<PathBuf> = OnceLock::new();
+/// 打包态用户数据目录（Tauri path resolver 在 setup 注入）：active 快照的写入侧
+/// 必须与只读的安装资源目录分离（6.2.4 返工：resolvedRoot 曾写安装资源目录，
+/// 生产上既可能只读又会毁掉不可变默认回退）。只计算一次并缓存，全进程同源。
+static PACKAGED_USER_DATA_ROOT: OnceLock<PathBuf> = OnceLock::new();
 
 fn ws_port() -> u16 {
     WS_PORT_EFFECTIVE.load(Ordering::SeqCst)
@@ -555,6 +559,49 @@ mod shell_tests {
         fs::remove_dir_all(root).expect("remove snapshot fixture");
     }
 
+    /// 6.2.4 返工：active 快照落在可写用户数据目录，安装资源目录保持只读默认回退。
+    /// `ui_skin_manager_root` 的读取链必须是——用户根有 snapshot.json 用用户根，
+    /// 否则回退到随包默认根；任何情况下运行时都不写安装资源目录。
+    #[test]
+    fn user_resolved_root_wins_over_packaged_default_only_when_it_has_a_snapshot() {
+        let _env_lock = SKIN_MANAGER_ENV_LOCK.lock().expect("skin manager env lock");
+        std::env::remove_var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE");
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before unix epoch")
+            .as_nanos();
+        let base =
+            std::env::temp_dir().join(format!("dsh-user-resolved-{}-{nonce}", std::process::id()));
+        let user_data = base.join("user-data");
+        let user_resolved = user_data.join("ui-skin-manager").join("resolved");
+        // 打包态用户数据根只接受 OnceLock 注入一次：已注入时跳过，避免串测试。
+        if super::PACKAGED_USER_DATA_ROOT.set(user_data.clone()).is_err() {
+            eprintln!("[shell] PACKAGED_USER_DATA_ROOT already set: skipping user-resolved precedence check");
+            return;
+        }
+
+        // 1) 用户根没有 snapshot.json：消费根必须回退到随包默认根（资源布局存在时）
+        //    或开发布局，总之**不是**用户根。
+        let root_without_snapshot = super::ui_skin_manager_root();
+        assert_ne!(
+            root_without_snapshot, user_resolved,
+            "no user snapshot yet: the consumption root must not point at the writable user dir"
+        );
+
+        // 2) 用户根出现 snapshot.json：消费根必须切到用户根——Apply 发布的新世代
+        //    从此被宿主消费，而安装资源目录始终不被运行时触碰。
+        fs::create_dir_all(&user_resolved).expect("create user resolved fixture");
+        fs::write(user_resolved.join(super::ACTIVE_SNAPSHOT_FILE), "{}").expect("write user snapshot fixture");
+        assert_eq!(
+            super::ui_skin_manager_root(),
+            user_resolved,
+            "a user snapshot must take precedence over the packaged default"
+        );
+
+        fs::remove_dir_all(base).expect("remove user resolved fixture");
+    }
+
     #[test]
     fn asset_key_whitelist_rejects_absolute_and_traversal_keys() {
         assert!(super::ui_skin_asset_key_is_safe("system.default/shared/tokens.css"));
@@ -796,6 +843,21 @@ fn initialize_packaged_resource_root(app: &tauri::App) {
             );
         }
     }
+    // 打包态用户数据目录同源注入：active 快照（user-resolved 根）落在用户数据目录下，
+    // 与只读的安装资源目录分离。sidecar 也按同一约定推导（见 server.ts 的 userDataDir），
+    // 两端消费同一份快照。解析失败时保持未设置：ui_skin_manager_root() 会跳过用户根，
+    // 只消费随包默认快照（等价于「从未 Apply 过」），不写半猜出来的路径。
+    if let Ok(dir) = app.path().app_config_dir() {
+        let _ = PACKAGED_USER_DATA_ROOT.set(dir);
+    }
+}
+
+/// 打包态的 active 快照根：`<userData>/ui-skin-manager/resolved`。
+/// 仅在 PACKAGED_USER_DATA_ROOT 已注入（即打包运行）时存在；开发态返回 None。
+fn packaged_user_resolved_root() -> Option<PathBuf> {
+    PACKAGED_USER_DATA_ROOT
+        .get()
+        .map(|base| base.join("ui-skin-manager").join("resolved"))
 }
 
 /// 打包态与开发态（CARGO_MANIFEST_DIR 布局）的资源根。
@@ -2655,7 +2717,18 @@ fn ui_skin_fallback_coordinate_matches_lock() -> bool {
     fallback_coordinate_matches_lock(HOST_PROFILE, SKIN_MANAGER_LOCK)
 }
 
-/// manager 的消费根：`<resource_root>/ui-skin-manager/resolved`。
+/// manager 的消费根：**用户可写的 active 快照根优先，随包默认快照只读兜底**。
+///
+/// 6.2.4 返工前这里只有 `<resource_root>/ui-skin-manager/resolved` 一处——Apply 发布的
+/// 新世代直接写进安装资源目录。生产安装目录（Program Files）可能只读，而且一旦写入
+/// 成功就会覆盖掉「不可变默认回退」：此后默认回退路径消费的不再是随包制品。
+///
+/// 现在的读取链（写入侧由 sidecar 的 skin-manager 适配层按同一约定推导，两端同源）：
+///   1. 打包态：`<userData>/ui-skin-manager/resolved` 里存在 snapshot.json 时，
+///      它就是消费根（用户显式 Apply 过的 active 世代）；
+///   2. 否则回退到随包的 `<resource_root>/ui-skin-manager/resolved`（build lock 钉住的
+///      默认世代，只读，永不被运行时改写）；
+///   3. 开发态（无打包资源布局）回退到仓库的 `tauri-shell/artifacts/resolved`。
 ///
 /// 6.2.3 起这里是**快照根**而不是"某个固定包目录"：`snapshot.json` 决定 active 坐标与资源，
 /// 各代资源落在 `gen-<n>/` 下。宿主不再把 `system.default` 写进路径，因此第三方 slot 与
@@ -2668,6 +2741,12 @@ fn ui_skin_manager_root() -> PathBuf {
     if let Ok(override_root) = std::env::var("DSH_SKIN_SNAPSHOT_ROOT_OVERRIDE") {
         if !override_root.is_empty() {
             return PathBuf::from(override_root);
+        }
+    }
+    // 用户显式应用过的 active 世代优先（可写用户数据目录；只读安装目录保持不可变回退）。
+    if let Some(user_root) = packaged_user_resolved_root() {
+        if user_root.join(ACTIVE_SNAPSHOT_FILE).is_file() {
+            return user_root;
         }
     }
     let root = resource_root();

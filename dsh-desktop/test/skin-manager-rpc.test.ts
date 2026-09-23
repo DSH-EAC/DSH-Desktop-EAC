@@ -332,6 +332,137 @@ test('未审计能力显式声明不可用，不伪装', async () => {
   }
 });
 
+// ── 2b. 打包态布局（isPackaged=true）：resolved 根必须在可写用户数据目录 ─────
+//
+// 6.2.4 返工的核心回归：旧实现把 active 快照写进安装资源目录——生产上（Program
+// Files）可能只读，且一旦写入就覆盖「不可变默认回退」。这三条用例把读取链钉死：
+//   1. 打包态 resolvedRoot 必须落在 <userData>/ui-skin-manager/resolved，
+//      环境变量（DSH_UI_SKIN_MANAGER_RESOLVED 等）在打包态一律被忽略；
+//   2. 安装资源目录只读时，Apply 的新世代仍然发布成功、且不触碰安装目录；
+//   3. 宿主 Rust 侧（main.rs `ui_skin_manager_root`）按同一约定读：用户根有
+//      snapshot.json 才消费它，否则回退随包只读默认根（由 Rust 测试
+//      `user_resolved_root_wins_over_packaged_default_only_when_it_has_a_snapshot` 钉住）。
+function freshPackagedAdapter(env: Record<string, string | undefined>, userDataDir: string, resourceRoot: string): Adapter {
+  const file = require.resolve(ADAPTER);
+  delete require.cache[file];
+  const mod = require(file) as Adapter;
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  mod.init({
+    log: () => { /* 测试里不落日志 */ },
+    resourceRoot: () => resourceRoot,
+    isPackaged: () => true,
+    userDataDir: () => userDataDir,
+  });
+  return mod;
+}
+
+/** 装配一份打包态资源布局：manager 钉住制品 + host-profile + 只读默认 resolved 根。 */
+function writePackagedResourceLayout(root: string): void {
+  const managerDir = path.join(root, 'ui-skin-manager');
+  fs.mkdirSync(managerDir, { recursive: true });
+  // 真实钉住制品（重钉后的 b7dc7d4 本地构建，含 coordinator 接口）。
+  fs.copyFileSync(
+    path.join(eacRoot, 'tauri-shell', 'artifacts', 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz'),
+    path.join(managerDir, 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz'),
+  );
+  fs.copyFileSync(HOST_PROFILE, path.join(managerDir, 'host-profile.json'));
+  // 随包默认快照根：只读兜底，测试中它的 mtime/内容必须全程不变。
+  const resolved = path.join(managerDir, 'resolved');
+  fs.mkdirSync(resolved, { recursive: true });
+  fs.writeFileSync(path.join(resolved, 'snapshot.json'), JSON.stringify({ schema: 'dsh-eac-active-binding-snapshot@1', generation: 1 }));
+}
+
+test('打包态：active 快照根落在用户数据目录，开发态环境变量被忽略', async () => {
+  const state = tempDir('skin-pack-');
+  const userData = path.join(state, 'user-data');
+  const resources = path.join(state, 'resources');
+  writePackagedResourceLayout(resources);
+  // 打包态下这些变量必须一律失效（release 没有任何环境变量能改根）。
+  const adapter = freshPackagedAdapter({
+    DSH_UI_SKIN_MANAGER_RESOLVED: path.join(state, 'evil-resolved'),
+    DSH_UI_SKIN_MANAGER_STATE: path.join(state, 'evil-state'),
+    DSH_UI_SKIN_MANAGER_SRC: path.join(state, 'evil-src'),
+  }, userData, resources);
+
+  const status = await adapter.invoke('skin.status');
+  assert.equal(status['ok'], true, JSON.stringify(status['fault'] ?? {}));
+  const stateInfo = status['state'] as Record<string, unknown>;
+  assert.equal(stateInfo['stateRoot'], path.join(userData, 'ui-skin-manager'), '状态根必须在 userData 下');
+  assert.equal(
+    stateInfo['resolvedRoot'],
+    path.join(userData, 'ui-skin-manager', 'resolved'),
+    '打包态 active 快照根必须是 <userData>/ui-skin-manager/resolved，不是安装资源目录',
+  );
+  const manager = status['manager'] as Record<string, unknown>;
+  assert.equal(manager['available'], true, '打包态必须经钉住制品加载 manager: ' + JSON.stringify(status));
+  assert.equal(manager['source'], 'pinned-artifact', '打包态来源必须是钉住制品，而不是被忽略的环境变量');
+  assert.equal(fs.existsSync(path.join(state, 'evil-resolved')), false, '被打包态忽略的变量不得落盘');
+  assert.equal(fs.existsSync(path.join(state, 'evil-state')), false);
+  assert.equal(fs.existsSync(path.join(state, 'evil-src')), false);
+});
+
+test('打包态：安装资源目录只读时 Apply 仍成功，且安装目录零改动', async (t) => {
+  const state = tempDir('skin-pack-');
+  const userData = path.join(state, 'user-data');
+  const resources = path.join(state, 'resources');
+  writePackagedResourceLayout(resources);
+  const packagedResolved = path.join(resources, 'ui-skin-manager', 'resolved');
+  const packagedSnapshot = path.join(packagedResolved, 'snapshot.json');
+  const beforeBytes = fs.readFileSync(packagedSnapshot);
+  const beforeMtime = fs.statSync(packagedSnapshot).mtimeMs;
+
+  // 安装目录只读（Windows 上 chmod 对目录 ACL 影响有限，但 NTFS 尊重只读位到
+  // 文件创建/写入层级；无论如何本测试的关键断言是「内容零改动」）。
+  fs.chmodSync(packagedResolved, 0o444);
+  fs.chmodSync(path.join(resources, 'ui-skin-manager'), 0o555);
+
+  const adapter = freshPackagedAdapter({
+    DSH_UI_SKIN_MANAGER_RESOLVED: undefined,
+    DSH_UI_SKIN_MANAGER_STATE: undefined,
+  }, userData, resources);
+
+  const status = await adapter.invoke('skin.status');
+  if (!status['ok'] || !(status['capabilities'] as Record<string, unknown> | null)?.['install']) {
+    t.skip('钉住制品不可用或缺 importArchive：' + JSON.stringify(status['fault'] ?? status['manager']));
+    return;
+  }
+
+  // 默认回退坐标必须在 catalog 里（未选中的 slot 由 profile fallbackSkin 解析）。
+  const official = await adapter.invoke('skin.import', { archivePath: OFFICIAL_ARCHIVE });
+  assert.equal(official['ok'], true, '导入默认制品失败: ' + JSON.stringify(official['fault'] ?? {}));
+
+  const applied = await adapter.invoke('skin.apply');
+  assert.equal(applied['ok'], true, '只读安装目录下 Apply 必须仍然成功: ' + JSON.stringify(applied['fault'] ?? {}));
+  assert.equal(applied['reloadRequired'], true);
+
+  // 新世代落在用户数据目录，宿主读取链（Rust）会从同一相对布局找到它。
+  const userSnapshot = path.join(userData, 'ui-skin-manager', 'resolved', 'snapshot.json');
+  assert.equal(fs.existsSync(userSnapshot), true, 'active 快照必须发布到可写用户数据目录');
+  const published = JSON.parse(fs.readFileSync(userSnapshot, 'utf8'));
+  assert.ok(Number(published['generation']) >= 1);
+  assert.equal(published['bindings'].length, 6, '六个 slot 全覆盖（未选中的走 profile 默认回退）');
+
+  // 读回一致性：UI 展示的状态必须来自 manager 写出的快照。
+  const readback = await adapter.invoke('skin.status');
+  const snapshot = readback['snapshot'] as Record<string, unknown>;
+  assert.equal(snapshot['generation'], published['generation'], '读回世代必须与发布世代一致');
+
+  // 不可变默认回退：随包快照内容与 mtime 全程不变（运行时从不写安装资源目录）。
+  assert.deepEqual(fs.readFileSync(packagedSnapshot), beforeBytes, '随包默认快照不得被运行时改写');
+  assert.equal(fs.statSync(packagedSnapshot).mtimeMs, beforeMtime, '随包默认快照 mtime 不得变化');
+  assert.equal(
+    fs.readdirSync(packagedResolved).filter((name) => name !== 'snapshot.json').length,
+    0,
+    '安装资源目录里不得出现任何新世代目录',
+  );
+
+  fs.chmodSync(packagedResolved, 0o755);
+  fs.chmodSync(path.join(resources, 'ui-skin-manager'), 0o755);
+});
+
 // ── 3. 集成层（真 manager @ b7dc7d4） ────────────────────────────────────────
 function managerSourceAtPinnedCommit(): {skipped?: string; packageRoot?: string} {
   if (!fs.existsSync(path.join(managerRepo, '.git'))) return { skipped: '找不到 manager 仓库 ' + managerRepo };

@@ -5,10 +5,11 @@
   "manager": {
     "package": "@dsh-eac/ui-skin-manager",
     "version": "0.1.0-preview.1",
-    "sourceCommit": "a023b018c3751f731370917d74a40bed79e28342",
-    "ciRun": 35560125000,
+    "sourceCommit": "b7dc7d42afc9cff848d3e877f322d64bfa43d219",
+    "ciRun": null,
+    "localBuild": "git archive b7dc7d4 + npm pack (6.2.4 rework; coordinator API surface required by the UI RPC)",
     "artifact": "dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz",
-    "sha256": "13a4c5dbd1a31c9512f535a9c14f5072f933f284634f6763e569e65614a63378"
+    "sha256": "1ffbde19e702dd2b519e00b854d94634b8be889da51ef6a15713e5caca67095c"
   },
   "default": {
     "package": "system.default",
