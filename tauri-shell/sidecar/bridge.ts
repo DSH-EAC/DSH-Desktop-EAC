@@ -18,6 +18,14 @@
 (function () {
   var BAR_ID = '__dsh_desktop_chrome__';
   var BAR_HEIGHT = 36;
+  var UI_SKIN_SLOTS: Record<string, true> = {
+    'top-sidebar': true,
+    'bottom-sidebar': true,
+    'left-sidebar': true,
+    'right-sidebar': true,
+    'session': true,
+    'overlay': true,
+  };
 
   // 回环 WS JSON-RPC 客户端（单源：assets/ws-jsonrpc-client.js，Rust 壳在
   // initialization_script 序列中先注入本桥）。connect/queue/call/重连逻辑
@@ -212,12 +220,16 @@
     if (manager && manager.enabled === true && manager.slots) {
       var generation = String(manager.generation);
       Object.keys(manager.slots).forEach(function (slot) {
-        var id = 'dsh-ui-skin-' + slot + '-' + generation;
+        if (!UI_SKIN_SLOTS[slot]) return;
+        var slotGeneration = manager.generations && manager.generations[slot] !== undefined
+          ? String(manager.generations[slot])
+          : generation;
+        var id = 'dsh-ui-skin-' + slot + '-' + slotGeneration;
         if (document.getElementById(id)) return;
         var tag = document.createElement('style');
         tag.id = id;
         tag.setAttribute('data-skin-slot', slot);
-        tag.setAttribute('data-skin-generation', generation);
+        tag.setAttribute('data-skin-generation', slotGeneration);
         tag.textContent = String(manager.slots[slot] || '');
         document.head.appendChild(tag);
       });
@@ -233,41 +245,80 @@
   // Generation-aware host bridge. Candidate styles are staged before the
   // previous generation is removed; the manager receives an explicit ack.
   (function installUiSkinTransactionBridge(): void {
-    var activeGeneration = 0;
-    var activeSlots: Record<string, string> = {};
+    // The manager contract is per-slot: two slots may be healthy at different
+    // generations.  Keeping these maps per slot also lets the first hot switch
+    // remove styles installed during bootstrap instead of leaking generation 1.
+    var activeGenerations: Record<string, number> = {};
     var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
-    if (manager && Number.isFinite(Number(manager.generation))) activeGeneration = Number(manager.generation);
-    function acknowledge(generation: number, ok: boolean, error?: string): void {
+    if (manager && manager.slots) {
+      var managerGeneration = Number(manager.generation);
+      Object.keys(manager.slots).forEach(function (slot): void {
+        var generation = manager.generations && manager.generations[slot] !== undefined
+          ? Number(manager.generations[slot])
+          : managerGeneration;
+        if (Number.isSafeInteger(generation) && generation >= 0) {
+          activeGenerations[slot] = generation;
+        }
+      });
+    }
+    function acknowledge(generation: number, ok: boolean, error?: string, slot?: string): void {
       window.dispatchEvent(new CustomEvent('dsh-ui-skin-transaction-ack', {
-        detail: {generation: generation, context: 'webview', ok: ok, error: error || undefined}
+        detail: {generation: generation, slot: slot, context: 'webview', ok: ok, error: error || undefined}
       }));
     }
     window.addEventListener('dsh-ui-skin-transaction', function (event: Event): void {
       var detail = (event as CustomEvent).detail || {};
-      var generation = Number(detail.generation);
       var slots = detail.slots as Record<string, unknown> | undefined;
-      if (!Number.isSafeInteger(generation) || generation <= activeGeneration || !slots) {
+      if (!slots && typeof detail.slot === 'string') {
+        slots = {};
+        slots[detail.slot] = detail.css === undefined ? detail.style : detail.css;
+      }
+      var generation = Number(detail.generation);
+      if (!slots || Object.keys(slots).length === 0) {
         acknowledge(generation, false, 'STALE_OR_INVALID_GENERATION');
         return;
       }
+      var transactionGenerations: Record<string, number> = {};
       var transactionSlots = slots;
+      var slotNames = Object.keys(transactionSlots);
+      if (slotNames.some(function (slot): boolean { return !UI_SKIN_SLOTS[slot]; })) {
+        acknowledge(generation, false, 'UNSUPPORTED_SLOT');
+        return;
+      }
+      for (var i = 0; i < slotNames.length; i += 1) {
+        var slot = slotNames[i];
+        if (!slot) continue;
+        var slotGeneration = detail.generations && detail.generations[slot] !== undefined
+          ? Number(detail.generations[slot])
+          : generation;
+        transactionGenerations[slot] = slotGeneration;
+        if (!Number.isSafeInteger(slotGeneration) || slotGeneration <= (activeGenerations[slot] === undefined ? -1 : activeGenerations[slot])) {
+          acknowledge(slotGeneration, false, 'STALE_OR_INVALID_GENERATION', slot);
+          return;
+        }
+      }
       var staged: HTMLStyleElement[] = [];
       try {
-        Object.keys(transactionSlots).forEach(function (slot): void {
+        slotNames.forEach(function (slot): void {
+          var slotGeneration = transactionGenerations[slot];
           var style = document.createElement('style');
-          style.id = 'dsh-ui-skin-' + slot + '-' + generation;
+          style.id = 'dsh-ui-skin-' + slot + '-' + slotGeneration;
           style.setAttribute('data-skin-slot', slot);
-          style.setAttribute('data-skin-generation', String(generation));
+          style.setAttribute('data-skin-generation', String(slotGeneration));
           style.textContent = String(transactionSlots[slot] || '');
           document.head.appendChild(style);
           staged.push(style);
         });
-        Object.keys(activeSlots).forEach(function (slot): void {
-          var old = document.querySelectorAll('[data-skin-slot="' + slot + '"][data-skin-generation="' + activeGeneration + '"]');
-          old.forEach(function (node): void { node.remove(); });
+        slotNames.forEach(function (slot): void {
+          var oldGeneration = activeGenerations[slot];
+          var slotGeneration = transactionGenerations[slot];
+          if (slotGeneration === undefined) return;
+          if (oldGeneration !== undefined) {
+            var old = document.querySelectorAll('[data-skin-slot="' + slot + '"][data-skin-generation="' + oldGeneration + '"]');
+            old.forEach(function (node): void { node.remove(); });
+          }
+          activeGenerations[slot] = slotGeneration;
         });
-        activeSlots = Object.fromEntries(Object.keys(transactionSlots).map(function (slot): [string, string] { return [slot, String(transactionSlots[slot] || '')]; }));
-        activeGeneration = generation;
         acknowledge(generation, true);
       } catch (error) {
         staged.forEach(function (style): void { style.remove(); });

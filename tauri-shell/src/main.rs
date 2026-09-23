@@ -136,7 +136,8 @@ fn ui_text<'a>(zh: &'a str, en: &'a str) -> &'a str {
 mod shell_tests {
     use super::{
         is_sidecar_respawn_request, locale_tag_is_chinese, shell_http_status, ui_skin_asset,
-        ui_skin_manager_enabled, ui_skin_manager_snapshot, verified_resource_root,
+        ui_skin_manager_enabled, ui_skin_manager_snapshot, ui_skin_slot_is_supported,
+        verified_resource_root,
     };
     use std::fs;
     use std::sync::Mutex;
@@ -207,6 +208,8 @@ mod shell_tests {
         let snapshot = ui_skin_manager_snapshot().expect("pinned snapshot");
         assert!(snapshot.assets.get("../escape.css").is_none());
         assert!(snapshot.assets.get("unknown.css").is_none());
+        assert!(ui_skin_slot_is_supported("session"));
+        assert!(!ui_skin_slot_is_supported("unknown-slot"));
         std::env::remove_var("DSH_UI_SKIN_MANAGER");
     }
 
@@ -1864,14 +1867,26 @@ fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
         .and_then(Value::as_str)
         .map(str::to_owned)?;
     let snapshot: UiSkinManagerSnapshot = serde_json::from_str(&source).ok()?;
+    let root = ui_skin_manager_root();
+    let assets_valid = snapshot.assets.iter().all(|(asset, relative)| {
+        ui_skin_asset_path_is_safe(asset)
+            && ui_skin_asset_path_is_safe(relative)
+            && ui_skin_asset_file_is_inside(&root, relative)
+    });
+    let slot_assets_valid = snapshot.slot_assets.values().all(|assets| {
+        assets.iter().all(|asset| {
+            ui_skin_asset_path_is_safe(asset) && snapshot.assets.contains_key(asset)
+        })
+    }) && snapshot
+        .slot_assets
+        .keys()
+        .all(|slot| ui_skin_slot_is_supported(slot));
     (snapshot.package == "system.default"
         && snapshot.version == "2.0.0"
         && snapshot.digest == format!("sha256:{locked_default_digest}")
         && snapshot.fault.is_none()
-        && snapshot
-            .assets
-            .keys()
-            .all(|asset| ui_skin_asset_path_is_safe(asset)))
+        && assets_valid
+        && slot_assets_valid)
     .then_some(snapshot)
 }
 
@@ -1884,13 +1899,40 @@ fn ui_skin_asset_path_is_safe(file: &str) -> bool {
             .any(|segment| segment.is_empty() || segment == "." || segment == "..")
 }
 
+fn ui_skin_slot_is_supported(slot: &str) -> bool {
+    matches!(
+        slot,
+        "top-sidebar"
+            | "bottom-sidebar"
+            | "left-sidebar"
+            | "right-sidebar"
+            | "session"
+            | "overlay"
+    )
+}
+
+/// Resolve before serving so a symlink cannot escape the pinned package root.
+fn ui_skin_asset_file_is_inside(root: &Path, relative: &str) -> bool {
+    let Ok(root) = std::fs::canonicalize(root) else {
+        return false;
+    };
+    let Ok(file) = std::fs::canonicalize(root.join(relative)) else {
+        return false;
+    };
+    file.starts_with(&root) && file.is_file()
+}
+
 fn ui_skin_manager_asset(file: &str) -> Option<String> {
     let snapshot = ui_skin_manager_snapshot()?;
     let relative = snapshot.assets.get(file)?;
-    if !ui_skin_asset_path_is_safe(file) || !ui_skin_asset_path_is_safe(relative) {
+    let root = ui_skin_manager_root();
+    if !ui_skin_asset_path_is_safe(file)
+        || !ui_skin_asset_path_is_safe(relative)
+        || !ui_skin_asset_file_is_inside(&root, relative)
+    {
         return None;
     }
-    std::fs::read_to_string(ui_skin_manager_root().join(relative)).ok()
+    std::fs::read_to_string(root.join(relative)).ok()
 }
 
 fn ui_skin_manager_bootstrap_json() -> String {
