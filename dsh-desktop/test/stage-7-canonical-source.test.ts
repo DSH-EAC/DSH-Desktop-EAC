@@ -93,7 +93,7 @@ test('offline staging consumes the locally supplied manager payload without a so
 test('Rust test staging preserves the manager resource directory contract', () => {
   const workflow = read('.github', 'workflows', 'ci.yml');
   assert.match(workflow, /(?:staged-resources\/ui-skin-manager|staged\+'\/ui-skin-manager')/);
-  assert.match(workflow, /skin-manager-artifact\.lock\.json/);
+  assert.doesNotMatch(workflow, /skin-manager-artifact\.lock\.json/);
 });
 
 test('legacy shell-skin and AIO v1 are not restored', () => {
