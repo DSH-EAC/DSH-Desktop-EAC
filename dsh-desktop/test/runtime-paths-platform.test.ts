@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -11,6 +13,7 @@ const runtimePaths = require('../lib/desktop/runtime-paths.js') as {
     getUserDataDir(): string;
     isPackaged(): boolean;
     resourcesPath(): string;
+    appRoot(): string;
     platform: NodeJS.Platform;
   }): void;
   nodeExe(): string;
@@ -31,26 +34,33 @@ test('runtime paths resolve the packaged Node executable for Linux', () => {
   assert.equal(runtimePaths.nodeExe(), path.join('/opt/dsh', 'node', 'node'));
 });
 
-test('runtime paths preserve packaged and development node.exe on Windows', { skip: process.platform !== 'win32' }, () => {
-  // 5.3.3：打包态优先 Tauri 布局（appRoot/vendor/node —— 打包态 appRoot =
-  // <DSH_RESOURCE_ROOT>/dsh-desktop）；旧 Electron 布局 resources/node/ 仅作
-  // 回退候选（上方 Linux 用例覆盖回退分支）。win32 上仓库树
-  // vendor/node/node.exe 真实存在 → 打包态与开发态解析到同一路径。
-  runtimePaths.init({
-    log: () => {},
-    getUserDataDir: () => 'C:\\tmp\\user-data',
-    isPackaged: () => true,
-    resourcesPath: () => 'C:\\Program Files\\DSH',
-    platform: 'win32',
-  });
-  assert.equal(runtimePaths.nodeExe(), path.resolve(runtimePaths.APP_ROOT, 'vendor', 'node', 'node.exe'));
+test('runtime paths preserve packaged and development node.exe on Windows', () => {
+  const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-paths-win-'));
+  const bundledNode = path.join(appRoot, 'vendor', 'node', 'node.exe');
+  fs.mkdirSync(path.dirname(bundledNode), { recursive: true });
+  fs.writeFileSync(bundledNode, '');
 
-  runtimePaths.init({
-    log: () => {},
-    getUserDataDir: () => 'C:\\tmp\\user-data',
-    isPackaged: () => false,
-    resourcesPath: () => '',
-    platform: 'win32',
-  });
-  assert.equal(runtimePaths.nodeExe(), path.resolve(runtimePaths.APP_ROOT, 'vendor', 'node', 'node.exe'));
+  try {
+    runtimePaths.init({
+      log: () => {},
+      getUserDataDir: () => 'C:\\tmp\\user-data',
+      isPackaged: () => true,
+      resourcesPath: () => 'C:\\Program Files\\DSH',
+      appRoot: () => appRoot,
+      platform: 'win32',
+    });
+    assert.equal(runtimePaths.nodeExe(), bundledNode);
+
+    runtimePaths.init({
+      log: () => {},
+      getUserDataDir: () => 'C:\\tmp\\user-data',
+      isPackaged: () => false,
+      resourcesPath: () => '',
+      appRoot: () => appRoot,
+      platform: 'win32',
+    });
+    assert.equal(runtimePaths.nodeExe(), bundledNode);
+  } finally {
+    fs.rmSync(appRoot, { recursive: true, force: true });
+  }
 });

@@ -116,6 +116,21 @@
       "description": "v1 预留：必须为空数组。出现非空值判为无效（防目录穿越路径在安装器另行拒绝）。",
       "items": { "type": "string", "minLength": 1, "maxLength": 256 }
     },
+    "x-eac": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "EAC 仓库内的发布门禁元数据；draft 包不得进入市场索引。",
+      "required": ["status", "intendedPluginIds", "conflictsPending"],
+      "properties": {
+        "status": { "enum": ["draft", "publishable"] },
+        "intendedPluginIds": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }
+        },
+        "conflictsPending": { "type": "boolean" }
+      }
+    },
     "changelog": { "type": "string", "maxLength": 2000 }
   }
 }

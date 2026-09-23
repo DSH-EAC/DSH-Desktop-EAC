@@ -9,6 +9,7 @@ import fs = require('node:fs');
 import os = require('node:os');
 import crypto = require('node:crypto');
 import { updCtx, APP_ROOT } from './runtime-paths';
+import { isLiteDisabled, readInstallProfile } from './install-profile';
 import { desktopProfile, desktopProfileDir, ensureDesktopProfileInit, BUNDLED_BUILTIN_PLUGINS } from './profile';
 import { ensureGuard } from './guard-box';
 import { applySessionManageFix } from './runtime-patches';
@@ -267,6 +268,29 @@ export const COMPANION_PLUGINS: CompanionPluginDef[] = [
   // 多轮并行出「均衡/精简/详尽」三候选择优迭代，可包装 /goal。
   // 纯客户端 + host 半边（loopback 路由），peer 依赖全部由 dsh 宿主提供。
   { id: 'dsh-webui-prompt-optimizer', name: 'dsh-webui-prompt-optimizer', dir: 'dsh-webui-prompt-optimizer' },
+  // 本地离线语音识别（dsh-stt 0.3.0，BAIKAI23333，MIT）：sherpa-onnx SenseVoice
+  // 本地推理 —— 输入区麦克风按钮说话，识别文本回填输入框，支持唤醒词激活
+  // 与「发送」语音指令提交。sherpa-onnx 原生引擎不随仓库分发，由 CI 在各
+  // 平台构建时 npm install 拉取对应原生包（install:plugin-engines，三平台
+  // 发行；引擎缺失时插件优雅降级 503 engine_missing，不拖垮插件树）。默认
+  // 禁用 —— 启用后首次使用自动下载 SenseVoice 模型（~230MB）到
+  // ~/.dsh/models/dsh-stt/（用户数据，安装器不清理），GitHub Release 主源
+  // 失败自动切 hf-mirror。5.3.0 曾因模型体积退役，现按用户要求恢复内置
+  // （已同步移出退役清单）；不登记 PLUGIN_UPDATE_SOURCES（manifest x-eac
+  // autoUpdate:false，EAC 托管版本）。
+  { id: 'dsh-stt', name: '@deepseek-ai/dsh-stt', dir: 'dsh-stt', disabled: true },
+  // 思考增强（中文）：强制 agent 用中文思考与回复（system-prompt section），
+  // 并把界面残留的硬编码英文（Thinking / Tool Call 等）中文化。
+  // 这是上游 baosfeng/dsh-think-zh-expand 的 EAC 定制派生版
+  // （https://github.com/jing-hy/dsh-think-zh-expand-eac，MIT）：**已移除全部
+  // 接管对话渲染器的显示功能**（assistant-step 渲染器抢占、ThinkBlock 默认
+  // 展开、自绘 SVG 图标与样式表），因此可与 dsh-auto-collapse / dsh-turn-fold
+  // 等折叠插件共存 —— 上游版会与他们抢 conversation.chat.node 座位，导致
+  // 折叠失效且不报错。section 名改为 dsh-think-zh-eac，避免与上游版同层同名
+  // 注册抛错拖垮插件树。
+  // 走 patch 行（非 bundles）：用户可在「设置 → 插件 → 管理」关闭；
+  // 其夹带 patch 是普通 insert 行，本行不会被 removeBundledRowDuplicates 去重。
+  { id: 'think-zh-expand-eac', name: 'dsh-think-zh-expand-eac', dir: 'dsh-think-zh-expand-eac' },
 ];
 
 export function companionPluginsForPlatform(platform: NodeJS.Platform = 'win32'): CompanionPluginDef[] {
@@ -276,6 +300,44 @@ export function companionPluginsForPlatform(platform: NodeJS.Platform = 'win32')
 
 // 更新源唯一来自 generated registry；此导出保留给旧调用方。
 export const PLUGIN_UPDATE_SOURCES: Record<string, { npm?: string; github?: string }> = GENERATED_PLUGIN_UPDATE_SOURCES;
+// ---------------------------------------------------------------------------
+// 私有维护插件（自动更新黑名单，SOURCES.json 台账驱动）：
+//
+// 台账 origin=eac-original 的 main 线插件由 EAC 私有维护（外部匹配审计的
+// best-match 即 EAC 主仓库本体），没有可钉的外部上游发版——自动更新要么把
+// EAC 适配冲掉，要么更新到无从校验的来源。黑名单在此生成，pluginUpdateSources
+// 是唯一漏斗：即使将来误把私有插件登记进 PLUGIN_UPDATE_SOURCES 也会被强制
+// 过滤（sidecar server.ts 的「检测」与「应用更新」两条路都经过它）。
+//
+// fail-open 取舍：台账不可读时黑名单为空、不过滤（见
+// privateMaintainedPluginNames）——该状态下上述「误登记也无效」的保证暂不
+// 成立。私有插件本就不在 PLUGIN_UPDATE_SOURCES 白名单里，过滤是纵深防御。
+// ---------------------------------------------------------------------------
+
+let privateMaintainedCache: Set<string> | null = null;
+
+/** 台账 origin=eac-original 的 main 线插件包名集合（自动更新黑名单）。
+ *
+ *  fail-open：台账缺失/损坏时返回空集、不过滤——此时本函数不是强制点，
+ *  「误登记 PLUGIN_UPDATE_SOURCES 也会被强制过滤」的保证暂不成立（私有插件
+ *  本就不在白名单里，过滤为纵深防御）。仅缓存成功读取的结果，失败不落缓存，
+ *  文件恢复后下次调用即生效。 */
+export function privateMaintainedPluginNames(): Set<string> {
+  if (privateMaintainedCache) return privateMaintainedCache;
+  const names = new Set<string>();
+  try {
+    const ledger = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'assets', 'SOURCES.json'), 'utf8')) as {
+      components?: { line?: string; type?: string; origin?: string; name?: string }[];
+    };
+    for (const c of ledger.components || []) {
+      if (c.line === 'main' && c.type === 'plugin' && c.origin === 'eac-original' && c.name) names.add(c.name);
+    }
+    privateMaintainedCache = names;
+  } catch (err) {
+    console.warn('[plugin-update] SOURCES.json 读取失败，自动更新黑名单未生效（fail-open）: ' + String((err as Error).message || err));
+  }
+  return names;
+}
 
 // ---------------------------------------------------------------------------
 // 内置插件「移除」跳过清单（settings.removedPlugins）：被 plugin-ops 与
@@ -335,21 +397,28 @@ export function seedBundledPlugins(profileDir: string): { changed: boolean; bund
   return { changed, bundles: bundled };
 }
 
-/** 把内置插件表 + 更新源注册表合并成 plugin-updater 的 sources 输入。 */
+/** 把内置插件表 + 更新源注册表合并成 plugin-updater 的 sources 输入。
+ *  私有维护插件（台账 eac-original）在此强制过滤——这是更新源的唯一漏斗。 */
 export function pluginUpdateSources(): { id: string; name: string; assetsDir: string; update: { npm?: string; github?: string } }[] {
   const removed = removedPluginIds();
   const platform = ctx?.platform ?? 'win32';
   const available = new Set(companionPluginsForPlatform(platform).map((plugin) => plugin.id));
+  const privateNames = privateMaintainedPluginNames();
+  const blocked: string[] = [];
   const out: { id: string; name: string; assetsDir: string; update: { npm?: string; github?: string } }[] = [];
   for (const p of COMPANION_PLUGINS) {
     if (!available.has(p.id)) continue;
     const update = PLUGIN_UPDATE_SOURCES[p.id];
     if (!update) continue;
     if (removed.has(p.id)) continue;
+    if (privateNames.has(p.name)) { blocked.push(p.id); continue; }
     const dirName = p.dir || (p.name.includes('/') ? p.name.split('/').pop() as string : p.name);
     const assetsDir = path.join(APP_ROOT, 'assets', 'plugins', dirName);
     if (!fs.existsSync(path.join(assetsDir, 'package.json'))) continue;
     out.push({ id: p.id, name: p.name, assetsDir, update });
+  }
+  if (blocked.length) {
+    console.warn('[plugin-update] 私有维护插件不参与自动更新，已从更新源过滤: ' + blocked.join(', '));
   }
   return out;
 }
@@ -423,11 +492,6 @@ export const RETIRED_BUILTIN_PLUGINS = [
   // 按用户要求移除「普通/高级」分栏（nav-custom 是该分栏唯一写入者，
   // 见 test/settings-groups-standdown.test.ts 的单写者契约改判）。
   { id: 'settings-nav-custom', name: 'dsh-settings-nav-custom' },
-  // 5.3.0：按用户要求移除内置「语音转文字」插件（本地 sherpa-onnx ASR 模型
-  // ~1.1G 占空间，不再随包分发/安装）。老 profile 的 patch 行/包副本由退役
-  // 清理兜底；已下载的 ~/.dsh/models/dsh-stt/ 模型缓存属于用户数据，安装器
-  // 不再自动删除，只能由用户明确确认后单独清理。
-  { id: 'dsh-stt', name: '@deepseek-ai/dsh-stt' },
   // 旧 dsh-file-drop 会同时接管普通文件和图片拖放，与 EAC 特化版并存时
   // 会重复注入内容并让官方图片遮罩停留。由 file-drop-eac 完整取代。
   { id: 'file-drop', name: 'dsh-file-drop' },
@@ -531,6 +595,10 @@ export function syncCompanionPlugins(): void {
   const platform = ctx.platform ?? 'win32';
   const inSafeMode = safeModeActive();
   if (inSafeMode) ctx.log('boot', '安全模式激活中：跳过配套插件 patch 行同步（退出安全模式后恢复）');
+  // 安装形态（v5.4 单发行版双形态）：精简版只改「新行」默认启停，
+  // 已有注册行不重写、用户选择优先（见 lib/desktop/install-profile.ts）。
+  const installProfile = readInstallProfile(APP_ROOT);
+  if (installProfile === 'lite') ctx.log('boot', '安装形态 = 精简版：外围配套插件默认停用（设置 → 插件 → 管理 可随时启用）');
   try {
     const home = ctx.getDshHome() || path.join(os.homedir(), '.dsh');
     // 桌面专属 profile 必须先存在（未知 profile 不会被 dsh 自动初始化）。
@@ -663,7 +731,8 @@ export function syncCompanionPlugins(): void {
       copyPluginPackage(profileDirP, src, p.name);
       // p.disabled: true 的配套插件默认以禁用行注册（如 dsh-pet 页面桌宠），
       // 用户可在「设置 → 插件 → 管理」里启用；已有行不重写，用户选择优先。
-      pending.push({ id: p.id, name: p.name, disabled: p.disabled === true, config: p.config });
+      // 精简版：LITE_DEFAULT_DISABLED 命中的配套插件同样默认以禁用行注册。
+      pending.push({ id: p.id, name: p.name, disabled: p.disabled === true || isLiteDisabled(p.id, installProfile), config: p.config });
     }
     if (migratedBuiltins.length) {
       try {
@@ -681,7 +750,10 @@ export function syncCompanionPlugins(): void {
     // 内置皮肤：行 id 取皮肤包 skin.json 的 wiring.id（ui-skin-*）。
     // 禁用的皮肤黑名单（因兼容性问题或崩溃而禁用）。
     const DISABLED_SKINS = ['maid-atelier'];
-    for (const entry of fs.readdirSync(SKINS_DIR, { withFileTypes: true })) {
+    // v6 Task 3.1（ADR 0006）：最简本体不携带 assets/skins（皮肤包由
+    // Task 1.2/6.x 以包形式接入）—— 目录缺失时跳过皮肤行同步，别让
+    // readdirSync 的 ENOENT 炸掉整个 syncCompanionPlugins。
+    if (fs.existsSync(SKINS_DIR)) for (const entry of fs.readdirSync(SKINS_DIR, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       // 跳过禁用的皮肤
       if (DISABLED_SKINS.includes(entry.name)) continue;

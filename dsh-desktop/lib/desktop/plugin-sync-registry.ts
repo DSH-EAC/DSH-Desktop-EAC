@@ -1,8 +1,45 @@
 // GENERATED FILE — do not edit by hand.
-// Source: .sync/plugins.json (run generate-plugin-registry.mjs).
-// plugin-sync:update-sources {"better-sidebar":{"npm":"dsh-better-sidebar"},"computer-user":{"npm":"computer-user"},"dsh-navbar":{"npm":"@vlln/dsh-navbar"},"dsh-pet":{"npm":"dsh-pet"},"dsh-session-manager":{"npm":"dsh-session-manager"},"dsh-undo":{"github":"lire1131/dsh-undo-savepoint"},"mobile-fix":{"npm":"dsh-web-mobile-fix"},"offpeak":{"npm":"dsh-offpeak"},"picturereader":{"npm":"picturereader"},"soul-md":{"npm":"dsh-soul-md"},"unified-market":{"npm":"dsh-unified-market"}}
+// Sources: .sync/plugins.json, plugin-distribution.json, and recommended pack registry (run generate-plugin-registry.mjs).
+// plugin-sync:update-sources {"better-sidebar":{"npm":"dsh-better-sidebar"},"computer-user":{"npm":"computer-user"},"dsh-navbar":{"npm":"@vlln/dsh-navbar"},"dsh-pet":{"npm":"dsh-pet"},"dsh-session-manager":{"npm":"dsh-session-manager"},"dsh-undo":{"github":"lire1131/dsh-undo-savepoint"},"mobile-fix":{"npm":"dsh-web-mobile-fix"},"offpeak":{"npm":"dsh-offpeak"},"picturereader":{"npm":"picturereader"},"soul-md":{"npm":"dsh-soul-md"},"think-zh-expand-eac":{"github":"jing-hy/dsh-think-zh-expand-eac"},"unified-market":{"npm":"dsh-unified-market"}}
+// plugin-sync:distribution {"builtinPluginIds":["balance","client-file-changes","compact","eac-core-bridge","eac-locale-compat","easy-setup","file-changes","file-drop-eac","plugin-manager","plugin-shield","plugin-wizard","settings-scroll-fix","skin-switch","terminal","unified-market","viewport-lock"],"recommendedPluginIds":["better-sidebar","change-review","composer-dynamic-island","conversation-tweaks","dock-settings","dsh-navbar","dsh-raw-html","dsh-session-manager","message-rewind","mobile-fix","offpeak","picturereader","prompt-custom","soul-md"]}
 
 export const PLUGIN_SYNC_REGISTRY = {
+  "distribution": {
+    "builtinPluginIds": [
+      "balance",
+      "client-file-changes",
+      "compact",
+      "eac-core-bridge",
+      "eac-locale-compat",
+      "easy-setup",
+      "file-changes",
+      "file-drop-eac",
+      "plugin-manager",
+      "plugin-shield",
+      "plugin-wizard",
+      "settings-scroll-fix",
+      "skin-switch",
+      "terminal",
+      "unified-market",
+      "viewport-lock"
+    ],
+    "recommendedPluginIds": [
+      "better-sidebar",
+      "change-review",
+      "composer-dynamic-island",
+      "conversation-tweaks",
+      "dock-settings",
+      "dsh-navbar",
+      "dsh-raw-html",
+      "dsh-session-manager",
+      "message-rewind",
+      "mobile-fix",
+      "offpeak",
+      "picturereader",
+      "prompt-custom",
+      "soul-md"
+    ]
+  },
   "entries": {
     "agent-teams": {
       "class": "patched",
@@ -299,6 +336,21 @@ export const PLUGIN_SYNC_REGISTRY = {
       "source": {
         "kind": "npm",
         "name": "dsh-session-manager"
+      },
+      "syncMode": "mirror"
+    },
+    "dsh-stt": {
+      "class": "follow-upstream",
+      "kind": "plugin",
+      "packageName": "@deepseek-ai/dsh-stt",
+      "path": "dsh-desktop/assets/plugins/dsh-stt",
+      "runtimeUpdate": {
+        "allowed": false,
+        "defaultAction": "prompt"
+      },
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/BAIKAI23333/dsh-stt"
       },
       "syncMode": "mirror"
     },
@@ -758,6 +810,25 @@ export const PLUGIN_SYNC_REGISTRY = {
       },
       "syncMode": "manual"
     },
+    "think-zh-expand-eac": {
+      "class": "follow-upstream",
+      "kind": "plugin",
+      "packageName": "dsh-think-zh-expand-eac",
+      "path": "dsh-desktop/assets/plugins/dsh-think-zh-expand-eac",
+      "runtimeUpdate": {
+        "allowed": true,
+        "defaultAction": "prompt",
+        "source": {
+          "kind": "github",
+          "repository": "https://github.com/jing-hy/dsh-think-zh-expand-eac"
+        }
+      },
+      "source": {
+        "kind": "github",
+        "repository": "https://github.com/jing-hy/dsh-think-zh-expand-eac"
+      },
+      "syncMode": "mirror"
+    },
     "ui-skin-blue-fantasy": {
       "class": "resource",
       "kind": "skin",
@@ -979,10 +1050,15 @@ export const PLUGIN_SYNC_REGISTRY = {
     "soul-md": {
       "npm": "dsh-soul-md"
     },
+    "think-zh-expand-eac": {
+      "github": "jing-hy/dsh-think-zh-expand-eac"
+    },
     "unified-market": {
       "npm": "dsh-unified-market"
     }
   }
 } as const;
 export const PLUGIN_UPDATE_SOURCES = PLUGIN_SYNC_REGISTRY.updateSources;
+export const DISTRIBUTION_BUILTIN_PLUGIN_IDS = PLUGIN_SYNC_REGISTRY.distribution.builtinPluginIds;
+export const RECOMMENDED_PACK_PLUGIN_IDS = PLUGIN_SYNC_REGISTRY.distribution.recommendedPluginIds;
 export default PLUGIN_SYNC_REGISTRY;

@@ -3,6 +3,11 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+const ELF_MACHINES = {
+  x64: 62,
+  arm64: 183,
+};
+
 function walkFiles(root) {
   const out = [];
   const visit = (dir) => {
@@ -52,6 +57,11 @@ function containsBytes(file, needle) {
 export function auditLinuxBundle(root, options = {}) {
   const absoluteRoot = path.resolve(root);
   const scanRoot = path.resolve(options.scanRoot || absoluteRoot);
+  const targetArch = options.targetArch || 'x64';
+  const targetMachine = ELF_MACHINES[targetArch];
+  if (targetMachine === undefined) {
+    throw new Error(`Unsupported Linux bundle architecture: ${targetArch}`);
+  }
   if (!existsSync(absoluteRoot)) throw new Error(`Linux bundle root does not exist: ${absoluteRoot}`);
   if (!existsSync(scanRoot)) throw new Error(`Linux bundle scan root does not exist: ${scanRoot}`);
 
@@ -82,8 +92,8 @@ export function auditLinuxBundle(root, options = {}) {
     const machine = elfMachine(file);
     if ((file === runtime || /\.node$/i.test(file)) && machine === null) {
       errors.push(`Linux native payload is not ELF: ${rel}`);
-    } else if (machine !== null && machine !== 62) {
-      errors.push(`Linux native payload is not x86_64 ELF (e_machine=${machine}): ${rel}`);
+    } else if (machine !== null && machine !== targetMachine) {
+      errors.push(`Linux native payload is not ${targetArch} ELF (e_machine=${machine}): ${rel}`);
     }
     if (forbiddenPaths.some((needle) => containsBytes(file, needle))) {
       errors.push(`local build path embedded in Linux bundle: ${rel}`);
@@ -91,18 +101,19 @@ export function auditLinuxBundle(root, options = {}) {
   }
   // issue #206：node-pty build/Release 与 prebuilds 双二进制错配 → 启动即崩。
   // 装配脚本已剔除不一致的 build 目录；这里做归档层兜底：build/Release 的
-  // pty.node 存在时必须与 prebuilds/linux-x64/pty.node 内容一致，否则 FAIL。
+  // pty.node 存在时必须与当前架构 prebuild 内容一致，否则 FAIL。
   const ptyBuild = path.join(absoluteRoot, 'dsh-desktop', 'node_modules', 'node-pty', 'build', 'Release', 'pty.node');
-  const ptyPrebuilt = path.join(absoluteRoot, 'dsh-desktop', 'node_modules', 'node-pty', 'prebuilds', 'linux-x64', 'pty.node');
+  const ptyPlatformArch = `linux-${targetArch}`;
+  const ptyPrebuilt = path.join(absoluteRoot, 'dsh-desktop', 'node_modules', 'node-pty', 'prebuilds', ptyPlatformArch, 'pty.node');
   if (existsSync(ptyBuild)) {
     if (!existsSync(ptyPrebuilt)) {
-      errors.push('node-pty build/Release/pty.node exists but prebuilds/linux-x64/pty.node is missing');
+      errors.push(`node-pty build/Release/pty.node exists but prebuilds/${ptyPlatformArch}/pty.node is missing`);
     } else {
       try {
         const a = readFileSync(ptyBuild);
         const b = readFileSync(ptyPrebuilt);
         if (!a.equals(b)) {
-          errors.push('node-pty build/Release/pty.node differs from prebuilds/linux-x64/pty.node (stale build artifact will crash the terminal)');
+          errors.push(`node-pty build/Release/pty.node differs from prebuilds/${ptyPlatformArch}/pty.node (stale build artifact will crash the terminal)`);
         }
       } catch (error) {
         errors.push(`node-pty binary comparison failed: ${String((error && error.message) || error)}`);
@@ -143,7 +154,7 @@ if (invoked) {
   const root = process.argv[2] || path.join(here, 'staged-resources');
   const scanRoot = process.argv[3] || root;
   try {
-    const result = auditLinuxBundle(root, { scanRoot });
+    const result = auditLinuxBundle(root, { scanRoot, targetArch: process.arch });
     const glibc = auditLinuxGlibc(scanRoot);
     console.log(`[audit-linux] OK files=${result.filesChecked} native=${result.nativeModules} glibc<=${glibc.maximum}`);
   } catch (err) {

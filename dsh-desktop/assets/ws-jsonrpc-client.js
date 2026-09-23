@@ -1,12 +1,9 @@
 /**
  * assets/ws-jsonrpc-client.js — 桌面窗 ↔ sidecar 的 WS JSON-RPC 回环客户端（单源）。
  *
- * 架构：主窗桥（tauri-shell/sidecar/bridge.ts）与恢复中心窗
- * （assets/recovery-center-preload.js）曾各自内联一份几乎相同的 WS 客户端
- * （connect / queue / call / 超时 / 1500ms 重连）；现统一为这一个文件，由壳层
- * 在窗口 initialization_script 序列中先注入本文件、再注入各自的桥胶水，桥胶水
- * 经 window.__DSH_WS_RPC__ 取回客户端实例（见 tauri-shell/src/main.rs 的
- * BRIDGE_INIT_JS 与 recovery_center_page）。
+ * 架构：由壳层在主窗口 initialization_script 中先注入本文件，再注入桥胶水；
+ * 桥胶水经 window.__DSH_WS_RPC__ 取回客户端实例（见 tauri-shell/src/main.rs
+ * 的 BRIDGE_INIT_JS）。
  *
  * 用法：window.__DSH_WS_RPC__({ timeoutMs, onOpen }) → { send, call, onNotify }
  *   - 在 DOMContentLoaded 自动 connect 并 1500ms 退避重连；

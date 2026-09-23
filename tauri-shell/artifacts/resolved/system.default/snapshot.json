@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "package": "system.default",
+  "version": "2.0.0",
+  "digest": "sha256:eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e",
+  "generation": 1,
+  "assets": {
+    "control/layout.css": "control-layout.css",
+    "style/tokens.css": "style-tokens.css",
+    "style/states.css": "style-states.css",
+    "top-sidebar/styles.css": "regions/top-sidebar/styles.css",
+    "bottom-sidebar/styles.css": "regions/bottom-sidebar/styles.css",
+    "left-sidebar/styles.css": "regions/left-sidebar/styles.css",
+    "right-sidebar/styles.css": "regions/right-sidebar/styles.css",
+    "session/styles.css": "regions/session/styles.css",
+    "overlay/styles.css": "regions/overlay/styles.css",
+    "shared/common.css": "shared/common.css",
+    "shared/tokens.css": "shared/tokens.css"
+  },
+  "slotAssets": {
+    "top-sidebar": ["control/layout.css", "style/tokens.css", "style/states.css", "top-sidebar/styles.css", "shared/common.css"],
+    "bottom-sidebar": ["style/tokens.css", "style/states.css", "bottom-sidebar/styles.css", "shared/common.css"],
+    "left-sidebar": ["style/tokens.css", "style/states.css", "left-sidebar/styles.css", "shared/common.css"],
+    "right-sidebar": ["style/tokens.css", "style/states.css", "right-sidebar/styles.css", "shared/common.css"],
+    "session": ["style/tokens.css", "style/states.css", "session/styles.css", "shared/common.css"],
+    "overlay": ["style/tokens.css", "style/states.css", "overlay/styles.css", "shared/common.css"]
+  },
+  "fault": null
+}

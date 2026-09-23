@@ -3,21 +3,28 @@
 // 供 tauri.conf.json 的 resources 映射进安装包。
 //
 // 布局（= main.rs resource_root() 的约定）：
-//   staged-resources/sidecar/server.js|bridge.js|rescue-integration.js
+//   staged-resources/sidecar/server.js|bridge.js|capability-stubs.js
 //   staged-resources/dsh-desktop/<Electron 时代的精确文件清单 + 生产 node_modules
-//                              + assets + vendor/node + vendor/npm>
+//                              + assets (host profile only) + vendor/node + vendor/npm>
 //
 // 用法：node stage-resources.mjs [--target=win32|linux|darwin] [--skip-npm]
 
 import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, readFileSync, statSync, readdirSync, writeFileSync } from 'node:fs';
-import { execFileSync, execSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canReuseStagedNodeModules, writeStagedPlatformStamp } from './stage-platform-cache.mjs';
 import { copyKernelCacheForTarget, sanitizeClientBuildPaths } from './stage-linux-sanitize.mjs';
 import { withAbsolutizedKernelManifests } from './stage-kernel-manifest.mjs';
-import { pruneDarwinPayloads, pruneNonDarwinPrebuilds } from './stage-platform-prune.mjs';
-import { copyPluginLock, pluginLockManifest, validatePluginLock } from './plugin-lock-stage.mjs';
+import {
+  assertSupportedStageArch,
+  pruneDarwinPayloads,
+  pruneLinuxPayloads,
+  pruneNonDarwinPrebuilds,
+  pruneNonLinuxPrebuilds,
+} from './stage-platform-prune.mjs';
+import { genDistributionDescriptor } from './gen-distribution-descriptor.mjs';
+import { prepareWebView2Loader } from './prepare-webview2-loader.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dd = path.join(root, 'dsh-desktop');
@@ -28,6 +35,7 @@ const targetPlatform = targetArg ? targetArg.slice('--target='.length) : process
 if (targetPlatform !== 'win32' && targetPlatform !== 'linux' && targetPlatform !== 'darwin') {
   throw new Error(`[stage] 不支持目标平台: ${targetPlatform}`);
 }
+assertSupportedStageArch(process.arch);
 // 交叉打包显式不支持（解析处校验）：native/*.node 与各包 prebuilds 均按本机
 // platform/arch 装配，target 与本机不一致会产出缺原生包的坏树 —— 解析处 fail-fast。
 if (targetPlatform !== process.platform) {
@@ -37,46 +45,56 @@ if (targetPlatform !== process.platform) {
   );
 }
 
-// 插件 lock 是正式构建的输入边界：先离线验证清单、目录、registry、入口和
-// 摘要，再触碰 staged-resources。验证脚本不解析网络来源，也不修改工作树。
-const pluginLock = validatePluginLock(root);
-
-// 人工同步：新增根模块要加进来（Electron 时代的 main.js / preload.js 与其
-// 独享模块 error-detail / koffi-preflight / renderer-recovery / watchdog /
-// session-encoding-heal 已随壳退役，不再打包）。
+// 人工同步：只装配 sidecar 的直接/传递依赖，以及 stage 构建期脚本。
+//
+// v6 Task 3.1（ADR 0006）：最简本体装配面。剥离集（插件系统/更新体系/
+// 增值功能）的代码保留在仓库原位等接回，但不再进入装配清单：
+//   - 插件系统：plugin-updater / plugin-guard / plugin-manager-state /
+//     builtin-collision / patch-row-heal / profile-module-heal /
+//     rescue-agent 之外的插件治理面、preset-sync / compact-preset-migrate /
+//     router-persona-preset-migrate（迁移面随插件选择向导剥出）
+//   - 更新体系：updater / client-updater / shortcut-maintenance（v6.1
+//     Task 8/9/10 接回）
+//   - companion-sync / plugin-ops / market / install-profile / shortcuts /
+//     junction-patrol / static-preview / feature-pack 等 lib/desktop 模块
+//   - vnext 隔离体系整体剥出（ADR 0003 体系随插件系统走）
+// v6 Task 3.3：插件治理闭包接回。ROOT_FILES 增补 companion-sync 的根模块
+// 依赖（plugin-guard / plugin-updater / plugin-manager-state / builtin-collision /
+// patch-row-heal / profile-module-heal / preset-sync / compact-preset-migrate /
+// router-persona-preset-migrate）——它们由 companion-sync 顶层 require 消费。
+// 更新流（client-updater / client-update）仍属 v6.1 Task 8/9，不在此清单。
 const ROOT_FILES = [
-  'updater.js', 'client-updater.js', 'logger.js', 'plugin-updater.js',
-  'balance.js', 'session-watcher.js', 'profile-module-heal.js',
-  'patch-row-heal.js', 'builtin-collision.js', 'plugin-manager-state.js', 'plugin-guard.js',
-  'rescue-agent.js', 'preset-sync.js', 'compact-preset-migrate.js',
-  'router-persona-preset-migrate.js',
+  'session-watcher.js',
   'bundle-integrity.js', 'stable-port.js', 'stream-write-guard.js',
-  'shortcut-maintenance.js',
-  'host-bootstrap.js',
+  // updater.js 保留其 overlay 内核管理面（boot 失败隔离切内置内核的链路，
+  // runtime-paths/profile 消费）；更新流函数无人调用，v6.1 Task 8 拆分。
+  'updater.js',
+  // Task 3.3 插件治理闭包
+  'plugin-guard.js', 'plugin-updater.js', 'plugin-manager-state.js',
+  'builtin-collision.js', 'patch-row-heal.js', 'profile-module-heal.js',
+  'preset-sync.js', 'compact-preset-migrate.js', 'router-persona-preset-migrate.js',
 ];
 const LIB_DESKTOP = [
-  'file-roots.js', 'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js', 'guard-box.js',
-  'runtime-patches.js', 'companion-sync.js', 'plugin-sync-registry.js', 'plugin-ops.js', 'market.js',
-  'shortcuts.js', 'junction-patrol.js', 'client-update.js', 'static-preview.js',
-  'boot-server.js', 'feature-pack.js',
+  'proc.js', 'platform.js', 'runtime-paths.js', 'profile.js',
+  'runtime-patches.js', 'boot-server.js',
+  // Task 3.3 插件治理三件套 + 其 lib/desktop 依赖
+  'guard-box.js', 'companion-sync.js', 'plugin-ops.js',
+  'install-profile.js', 'plugin-sync-registry.js',
+  // Task 3.3 阶段 3：files.revert 的白名单根
+  'file-roots.js',
 ];
 const SCRIPTS = [
-  'patch-session-manage.js', 'plugin-manager-patch.js',
-  'onboarding.js', 'patch-deps.js', 'feature-pack-cli.js',
+  'patch-session-manage.js', 'patch-deps.js',
+  // plugin-ops 消费：核心插件集合判定 + patch 行读写
+  'onboarding.js', 'plugin-manager-patch.js',
 ];
 
-// vnext 隔离体系（vnext-absorb Phase 2）：sidecar require 的 lib/{state,log,
-// supervisor,extension-host,recovery-center} 编译产物 + 原生模块。
 const LIB_VNEXT = [
-  'state.js', 'log.js', 'plugin-copy.js', 'atomic-json.js',
-  'supervisor/registry.js', 'supervisor/state-machine.js', 'supervisor/installer.js',
-  'supervisor/permissions.js', 'supervisor/incidents.js',
-  'extension-host/manager.js', 'extension-host/bridge-server.js',
-  'extension-host/job-fence.js', 'extension-host/rpc.js', 'extension-host/sdk/index.js',
-  'recovery-center/register.js',
+  'atomic-json.js',
+  // companion-sync / guard-box 消费
+  'plugin-copy.js',
 ];
-const NATIVE_MODULES = ['supervisor/index.node', 'snapshot/index.node'];
-
+const NATIVE_MODULES = [];
 function requireFile(file, label) {
   if (!existsSync(file) || !statSync(file).isFile()) {
     throw new Error(`[stage] 缺少${label || '文件'}: ${path.relative(root, file)}`);
@@ -87,44 +105,6 @@ function copyRequired(src, dest, label) {
   requireFile(src, label);
   mkdirSync(path.dirname(dest), { recursive: true });
   cpSync(src, dest);
-}
-
-function isLinuxX64Elf(file) {
-  const data = readFileSync(file);
-  return data.length >= 20
-    && data[0] === 0x7f && data.subarray(1, 4).toString('ascii') === 'ELF'
-    && data.readUInt16LE(18) === 62;
-}
-
-function pruneLinuxPayloads(dir) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      pruneLinuxPayloads(file);
-      if (readdirSync(file).length === 0) rmSync(file, { recursive: true, force: true });
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    if (/\.(?:exe|dll)$/i.test(entry.name) || (/\.node$/i.test(entry.name) && !isLinuxX64Elf(file))) {
-      rmSync(file, { force: true });
-    }
-  }
-}
-
-function pruneNonLinuxPrebuilds(dir) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const child = path.join(dir, entry.name);
-    if (entry.name === 'prebuilds') {
-      for (const platformDir of readdirSync(child, { withFileTypes: true })) {
-        if (platformDir.isDirectory() && platformDir.name !== 'linux-x64') {
-          rmSync(path.join(child, platformDir.name), { recursive: true, force: true });
-        }
-      }
-    } else {
-      pruneNonLinuxPrebuilds(child);
-    }
-  }
 }
 
 function pruneMuslPackages(nodeModules) {
@@ -175,48 +155,18 @@ function healNodePtyPlugin(nodeModules, platform, arch) {
   rmSync(buildDir, { recursive: true, force: true });
 }
 
-function pluginEntrypoints(pkg) {
-  const result = [];
-  const add = (value) => {
-    if (typeof value === 'string' && value.trim()) result.push(value.replace(/^\.\//, ''));
-  };
-  add(pkg.main);
-  add(pkg.module);
-  if (typeof pkg.exports === 'string') add(pkg.exports);
-  else if (pkg.exports && typeof pkg.exports === 'object') {
-    const walk = (value) => {
-      if (typeof value === 'string') add(value);
-      else if (value && typeof value === 'object') Object.values(value).forEach(walk);
-    };
-    walk(pkg.exports);
-  }
-  return [...new Set(result)].filter((entry) => !entry.includes('*') && !/\.d\.(?:ts|mts|cts)$/i.test(entry));
-}
-
-function validatePluginTree(dir, label) {
-  const entries = readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-    const pluginDir = path.join(dir, entry.name);
-    const manifest = path.join(pluginDir, 'package.json');
-    if (!existsSync(manifest)) {
-      throw new Error(`[stage] ${label}插件目录没有 package.json: ${path.relative(root, pluginDir)}`);
-    }
-    let pkg;
-    try { pkg = JSON.parse(readFileSync(manifest, 'utf8')); }
-    catch (err) { throw new Error(`[stage] ${label}插件 manifest 无法解析: ${path.relative(root, manifest)} (${err.message})`); }
-    const points = pluginEntrypoints(pkg);
-    if (points.length === 0) throw new Error(`[stage] ${label}插件没有可校验入口: ${path.relative(root, manifest)}`);
-    for (const rel of points) requireFile(path.join(pluginDir, rel), `${label}插件入口`);
-  }
-}
-
 console.log(`[stage] 目标平台 ${targetPlatform}；清理旧装配目录` + (skipNpm ? '（--skip-npm：保留上次的生产 node_modules）' : ''));
 // 注意：node_modules 必须在整树清空前判定并豁免，否则 --skip-npm 永远不生效
 // （先 rm 全目录再 existsSync 检查，检查对象必不存在）。
 const stagedNm = path.join(staged, 'dsh-desktop', 'node_modules');
 const platformStamp = path.join(staged, '.node-modules-platform');
-const keepStagedNm = canReuseStagedNodeModules(skipNpm, targetPlatform, stagedNm, platformStamp);
+const keepStagedNm = canReuseStagedNodeModules(
+  skipNpm,
+  targetPlatform,
+  process.arch,
+  stagedNm,
+  platformStamp,
+);
 if (skipNpm && existsSync(stagedNm) && !keepStagedNm) {
   console.log('[stage] 上次 node_modules 的目标平台未知或不匹配，将重新安装');
 }
@@ -231,19 +181,13 @@ if (keepStagedNm) {
 }
 mkdirSync(path.join(staged, 'sidecar'), { recursive: true });
 mkdirSync(path.join(staged, 'dsh-desktop'), { recursive: true });
-copyPluginLock(pluginLock, path.join(staged, 'dsh-desktop'));
 
 console.log('[stage] 编译 TypeScript（tsc 就地产物）');
-// staging 不应因缺少本地 compiler 而隐式联网下载 npm 包；CI 依赖安装阶段
-// 已提供 package-lock.json 中的 TypeScript，缺失时直接 fail-fast。不能用
-// npx：缺少本地 tsc 时它可能只打印提示并返回成功，掩盖真正的 staging 错误。
-const tsc = path.join(dd, 'node_modules', 'typescript', 'bin', 'tsc');
-requireFile(tsc, 'TypeScript compiler');
-execFileSync(process.execPath, [tsc, '-p', 'tsconfig.json'], { cwd: dd, stdio: 'inherit' });
+execSync('npx tsc -p tsconfig.json', { cwd: dd, stdio: 'inherit' });
 
 console.log('[stage] sidecar 产物');
-// 5.2 起 mobile-app.html 退役（手机桥 = 完整 Web UI 反向代理，见 phone-bridge.ts）。
-for (const f of ['server.js', 'bridge.js', 'rescue-integration.js', 'phone-bridge.js']) {
+// v6 严格模式：sidecar 只装 server + bridge + 内部 boot glue。
+for (const f of ['server.js', 'bridge.js', 'capability-stubs.js']) {
   cpSync(path.join(root, 'tauri-shell', 'sidecar', f), path.join(staged, 'sidecar', f));
 }
 
@@ -256,33 +200,22 @@ mkdirSync(path.join(staged, 'dsh-desktop', 'lib', 'desktop'), { recursive: true 
 for (const f of LIB_DESKTOP) {
   copyRequired(path.join(dd, 'lib', 'desktop', f), path.join(staged, 'dsh-desktop', 'lib', 'desktop', f), '桌面库');
 }
-console.log('[stage] vnext 隔离体系（lib 模块 + shared 协议 + 原生 .node）');
+console.log('[stage] 通用 lib 模块');
 for (const f of LIB_VNEXT) {
-  copyRequired(path.join(dd, 'lib', f), path.join(staged, 'dsh-desktop', 'lib', f), 'vnext 库');
+  copyRequired(path.join(dd, 'lib', f), path.join(staged, 'dsh-desktop', 'lib', f), '通用库');
 }
-// shared/protocol.js：隔离体系单点协议源，extension-host/rpc.js 运行时 require
-// （../../shared/protocol.js）——漏装配会让 sidecar 启动即 MODULE_NOT_FOUND。
-copyRequired(path.join(dd, 'shared', 'protocol.js'), path.join(staged, 'dsh-desktop', 'shared', 'protocol.js'), '共享协议');
-mkdirSync(path.join(staged, 'dsh-desktop', 'native'), { recursive: true });
-for (const f of NATIVE_MODULES) {
-  copyRequired(path.join(dd, 'native', f), path.join(staged, 'dsh-desktop', 'native', f), '原生模块');
+if (NATIVE_MODULES.length) {
+  mkdirSync(path.join(staged, 'dsh-desktop', 'native'), { recursive: true });
+  for (const f of NATIVE_MODULES) {
+    copyRequired(path.join(dd, 'native', f), path.join(staged, 'dsh-desktop', 'native', f), '原生模块');
+  }
 }
 mkdirSync(path.join(staged, 'dsh-desktop', 'scripts'), { recursive: true });
 for (const f of SCRIPTS) {
   copyRequired(path.join(dd, 'scripts', f), path.join(staged, 'dsh-desktop', 'scripts', f), '脚本');
 }
-// 功能包链路自检（copyRequired 保证源存在，这里校验"成对"装配）：
-// scripts/feature-pack-cli.js 与 lib/desktop/feature-pack.js 必须同时入包 ——
-// CLI 运行时 require ../lib/desktop/feature-pack，漏一个功能包页就整体不可用
-// （市场插件只能报"功能包 CLI 不可用"）。后续新增随包 CLI 照此成对补充。
-{
-  const cli = path.join(staged, 'dsh-desktop', 'scripts', 'feature-pack-cli.js');
-  const core = path.join(staged, 'dsh-desktop', 'lib', 'desktop', 'feature-pack.js');
-  if (existsSync(cli) !== existsSync(core)) {
-    throw new Error('[stage] 功能包链路装配不完整：feature-pack-cli.js 与 feature-pack.js 必须同时入包');
-  }
-  if (existsSync(cli)) console.log('[stage] 功能包链路自检通过（CLI + 核心）');
-}
+// （v6 Task 3.1：feature-pack 链路自检随功能包面剥出——feature-pack-cli.js
+// 与 feature-pack.js 均不在最简本体装配清单，成对校验无对象。）
 // package.json + lock 原样拷贝（npm ci 要求两者一致；--omit=dev 只装生产树）。
 // .npmrc（legacy-peer-deps）必须随行：内核包互相声明 peer，staged 目录里的
 // npm ci 若不带该配置会因 lock 缺 peer 闭包直接 EUSAGE 拒装（全新打包必踩）。
@@ -290,10 +223,85 @@ copyRequired(path.join(dd, 'package.json'), path.join(staged, 'dsh-desktop', 'pa
 copyRequired(path.join(dd, 'package-lock.json'), path.join(staged, 'dsh-desktop', 'package-lock.json'), 'package-lock.json');
 copyRequired(path.join(dd, '.npmrc'), path.join(staged, 'dsh-desktop', '.npmrc'), '.npmrc');
 
-console.log('[stage] assets（114MB：38 插件 + 10 皮肤 + 图标）');
-cpSync(path.join(dd, 'assets'), path.join(staged, 'dsh-desktop', 'assets'), { recursive: true });
-validatePluginTree(path.join(dd, 'assets', 'plugins'), '源');
-validatePluginTree(path.join(staged, 'dsh-desktop', 'assets', 'plugins'), 'staging');
+// 安装形态标记（v5.4 双形态）：随包默认「完整版」；NSIS 安装器按用户选择
+// 覆写为 lite（installer-hooks.nsh POSTINSTALL）。便携包保持缺省完整版。
+writeFileSync(path.join(staged, 'dsh-desktop', 'profile.txt'), 'full\n');
+
+// v6 Task 3.1（ADR 0006）：最简本体资产面。不再整树拷贝 assets/ ——
+// plugins（102MB）与 skins（26MB）属剥离集（Task 1.2/3.2/4/5/6 接回），
+// sdk-plugins / onboarding.html 随插件系统剥出（无插件可选则无向导）。
+// 保留：图标（壳层窗口/托盘消费）、主窗口 WS 客户端、
+// SOURCES.json（溯源台账随内核组件保留）以及 skills。
+// A default Skin source may live elsewhere; EAC stages only the local payload
+// below, never an editable source tree or active registry.
+console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills）');
+{
+  const keep = [
+    'icon.ico', 'icon.jpg', 'icon.png', 'tray-icon.png',
+    'ws-jsonrpc-client.js', 'SOURCES.json',
+  ];
+  for (const name of keep) {
+    copyRequired(path.join(dd, 'assets', name), path.join(staged, 'dsh-desktop', 'assets', name), '本体资产');
+  }
+  cpSync(path.join(dd, 'assets', 'skills'), path.join(staged, 'dsh-desktop', 'assets', 'skills'), { recursive: true });
+  copyRequired(
+    path.join(root, 'tauri-shell', 'host-profile.json'),
+    path.join(staged, 'ui-skin-manager', 'host-profile.json'),
+    'UI skin HostProfile',
+  );
+  // Stage the locally supplied manager payload without imposing a source or
+  // provenance lock. Runtime consumes the staged snapshot and keeps only its
+  // structural/path-safety checks; no branch, registry URL, or network source is
+  // consulted at runtime.
+  const managerArtifacts = path.join(root, 'tauri-shell', 'artifacts');
+  if (existsSync(managerArtifacts) && statSync(managerArtifacts).isDirectory()) {
+    cpSync(managerArtifacts, path.join(staged, 'ui-skin-manager'), { recursive: true });
+    console.log('[stage] locally supplied UI skin manager payload staged');
+  }
+  // v6 Task 3.3：内置插件随行。只拷当前已接回的内置插件目录
+  //（ADR 0008 builtin 集合的子集；syncCompanionPlugins 对目录缺失的插件
+  // 记录日志并跳过，因此分阶段接回无需改同步器）。
+  const BUILTIN_PLUGIN_DIRS = [
+    // 阶段 1（PR #392）：零外设依赖的试点插件
+    'dsh-terminal',
+    'dsh-viewport-lock',
+    'dsh-eac-locale-compat',
+    // 阶段 2：不依赖 window.dshDesktop 已删桥接面的 7 个 builtin 插件。
+    // 余下 6 个（balance / client-file-changes / file-drop-eac /
+    // plugin-manager / plugin-shield / plugin-wizard）依赖 ADR 0006 v5
+    // 整体删除的方法族，需先恢复 bridge 契约，不在 Task 3.3 范围。
+    'dsh-compact',
+    'dsh-eac-core-bridge',
+    'dsh-easy-setup',
+    'dsh-file-changes',
+    'dsh-settings-scroll-fix',
+    'dsh-skin-switch',
+    'dsh-unified-market',
+    // 阶段 3：服务端 RPC / bridge 面已随本批接回
+    'dsh-plugin-manager',
+    'dsh-plugin-shield',
+    'dsh-file-drop-eac',
+    'dsh-client-file-changes',
+  ];
+  for (const dir of BUILTIN_PLUGIN_DIRS) {
+    const from = path.join(dd, 'assets', 'plugins', dir);
+    if (!existsSync(from)) {
+      throw new Error(`[stage] 内置插件目录缺失: assets/plugins/${dir}`);
+    }
+    cpSync(from, path.join(staged, 'dsh-desktop', 'assets', 'plugins', dir), { recursive: true });
+  }
+  console.log(`[stage] 内置插件已随行（Task 3.3，${BUILTIN_PLUGIN_DIRS.length} 个）`);
+}
+
+// dsh-distribution 发行版描述符（阶段 3）：组件清单来自插件来源台账
+// （assets/SOURCES.json）+ 内核钉版；协议仍为 Draft，描述符随每次打包重算。
+{
+  const info = genDistributionDescriptor({
+    ddRoot: dd,
+    stagedOut: path.join(staged, 'dsh-desktop'),
+  });
+  console.log(`[stage] distribution-descriptor.json（内核 ${info.kernelVersion}，组件 ${info.components}）`);
+}
 
 console.log('[stage] vendor node/npm 运行时');
 mkdirSync(path.join(staged, 'dsh-desktop', 'vendor'), { recursive: true });
@@ -351,12 +359,12 @@ if (targetPlatform === 'linux') {
   rmSync(path.join(staged, 'dsh-desktop', 'assets', 'plugins', 'computer-user'), { recursive: true, force: true });
   rmSync(path.join(staged, 'dsh-desktop', 'assets', 'plugins', 'dsh-dafeiyu'), { recursive: true, force: true });
   rmSync(path.join(staged, 'dsh-desktop', 'assets', 'agent-presets'), { recursive: true, force: true });
-  pruneLinuxPayloads(path.join(staged, 'dsh-desktop', 'assets'));
-  pruneNonLinuxPrebuilds(nmDest);
-  pruneLinuxPayloads(nmDest);
+  pruneLinuxPayloads(path.join(staged, 'dsh-desktop', 'assets'), process.arch);
+  pruneNonLinuxPrebuilds(nmDest, process.arch);
+  pruneLinuxPayloads(nmDest, process.arch);
   pruneMuslPackages(nmDest);
   rmSync(
-    path.join(nmDest, '@koromix', 'koffi-linux-x64', 'musl_x64'),
+    path.join(nmDest, '@koromix', `koffi-linux-${process.arch}`, `musl_${process.arch}`),
     { recursive: true, force: true },
   );
 }
@@ -377,7 +385,7 @@ if (targetPlatform !== process.platform) {
   throw new Error(`[stage] 目标平台 ${targetPlatform} 与本机 ${process.platform}/${process.arch} 不一致，拒绝装配原生载荷`);
 }
 healNodePtyPlugin(nmDest, targetPlatform, process.arch);
-writeStagedPlatformStamp(platformStamp, targetPlatform);
+writeStagedPlatformStamp(platformStamp, targetPlatform, process.arch);
 
 // dsh-desktop 锚点补丁（patch-deps：可选升级字段 / picker 退出码 / 设置左栏滚动）——
 // npm ci 从 registry 全新安装会还原成未打补丁的内核文件，必须在 staged 树上重放。
@@ -395,37 +403,19 @@ if (existsSync(vendoredBashFix)) {
   console.log('[stage] 已回填 dsh-tool-bash 的 vendored 修复');
 }
 
-// fs-ext 原生模块回填（内核 0.1.3 新依赖）：session-persistence-jsonl 的会话
-// 锁依赖 fs_ext.node（flock）。staging 用 npm ci --ignore-scripts 安装，fs-ext
-// 的 node-gyp 构建脚本被跳过 → staged 树缺 build/Release/fs_ext.node →
-// session-persistence-jsonl 装载失败 → dsh web 退出码 1（真实环境「DSH 服务
-// 已停止」）。从 dev 树回填已编译产物（同 vendored 回填模式；交叉打包已被
-// 上方 targetPlatform===process.platform 门禁拒绝，这里产物必属本机平台）。
-const fsExtNative = path.join(dd, 'node_modules', 'fs-ext', 'build');
-const fsExtRelease = path.join(fsExtNative, 'Release');
-if (existsSync(path.join(fsExtRelease, 'fs_ext.node'))) {
-  cpSync(fsExtRelease, path.join(nmDest, 'fs-ext', 'build', 'Release'), { recursive: true });
-  console.log('[stage] 已回填 fs-ext 原生运行时（build/Release/fs_ext.node）');
-} else {
-  throw new Error('[stage] dev 树缺少 fs-ext 原生构建（node_modules/fs-ext/build/Release/fs_ext.node）——先在 dev 树 npm install 触发 node-gyp 编译，或换用支持预编译分发的 fs-ext 版本');
-}
-
 const sanitizedClients = sanitizeClientBuildPaths(nmDest);
 console.log(`[stage] 已清理 ${sanitizedClients} 个内核 client bundle 的构建机路径`);
 
 // 捆绑依赖完整性清单（issue #7）：对**最终载荷**（npm ci + 补丁 + vendored
-// 回填之后）逐包计文件数，落 bundle-manifest.json。启动期 static-preview.
-// verifyBundledModules 复查比对 —— 空壳包（升级中断残留）会在 boot 期以
+// 回填之后）逐包计文件数，落 bundle-manifest.json。启动期 sidecar 的
+// boot.start 在拉起服务前复查比对 —— 空壳包（升级中断残留）会以
 // 明确文案提示重装，而不是 ERR_MODULE_NOT_FOUND 循环。
 // （Electron 时代由 scripts/after-pack.js 生成；Tauri 化后随 stage 生成。）
 {
   const { createRequire } = await import('node:module');
   const req = createRequire(import.meta.url);
   const bi = req(path.join(dd, 'bundle-integrity.js'));
-  const manifest = {
-    ...bi.buildBundleManifest(nmDest),
-    pluginLock: pluginLockManifest(pluginLock),
-  };
+  const manifest = bi.buildBundleManifest(nmDest);
   writeFileSync(path.join(staged, 'dsh-desktop', 'bundle-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log('[stage] bundle manifest written (' + Object.keys(manifest.packages).length + ' packages)');
 }
@@ -451,42 +441,14 @@ rmSync(
 
 console.log('[stage] 完成：' + staged);
 
-// WebView2Loader.dll：webview2-com-sys 提供的 x64 loader，必须与壳 exe 同级
+// WebView2Loader.dll：webview2-com-sys 提供的当前架构 loader，必须与壳 exe 同级
 // （否则 dsh-eac-shell.exe 启动即 0xC0000135 崩）。从 cargo registry 的
 // webview2-com-sys 包定位（tauri build 不再重新生成该文件）。
 // 约束：仅 win32 装配 —— 只有 tauri.windows.conf.json 引用该 DLL，linux/darwin
 // 的 cargo registry 里根本没有 webview2-com-sys，整块跳过（否则必然误杀 exit(1)）。
 if (targetPlatform === 'win32') {
-  const loader = (() => {
-    const homeDir = process.env.USERPROFILE || process.env.HOME || '';
-    const roots = [
-      path.join(process.env.CARGO_HOME || path.join(homeDir, '.cargo'), 'registry', 'src'),
-      path.join(homeDir, '.cargo', 'registry', 'src'),
-    ];
-    for (const base of roots) {
-      if (!existsSync(base)) continue;
-      const hits = readdirSync(base).sort().reverse();
-      for (const bucket of hits) {
-        const webview2Dir = path.join(base, bucket);
-        if (!existsSync(webview2Dir)) continue;
-        const subdirs = readdirSync(webview2Dir);
-        for (const dir of subdirs) {
-          if (!dir.startsWith('webview2-com-sys-')) continue;
-          const cand = path.join(webview2Dir, dir, 'x64', 'WebView2Loader.dll');
-          if (existsSync(cand)) return cand;
-        }
-      }
-    }
-    return '';
-  })();
-  const dest = path.join(staged, 'WebView2Loader.dll');
-  if (loader && existsSync(loader)) {
-    cpSync(loader, dest);
-    console.log('[stage] WebView2Loader.dll 已装配: ' + path.relative(root, dest));
-  } else {
-    // fail-fast：缺 loader 的安装包启动即 0xC0000135 崩，绝不能让坏包流出炉。
-    console.error('[stage] 未找到 WebView2Loader.dll（webview2-com-sys）——中止打包');
-    console.error('[stage] 提示：先跑一次 npx tauri build 让 cargo 拉取 webview2-com-sys，或设置 CARGO_HOME 指向含该包的目录');
-    process.exit(1);
-  }
+  const homeDir = process.env.USERPROFILE || process.env.HOME || '';
+  const cargoHome = process.env.CARGO_HOME || path.join(homeDir, '.cargo');
+  const dest = prepareWebView2Loader({ cargoHome, arch: process.arch, staged });
+  console.log('[stage] WebView2Loader.dll 已装配: ' + path.relative(root, dest));
 }

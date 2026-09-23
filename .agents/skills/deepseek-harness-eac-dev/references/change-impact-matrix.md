@@ -53,6 +53,7 @@
 | 修改核心插件 | onboarding 核心集合、禁止卸载逻辑、preset 引用 |
 | 退役插件 | `RETIRED_BUILTIN_PLUGINS`、patch/依赖/bundle 清理、迁移测试 |
 | 修改皮肤 | `assets/skins`、互斥切换、profile、z-index、许可证 |
+| 修改壳层皮肤 | `assets/shell-skin`、`skin.json`、token 完整性、`shell-skin-pack.test.ts` |
 | 修改 preset | `preset.yml`、`agent.cordis.yml`、共享 `_preset`、同步和迁移测试 |
 | 修改内置 Skill | `assets/skills`、`.eac-skill.json`、`syncBundledSkills`、CI paths |
 | 修改开发者 Skill | `SKILL.md`、`agents/openai.yaml`、`references/`、`scripts/`、Skill 自检、CI paths |

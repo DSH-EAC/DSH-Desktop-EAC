@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "manifest": ".sync/plugins.json",
   "schema": ".sync/plugins.schema.json",
+  "pluginDistribution": {
+    "enabled": true,
+    "manifest": ".sync/plugin-distribution.json",
+    "schema": ".sync/plugin-distribution.schema.json",
+    "inventoryHistory": ".sync/plugin-inventory-history.json",
+    "sources": "dsh-desktop/assets/SOURCES.json",
+    "recommendedPack": ".sync/packs/desktop-recommended.pack.json",
+    "packSchema": "docs/schemas/feature-pack-pack.json",
+    "expectedCounts": {
+      "builtin": 16,
+      "recommended": 14,
+      "external": 19
+    }
+  },
   "inventoryRoots": [
     {
       "kind": "plugin",
@@ -53,7 +67,7 @@
   "runtimeUpdates": {
     "defaultAllowed": false,
     "requiresExplicitSource": true,
-    "legacySourceCount": 11,
+    "legacySourceCount": 12,
     "sourceMapMustBeOneToOne": true
   },
   "forbiddenTrackedNames": [

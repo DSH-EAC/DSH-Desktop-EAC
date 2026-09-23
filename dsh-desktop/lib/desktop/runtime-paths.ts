@@ -35,10 +35,15 @@ const updater = require('../../updater') as {
   overlayVersion(c: UpdCtx): string | null;
   bundledVersion(): string | null;
   compareVersions(a: string, b: string): number;
+  rollback(c: UpdCtx): string | null;
 };
 
 let ctx!: RuntimePathsCtx;
-export function init(d: RuntimePathsCtx): void { ctx = d; }
+let overlayRejected = false;
+export function init(d: RuntimePathsCtx): void {
+  ctx = d;
+  overlayRejected = false;
+}
 // 壳环境注入缺省时按开发态处理（保持原防御语义）。
 function isPackaged(): boolean {
   return typeof ctx.isPackaged === 'function' ? !!ctx.isPackaged() : false;
@@ -87,13 +92,33 @@ export function updCtx(): UpdCtx {
   };
 }
 
+/**
+ * 真正的 dsh web 启动失败后隔离 overlay，并让本进程后续强制选内置内核。
+ * 不缓存“曾经健康”的结论：overlay 每次都先乐观参与真实启动，失败才回退。
+ */
+export function quarantineBrokenOverlay(reason: unknown): { quarantined: boolean; path?: string; error?: string } {
+  const version = updater.overlayVersion(updCtx()) || '未知';
+  overlayRejected = true;
+  try {
+    const broken = updater.rollback(updCtx());
+    if (!broken) return { quarantined: false };
+    ctx.log('update', `Agent overlay ${version} 真实启动失败，已隔离并改用内置版本：${String((reason as Error)?.message || reason)}`);
+    return { quarantined: true, path: broken };
+  } catch (err) {
+    const message = String((err as Error).message || err);
+    ctx.log('update', `Agent overlay ${version} 启动失败且无法隔离，本次运行强制改用内置版本：${message}`);
+    return { quarantined: false, error: message };
+  }
+}
+
 // Updated overlay takes precedence over the bundled copy — 除非 overlay 比
 // 随包内置内核旧（应用升级后，过时的官方更新 overlay 不得遮蔽更新的内置内核；
-// 平局仍取 overlay，保持既有语义）。
+// 平局仍取 overlay，保持既有语义）。真实启动失败后，本进程拒绝该 overlay，
+// 并由启动编排隔离目录后重试内置内核。
 function effectiveOverlay(): string | null {
   const c = updCtx();
   const ov = updater.overlayBinPath(c);
-  if (!ov || !fs.existsSync(ov)) return null;
+  if (overlayRejected || !ov || !fs.existsSync(ov)) return null;
   const ovVer = updater.overlayVersion(c);
   const bundled = updater.bundledVersion();
   if (ovVer && bundled && updater.compareVersions(ovVer, bundled) < 0) return null;
@@ -115,3 +140,5 @@ export function dshVersion(): string {
 export function dshVersionSource(): string {
   return effectiveOverlay() ? '用户目录（已更新）' : '内置';
 }
+
+export function isUsingOverlay(): boolean { return effectiveOverlay() !== null; }
