@@ -22,7 +22,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.join(here, '..');
 const eacRoot = path.join(desktopRoot, '..');
 const managerRepo = process.env['DSH_SKIN_MANAGER_REPO'] || path.join(eacRoot, '..', '..', 'verify', 'mgr');
-const PINNED_COMMIT = 'b7dc7d4';
+// 6.2.5 审计通过的固定提交（恢复执行 / 持久事务日志 / 持久强制确认）。
+const PINNED_COMMIT = '3e9933c';
 const ADAPTER = path.join(desktopRoot, 'lib', 'desktop', 'skin-manager.js');
 const HOST_PROFILE = path.join(eacRoot, 'tauri-shell', 'host-profile.json');
 const OFFICIAL_ARCHIVE = path.join(eacRoot, 'tauri-shell', 'artifacts', 'system.default-2.0.0.dshpack.tar');
@@ -308,7 +309,7 @@ test('选择拒绝未知 slot 与未安装坐标（不猜默认坐标）', async
   assert.equal(notInstalledFault.code, 'PACKAGE_NOT_INSTALLED');
 });
 
-test('未审计能力显式声明不可用，不伪装', async () => {
+test('6.2.5 面按真实接口探测：缺接口的 manager 不得被当成可用', async () => {
   const state = tempDir('skin-adapt-');
   const packageRoot = writeFakeManager(path.join(state, 'fake'));
   const adapter = freshAdapter({
@@ -321,8 +322,10 @@ test('未审计能力显式声明不可用，不伪装', async () => {
   const diagnose = await adapter.invoke('skin.diagnose');
   assert.equal(diagnose['ok'], true, JSON.stringify(diagnose['fault'] ?? {}));
   const capabilities = diagnose['capabilities'] as Record<string, unknown>;
-  assert.equal(capabilities['recovery'], false, '6.2.5 恢复执行未审计：必须报不可用');
-  assert.equal(capabilities['forceEnable'], false, '强制确认未审计：必须报不可用');
+  // 假 manager 没有实现 6.2.5 接口：探测必须是 false，而不是假装已接回。
+  assert.equal(capabilities['recovery'], false, '缺 recoverSlotTransactions：必须报不可用');
+  assert.equal(capabilities['forceEnable'], false, '缺 DurableForceEnableController：必须报不可用');
+  assert.equal(capabilities['journal'], false, '缺 TransactionJournal：必须报不可用');
   const unavailable = diagnose['unavailable'] as Array<Record<string, unknown>>;
   assert.ok(unavailable.some((item) => item['capability'] === 'recovery.execute'));
   assert.ok(unavailable.some((item) => item['capability'] === 'forceEnable'));
@@ -330,6 +333,13 @@ test('未审计能力显式声明不可用，不伪装', async () => {
     assert.equal(item['reason'], 'CAPABILITY_UNAUDITED');
     assert.ok(String(item['note'] ?? '').length > 0);
   }
+  // 缺接口时恢复执行必须拒绝，不得伪装成功。
+  const recovered = await adapter.invoke('skin.recover');
+  assert.equal(recovered['ok'], false);
+  assert.equal(faultOf(recovered).code, 'MANAGER_CAPABILITY_MISSING');
+  const forced = await adapter.invoke('skin.force-enable', { action: 'keep', slot: 'session' });
+  assert.equal(forced['ok'], false);
+  assert.equal(faultOf(forced).code, 'MANAGER_CAPABILITY_MISSING');
 });
 
 // ── 2b. 打包态布局（isPackaged=true）：resolved 根必须在可写用户数据目录 ─────

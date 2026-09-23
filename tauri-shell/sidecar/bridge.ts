@@ -155,6 +155,14 @@
       apply: function () { return call('skin.apply', {}); },
       revert: function (slot?: string) { return call('skin.revert', slot ? { slot: slot } : {}); },
       diagnose: function () { return call('skin.diagnose', {}); },
+      // 6.2.5 已审计面（manager 3e9933c）：恢复执行与持久强制确认，真实接口。
+      recover: function () { return call('skin.recover', {}); },
+      forceEnable: {
+        begin: function (slot: string, errorCode: string) { return call('skin.force-enable', { action: 'begin', slot: slot, errorCode: errorCode }); },
+        keep: function (slot: string) { return call('skin.force-enable', { action: 'keep', slot: slot }); },
+        abandon: function (slot: string) { return call('skin.force-enable', { action: 'abandon', slot: slot }); },
+        recover: function () { return call('skin.force-enable', { action: 'recover' }); },
+      },
     },
     fileDrop: {
       save: function (payload: Record<string, unknown>) { return call('file-drop.save', payload || {}); },

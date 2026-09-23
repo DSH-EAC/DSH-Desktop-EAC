@@ -136,6 +136,13 @@ window.__ModuleLoader__.load({
 			faultsTitle: "最近故障",
 			faultsEmpty: "本次会话没有故障。",
 			unavailableTitle: "本版本不提供的能力",
+			recover: "恢复执行",
+			recovering: "恢复执行中…",
+			recoveredClean: "恢复完成：上轮无遗留。",
+			recoveredOutcome: "恢复完成（{outcome}）：详见诊断输出。",
+			forceKeep: "强制保留",
+			forceAbandon: "断开并恢复",
+			forcePending: "确认窗中的 slot：",
 			nextStep: "下一步",
 			refused: "被拒绝：",
 			failed: "失败：",
@@ -179,6 +186,13 @@ window.__ModuleLoader__.load({
 			faultsTitle: "Recent faults",
 			faultsEmpty: "No fault in this session.",
 			unavailableTitle: "Capabilities this build does not provide",
+			recover: "Run recovery",
+			recovering: "Running recovery…",
+			recoveredClean: "Recovery finished: the previous run left nothing behind.",
+			recoveredOutcome: "Recovery finished ({outcome}): see the diagnostics output.",
+			forceKeep: "Force keep",
+			forceAbandon: "Disconnect & restore",
+			forcePending: "Slots in the confirmation window: ",
 			nextStep: "Next step",
 			refused: "Refused: ",
 			failed: "Failed: ",
@@ -660,8 +674,18 @@ window.__ModuleLoader__.load({
 								type: "button", className: s.reset, disabled: busy !== "",
 								onClick: () => run("diagnosing", (api) => api.diagnose(), (result) => setDiag(result)),
 								children: busy === "diagnosing" ? t("diagnosing") : t("diagnose")
-							}),
-							(0, react_jsx_runtime.jsx)("button", { type: "button", className: s.reset, onClick: refresh, children: t("refresh") })
+								}),
+								// 6.2.5 已审计面：恢复执行走 manager 真实接口（recoverSlotTransactions），
+								// 恢复报告（含 committed-state-not-written 的真实状态）在诊断输出里渲染。
+								capabilities !== null && capabilities.recovery === true ? (0, react_jsx_runtime.jsx)("button", {
+								type: "button", className: s.reset, disabled: busy !== "",
+								onClick: () => run("recovering", (api) => api.recover(), (result) => {
+									setDiag(result);
+									setNotice({ kind: "ok", text: result.clean ? t("recoveredClean") : t("recoveredOutcome").replace("{outcome}", String(result.outcome || "?")) });
+								}),
+								children: busy === "recovering" ? t("recovering") : t("recover")
+								}) : null,
+								(0, react_jsx_runtime.jsx)("button", { type: "button", className: s.reset, onClick: refresh, children: t("refresh") })
 						]
 					}) : null,
 					needsReload ? (0, react_jsx_runtime.jsxs)("div", {
@@ -675,6 +699,13 @@ window.__ModuleLoader__.load({
 						className: s.credits,
 						children: [
 							(0, react_jsx_runtime.jsx)("h3", { children: t("diagnoseTitle") }),
+							diag.report ? (0, react_jsx_runtime.jsxs)("div", { children: [
+								(0, react_jsx_runtime.jsx)("p", { children: "outcome: " + String(diag.report.outcome) + " · abandoned: " + String(diag.report.abandoned) + " · splits: " + String(diag.report.splits) }),
+								(Array.isArray(diag.report.diagnostics) ? diag.report.diagnostics : []).map((line, i) => (0, react_jsx_runtime.jsx)("p", { children: String(line) }, "diag-" + i))
+							] }) : null,
+							diag.forceEnable && Array.isArray(diag.forceEnable.pendingSlots) && diag.forceEnable.pendingSlots.length > 0
+								? (0, react_jsx_runtime.jsx)("p", { children: t("forcePending") + diag.forceEnable.pendingSlots.join(", ") })
+								: null,
 							(0, react_jsx_runtime.jsx)("h3", { children: t("unavailableTitle") }),
 							(Array.isArray(diag.unavailable) ? diag.unavailable : []).map((item) => (0, react_jsx_runtime.jsx)("p", { children: String(item.capability) + " — " + String(item.reason) + ": " + String(item.note) }, String(item.capability))),
 							(0, react_jsx_runtime.jsx)("h3", { children: t("faultsTitle") }),

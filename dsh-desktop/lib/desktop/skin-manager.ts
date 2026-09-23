@@ -379,10 +379,13 @@ interface Capabilities {
   install: boolean;
   snapshot: boolean;
   bindings: boolean;
-  /** 6.2.5 未审计：始终 false，且 UI 必须显示为「本版本不提供」。 */
-  journal: false;
-  recovery: false;
-  forceEnable: false;
+  /**
+   * 6.2.5 审计已通过（固定提交 3e9933c）：恢复执行 / 持久事务日志 / 强制确认
+   * 按 manager 的真实接口探测——缺方法即 false，UI 显示「本版本不提供」，不伪装。
+   */
+  journal: boolean;
+  recovery: boolean;
+  forceEnable: boolean;
 }
 
 let loaded: LoadedManager | undefined;
@@ -492,14 +495,27 @@ function probeCapabilities(module: ManagerModule): Capabilities {
   const installer = module['PackageInstaller'] as { prototype?: Record<string, unknown> } | undefined;
   const proto = installer && installer.prototype ? installer.prototype : {};
   const catalog = module['PackageCatalog'] as { open?: unknown } | undefined;
+  const journal = module['TransactionJournal'] as { prototype?: Record<string, unknown> } | undefined;
+  const journalProto = journal && journal.prototype ? journal.prototype : {};
+  const forceEnable = module['DurableForceEnableController'] as { prototype?: Record<string, unknown> } | undefined;
+  const forceEnableProto = forceEnable && forceEnable.prototype ? forceEnable.prototype : {};
   return {
     catalog: typeof catalog?.open === 'function',
     install: typeof proto['importArchive'] === 'function' && typeof proto['inspect'] === 'function',
     snapshot: typeof module['publishActiveSnapshot'] === 'function' && typeof module['readActiveSnapshot'] === 'function',
     bindings: typeof module['BindingStore'] === 'function',
-    journal: false,
-    recovery: false,
-    forceEnable: false,
+    // 6.2.5 面按真实接口探测：恢复协调器 + 事务日志 + 持久强制确认控制器。
+    journal: typeof journal === 'function'
+      && typeof journalProto['begin'] === 'function'
+      && typeof journalProto['advance'] === 'function'
+      && typeof journalProto['close'] === 'function'
+      && typeof journalProto['read'] === 'function',
+    recovery: typeof module['recoverSlotTransactions'] === 'function',
+    forceEnable: typeof forceEnable === 'function'
+      && typeof forceEnableProto['begin'] === 'function'
+      && typeof forceEnableProto['keep'] === 'function'
+      && typeof forceEnableProto['abandon'] === 'function'
+      && typeof forceEnableProto['recover'] === 'function',
   };
 }
 
@@ -613,7 +629,31 @@ interface ManagerEnv {
   resolvedDir: string;
   catalog: {list(): unknown[]; get(id: string, version: string): unknown};
   profile: unknown;
-  bindings: {committed(): Promise<{value?: {generation: number; bindings: Record<string, unknown>}}>; previous(): Promise<{value?: {generation: number; bindings: Record<string, unknown>}}>};
+  bindings: {
+    committed(): Promise<{value?: {generation: number; bindings: Record<string, unknown>}; diagnostic?: string}>;
+    previous(): Promise<{value?: {generation: number; bindings: Record<string, unknown>}}>;
+    previousGenerations(): Promise<Array<{generation: number}>>;
+    hasPending(): Promise<boolean>;
+    recoverDetailed(): Promise<{value: {generation: number; bindings: Record<string, unknown>}; pendingRemovalFailed?: string; droppedPendingGeneration?: number}>;
+    pendingPath: string;
+  };
+  /** 6.2.5 面：事务日志与持久强制确认控制器（capabilities 探测通过才构造）。 */
+  journal?: {
+    begin(input: Record<string, unknown>): Promise<unknown>;
+    advance(record: unknown, stage: string): Promise<unknown>;
+    close(record: unknown): Promise<void>;
+    read(): Promise<{open: unknown[]; unreadable: string[]; directoryError?: string}>;
+    directory: string;
+  };
+  forceEnable?: {
+    begin(request: Record<string, unknown>): Promise<unknown>;
+    keep(slot: string): Promise<string>;
+    abandon(slot: string): Promise<string>;
+    recover(options?: Record<string, unknown>): Promise<Record<string, unknown>>;
+    pendingSlots(): string[];
+    pending(slot: string): unknown;
+    directory: string;
+  };
 }
 
 async function openEnv(): Promise<{ok: true; env: ManagerEnv} | {ok: false; fault: SkinFault}> {
@@ -696,6 +736,18 @@ async function openEnv(): Promise<{ok: true; env: ManagerEnv} | {ok: false; faul
   const catalog = (await catalogFactory.open(path.join(stateDir, 'catalog.json'))) as ManagerEnv['catalog'];
   const bindings = new BindingStoreCtor(path.join(stateDir, 'bindings'));
 
+  // 6.2.5 面：能力探测通过才构造——缺真实接口时不构造、不伪装，capabilities 里就是 false。
+  let journal: ManagerEnv['journal'];
+  if (capabilities.journal) {
+    const JournalCtor = module['TransactionJournal'] as new (directory: string) => NonNullable<ManagerEnv['journal']>;
+    journal = new JournalCtor(path.join(stateDir, 'journal'));
+  }
+  let forceEnable: ManagerEnv['forceEnable'];
+  if (capabilities.forceEnable) {
+    const ForceEnableCtor = module['DurableForceEnableController'] as new (options: {directory: string}) => NonNullable<ManagerEnv['forceEnable']>;
+    forceEnable = new ForceEnableCtor({directory: path.join(stateDir, 'force-enable')});
+  }
+
   return {
     ok: true,
     env: {
@@ -709,6 +761,8 @@ async function openEnv(): Promise<{ok: true; env: ManagerEnv} | {ok: false; faul
       catalog,
       profile,
       bindings,
+      ...(journal ? {journal} : {}),
+      ...(forceEnable ? {forceEnable} : {}),
     },
   };
 }
@@ -1160,6 +1214,220 @@ async function opRevert(params: Record<string, unknown>): Promise<SkinResult> {
   return {ok: true, revertedToGeneration: previous.value.generation, generation: view ? view.generation : null, snapshot: view ?? null, reloadRequired: true};
 }
 
+/**
+ * 恢复执行（6.2.5 已审计面，真实接口调用，不是标注替换）。
+ *
+ * 调 manager 的 `recoverSlotTransactions`：它关闭中止的日志记录、丢弃暂存状态、
+ * 产出 RecoveryReport（outcome / 回退链 / 动作清单 / 诊断）。manager 自己承诺：
+ * 不写绑定世代、不删 resolved 树、不动 snapshot——所以本层调它也不需要再做
+ * 写操作；恢复后 UI 显示的仍是「读回的真实状态」。
+ *
+ * `committed-state-not-written`（快照 live 的世代领先于已提交绑定状态）按
+ * manager 的真实判定原样带出：snapshot 对宿主服务是权威的，树被保留，分裂被
+ * 报告而不是被「修好」——本层不得把这种状态改写成 clean。
+ */
+async function opRecover(): Promise<SkinResult> {
+  const envResult = await openEnv();
+  if (!envResult.ok) return {ok: false, fault: envResult.fault};
+  const env = envResult.env;
+  if (!env.journal || !env.capabilities.recovery) {
+    return {
+      ok: false,
+      fault: {
+        code: 'MANAGER_CAPABILITY_MISSING',
+        message: '当前 manager 构建不提供恢复执行（recoverSlotTransactions / TransactionJournal）',
+        nextStep: '把 manager 制品重钉到 6.2.5 审计通过的版本（3e9933c 起），不要在 UI 层自写恢复策略',
+      },
+    };
+  }
+
+  // liveGeneration / snapshotUnreadable 都从真实读回取得：快照读不出时按
+  // 「state-unreadable」让 manager 判，而不是猜一个世代。
+  let liveGeneration: number | undefined;
+  let snapshotUnreadable = false;
+  try {
+    const snapshot = await readSnapshot(env);
+    if (snapshot) {
+      const generation = Number(snapshot['generation']);
+      if (Number.isSafeInteger(generation) && generation > 0) liveGeneration = generation;
+    }
+  } catch {
+    snapshotUnreadable = true;
+  }
+
+  const recover = env.module['recoverSlotTransactions'] as (request: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  try {
+    const report = await recover({
+      journal: env.journal,
+      bindings: env.bindings,
+      resolvedRoot: env.resolvedDir,
+      profile: env.profile,
+      ...(liveGeneration !== undefined ? {liveGeneration} : {}),
+      ...(snapshotUnreadable ? {snapshotUnreadable: true} : {}),
+    });
+    const clean = report['clean'] === true;
+    if (!clean) {
+      // 非 clean 不是 RPC 失败：它是恢复的真实结论。记进故障环，让诊断页能看到
+      // 「上次恢复发现了什么」，同时按 ok:true 返回完整报告（UI 需要渲染链与动作）。
+      rememberFault({
+        code: 'RECOVERY_' + String(report['outcome'] ?? 'UNKNOWN').toUpperCase().replace(/-/g, '_'),
+        message: '恢复执行发现上轮遗留：' + String(report['outcome'] ?? 'unknown'),
+        nextStep: '按报告里的 actions/diagnostics 逐项处理；committed-state-not-written 表示快照权威、状态未追上，需要重新 Apply 让状态追上快照',
+        detail: {outcome: report['outcome']},
+      });
+    }
+    return {
+      ok: true,
+      clean,
+      outcome: report['outcome'] ?? null,
+      report: {
+        outcome: report['outcome'] ?? null,
+        chain: report['chain'] ?? [],
+        actions: report['actions'] ?? [],
+        abandoned: Array.isArray(report['abandoned']) ? (report['abandoned'] as unknown[]).length : 0,
+        splits: Array.isArray(report['splits']) ? (report['splits'] as unknown[]).length : 0,
+        diagnostics: report['diagnostics'] ?? [],
+        bindings: report['bindings'] ?? null,
+      },
+      // 恢复后 UI 必须读回而不是信缓存：给出恢复后的真实快照视图。
+      snapshot: snapshotView(env, await readSnapshot(env)) ?? null,
+      reloadRequired: false,
+    };
+  } catch (error) {
+    // 恢复执行自身失败（如日志目录不可写）：真实失败必须可定位，不得报「已恢复」。
+    return {ok: false, fault: faultOf(error, 'RECOVERY_FAILED')};
+  }
+}
+
+/**
+ * 强制确认（durable force-enable，6.2.5 已审计面）。
+ *
+ * - `skin.force-enable.begin`：为有COMPATIBILITY类失败的 slot 开 30 秒确认窗。
+ *   activate/commit/restore 走本适配层的真实发布路径（commit = 重新发布该 slot
+ *   当前草稿选择；restore = 整代回退到 previous-known-good），不是空钩子。
+ * - `skin.force-enable.keep`：在窗口内显式保留（force keep），提交后 manager 才
+ *   标记并移除持久记录。
+ * - `skin.force-enable.abandon`：显式断开/放弃，立即恢复上一坐标。
+ * 超时由 manager 的定时器驱动（恢复上一坐标）；以上每一步的真实结局
+ * （kept/restored/restore-failed）原样返回，restore-failed 不得报成功。
+ */
+async function opForceEnable(params: Record<string, unknown>): Promise<SkinResult> {
+  const envResult = await openEnv();
+  if (!envResult.ok) return {ok: false, fault: envResult.fault};
+  const env = envResult.env;
+  if (!env.forceEnable || !env.capabilities.forceEnable) {
+    return {
+      ok: false,
+      fault: {
+        code: 'MANAGER_CAPABILITY_MISSING',
+        message: '当前 manager 构建不提供持久强制确认（DurableForceEnableController）',
+        nextStep: '把 manager 制品重钉到 6.2.5 审计通过的版本（3e9933c 起）',
+      },
+    };
+  }
+  const action = typeof params['action'] === 'string' ? params['action'] : '';
+  const slot = typeof params['slot'] === 'string' ? params['slot'] : '';
+
+  if (action === 'keep' || action === 'abandon') {
+    if (!slot) {
+      return {ok: false, fault: {code: 'FORCE_ENABLE_SLOT_REQUIRED', message: action + ' 需要 slot', nextStep: '从诊断页取当前在确认窗里的 slot（pendingSlots）'}};
+    }
+    try {
+      const outcome = action === 'keep' ? await env.forceEnable.keep(slot) : await env.forceEnable.abandon(slot);
+      return {ok: true, action, slot, outcome, snapshot: snapshotView(env, await readSnapshot(env)) ?? null, reloadRequired: true};
+    } catch (error) {
+      return {ok: false, fault: faultOf(error, 'FORCE_ENABLE_FAILED')};
+    }
+  }
+
+  if (action === 'recover') {
+    // 重启后恢复：哪些记录要 restore、哪些已 kept 只需清理——真实接口判定。
+    try {
+      const result = await env.forceEnable.recover();
+      return {ok: true, action, recovery: result};
+    } catch (error) {
+      return {ok: false, fault: faultOf(error, 'FORCE_ENABLE_RECOVERY_FAILED')};
+    }
+  }
+
+  if (action !== 'begin') {
+    return {
+      ok: false,
+      fault: {
+        code: 'FORCE_ENABLE_ACTION_UNKNOWN',
+        message: '未知的 force-enable 动作: ' + (action || '(空)'),
+        nextStep: '可用动作: begin（开确认窗）/ keep（force keep）/ abandon（断开恢复）/ recover（重启后恢复）',
+      },
+    };
+  }
+
+  const errorCode = typeof params['errorCode'] === 'string' ? params['errorCode'] : '';
+  if (!slot || !errorCode) {
+    return {
+      ok: false,
+      fault: {
+        code: 'FORCE_ENABLE_INCOMPLETE',
+        message: 'begin 需要 slot + errorCode（COMPATIBILITY 类失败才允许进确认窗）',
+        nextStep: '只在 Apply/激活因 COMPATIBILITY 类失败被拒绝时使用；其他类别（DIGEST/PATH 等）永远不能强制',
+      },
+    };
+  }
+  const draft = readDraft();
+  const selected = draft.slots[slot];
+  if (!selected) {
+    return {
+      ok: false,
+      fault: {
+        code: 'FORCE_ENABLE_NO_SELECTION',
+        message: 'slot ' + slot + ' 没有草稿选择，没有可强制的目标',
+        nextStep: '先逐 slot 选择目标坐标，Apply 被拒（COMPATIBILITY 类）后再进确认窗',
+      },
+    };
+  }
+  const previous = await env.bindings.previous();
+  const previousBinding = previous.value?.bindings?.[slot] as {package?: {id?: unknown; version?: unknown}} | undefined;
+  const previousTarget = previousBinding?.package?.id ? String(previousBinding.package.id) + '@' + String(previousBinding.package.version ?? '') : '';
+  try {
+    const handle = await env.forceEnable.begin({
+      slot,
+      target: selected.packageId,
+      previous: previousTarget || 'profile-fallback',
+      errorCode,
+      activate: async () => {
+        // 真实激活：发布当前草稿（含该 slot 的目标坐标）为新一代。
+        const outcome = await publish(env, selectionOf(readDraft()));
+        if (!outcome.ok) throw new Error(outcome.fault ? outcome.fault.code + ': ' + outcome.fault.message : 'publish failed');
+      },
+      commit: async () => {
+        // force keep 的提交点：状态已在 activate 落为新一代，这里只需确认草稿
+        // 仍是该坐标——若已被改动，提交必须失败而不是偷偷改目标。
+        const current = readDraft().slots[slot];
+        if (!current || current.packageId !== selected.packageId) {
+          throw new Error('FORCE_ENABLE_TARGET_DRIFTED: 草稿选择在确认窗内被改动，拒绝提交');
+        }
+      },
+      restore: async () => {
+        // 超时/断开的恢复：回退到 manager 的 previous-known-good（整代回退的真实路径）。
+        const outcome = await opRevert({});
+        if (!outcome.ok) throw new Error(outcome.fault ? outcome.fault.code + ': ' + outcome.fault.message : 'revert failed');
+      },
+    });
+    const record = (handle as {record?: unknown}).record ?? null;
+    return {
+      ok: true,
+      action: 'begin',
+      slot,
+      record,
+      confirmationMs: 30000,
+      // 确认窗的最终结局异步落在 handle.done；UI 轮询 skin.status 的
+      // forceEnable.pendingSlots 或再次调 keep/abandon/recover 取得真实结局。
+      pending: env.forceEnable.pendingSlots(),
+    };
+  } catch (error) {
+    return {ok: false, fault: faultOf(error, 'FORCE_ENABLE_BEGIN_FAILED')};
+  }
+}
+
 async function opDiagnose(): Promise<SkinResult> {
   const result = await ensureManager();
   const roots = stateRoot();
@@ -1187,18 +1455,24 @@ async function opDiagnose(): Promise<SkinResult> {
       }),
     };
   };
+  // 6.2.5 面已真实接回：不可用的只剩「当前制品缺接口」这一种情况（探测即事实），
+  // 不再列 CAPABILITY_UNAUDITED——恢复执行/强制确认/持久日志已在 3e9933c 审计通过。
+  const unavailable: Array<Record<string, unknown>> = [];
+  if (!env.capabilities.journal) unavailable.push({capability: 'journal.durable', reason: CAPABILITY_UNAUDITED, note: '当前 manager 制品缺 TransactionJournal，重钉到 3e9933c 起的制品'});
+  if (!env.capabilities.recovery) unavailable.push({capability: 'recovery.execute', reason: CAPABILITY_UNAUDITED, note: '当前 manager 制品缺 recoverSlotTransactions，重钉到 3e9933c 起的制品'});
+  if (!env.capabilities.forceEnable) unavailable.push({capability: 'forceEnable', reason: CAPABILITY_UNAUDITED, note: '当前 manager 制品缺 DurableForceEnableController，重钉到 3e9933c 起的制品'});
   return {
     ...base,
     manager: {available: true, packageRoot: env.packageRoot, version: env.version, source: env.source},
     capabilities: env.capabilities,
     snapshot: view ?? null,
     bindings: {committed: bindingSummary(committed.value), previous: bindingSummary(previous.value)},
-    // 未审计能力显式声明不可用（不是「暂无数据」）。
-    unavailable: [
-      {capability: 'recovery.execute', reason: CAPABILITY_UNAUDITED, note: '6.2.5 的恢复执行尚未审计通过，本版本不提供；故障先按 fault.nextStep 处理'},
-      {capability: 'forceEnable', reason: CAPABILITY_UNAUDITED, note: '强制确认（durable force-enable）尚未审计通过，本版本不提供'},
-      {capability: 'journal.durable', reason: CAPABILITY_UNAUDITED, note: '持久事务日志随 6.2.5 接回，本版本的发布不带日志记录'},
-    ],
+    // 6.2.5 面的真实运行状态：确认窗里的 slot、日志目录、故障环——全部来自真实接口。
+    forceEnable: env.forceEnable
+      ? {pendingSlots: env.forceEnable.pendingSlots(), directory: env.forceEnable.directory}
+      : null,
+    journal: env.journal ? {directory: env.journal.directory} : null,
+    unavailable,
   };
 }
 
@@ -1213,6 +1487,8 @@ const OPERATIONS: Record<string, (params: Record<string, unknown>) => Promise<Sk
   'skin.apply': () => opApply(),
   'skin.revert': (params) => opRevert(params),
   'skin.diagnose': () => opDiagnose(),
+  'skin.recover': () => opRecover(),
+  'skin.force-enable': (params) => opForceEnable(params),
 };
 
 export const SKIN_MANAGER_METHODS = Object.keys(OPERATIONS);
