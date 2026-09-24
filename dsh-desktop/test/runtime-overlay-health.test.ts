@@ -19,6 +19,8 @@ const runtimePaths = require('../lib/desktop/runtime-paths.js') as {
   }): void;
   quarantineBrokenOverlay(reason: unknown): { quarantined: boolean; path?: string; error?: string };
   dshBin(): string;
+  dshVersionSource(): string;
+  isUsingOverlay(): boolean;
 };
 
 function makeOverlay(userDataDir: string, version: string, binSource: string): string {
@@ -68,7 +70,8 @@ test('曾经可用的 overlay 损坏后仍可被隔离并回退内置版本', ()
   assert.equal(result.quarantined, true);
   assert.equal(fs.existsSync(path.join(userDataDir, 'agent')), false);
   assert.ok(fs.readdirSync(userDataDir).some((name) => name.startsWith('agent-broken-')));
-  assert.ok(!runtimePaths.dshBin().includes(userDataDir), '隔离后必须回退随包内核');
+  assert.equal(runtimePaths.isUsingOverlay(), false);
+  assert.equal(runtimePaths.dshVersionSource(), '内置');
   assert.ok(logs.some((line) => line.includes('真实启动失败')));
   fs.rmSync(userDataDir, { recursive: true, force: true });
 });
@@ -76,7 +79,7 @@ test('曾经可用的 overlay 损坏后仍可被隔离并回退内置版本', ()
 test('sidecar 在真实启动失败后停止残留进程、隔离 overlay 并重试内置版本', () => {
   const server = fs.readFileSync(path.join(testDir, '..', '..', 'tauri-shell', 'sidecar', 'server.ts'), 'utf8');
   const start = server.indexOf('async function guardedStartAndWait');
-  const end = server.indexOf('recoveryCenter.init', start);
+  const end = server.indexOf('// ---- 方法注册表', start);
   const guarded = server.slice(start, end);
 
   assert.ok(start >= 0 && end > start, '必须能定位 guardedStartAndWait 实现');

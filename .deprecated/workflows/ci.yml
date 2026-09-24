@@ -28,6 +28,12 @@ on:
       - '.agents/skills/deepseek-harness-eac-dev/**'
   workflow_dispatch:
 
+# GITHUB_TOKEN 最小权限：本 workflow 只读仓库。
+# 说明：本文件是已退役的历史副本（GitHub Actions 只读取 .github/workflows/，
+# 故本目录不参与运行）。此块仅为保持同类文件一致，不改变任何执行行为。
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

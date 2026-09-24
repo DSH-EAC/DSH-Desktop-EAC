@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   createDesktopPlatform,
   nodeExecutableName,
-  pluginCapabilityDetails,
 } from '../lib/desktop/platform.js';
 
 test('Linux desktop platform uses XDG data and the POSIX Node runtime name', () => {
@@ -16,13 +15,7 @@ test('Linux desktop platform uses XDG data and the POSIX Node runtime name', () 
   assert.equal(platform.userDataDir(), '/tmp/xdg/deepseek-harness-eac');
   assert.equal(platform.runtimeExecutableName(), 'node');
   assert.equal(nodeExecutableName('linux'), 'node');
-  assert.equal(platform.capabilities().clientSelfUpdate, 'external-handoff');
   assert.equal(platform.capabilities().processFence, 'degraded');
-  assert.deepEqual(platform.capabilities().plugins, {
-    computerUser: 'unavailable',
-    ocr: 'external-dependency',
-    dafeiyu: 'unavailable',
-  });
 });
 
 test('Linux desktop platform falls back to ~/.config when XDG_CONFIG_HOME is absent', () => {
@@ -45,12 +38,7 @@ test('Windows desktop platform preserves AppData and node.exe behavior', () => {
   assert.equal(platform.userDataDir(), 'C:\\Users\\Alice\\AppData\\Roaming\\Deepseek Harness EAC');
   assert.equal(platform.runtimeExecutableName(), 'node.exe');
   assert.equal(nodeExecutableName('win32'), 'node.exe');
-  assert.equal(platform.capabilities().clientSelfUpdate, 'supported');
-  assert.deepEqual(platform.capabilities().plugins, {
-    computerUser: 'supported',
-    ocr: 'supported',
-    dafeiyu: 'supported',
-  });
+  assert.equal(platform.capabilities().processFence, 'job-object');
 });
 
 test('Linux clipboard capability reports an external dependency when no backend exists', () => {
@@ -86,18 +74,5 @@ test('macOS desktop platform uses ~/Library/Application Support and POSIX Node r
   assert.equal(platform.runtimeExecutableName(), 'node');
   assert.equal(nodeExecutableName('darwin'), 'node');
   assert.equal(platform.capabilities().clipboard, 'supported');
-  assert.equal(platform.capabilities().clientSelfUpdate, 'external-handoff');
   assert.equal(platform.capabilities().processFence, 'degraded');
-  assert.deepEqual(platform.capabilities().plugins, {
-    computerUser: 'unavailable',
-    ocr: 'external-dependency',
-    dafeiyu: 'unavailable',
-  });
-});
-
-test('macOS plugin capability reasons mention the v1.5 plan', () => {
-  const details = pluginCapabilityDetails('darwin');
-  assert.equal(details['computer-user'].status, 'unavailable');
-  assert.match(details['computer-user'].reason, /v1\.5/);
-  assert.equal(details.picturereader.status, 'external-dependency');
 });

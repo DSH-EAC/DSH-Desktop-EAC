@@ -12,10 +12,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildBundleManifest, verifyBundle } from '../bundle-integrity.js';
+
+const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /** commander(3 files) + @deepseek-ai/dsh(2) + @img/sharp-win32-x64(2 incl. .node) */
 function makeTree() {
@@ -30,6 +33,7 @@ function makeTree() {
   mk('commander', ['package.json', 'index.js', 'lib/program.js']);
   mk('@deepseek-ai/dsh', ['package.json', 'lib/bin.js']);
   mk('@img/sharp-win32-x64', ['package.json', 'lib/sharp.node']);
+  mk('.bin', ['dsh']);
   return root;
 }
 
@@ -40,6 +44,7 @@ test('buildBundleManifest records per-package file counts for scoped and unscope
     assert.equal(m.packages['commander'].files, 3);
     assert.equal(m.packages['@deepseek-ai/dsh'].files, 2);
     assert.equal(m.packages['@img/sharp-win32-x64'].files, 2);
+    assert.equal(m.packages['.bin'], undefined);
     assert.equal(m.version, 1);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -121,4 +126,24 @@ test('verifyBundle skips the check when no manifest is available (legacy install
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('packaged boot verifies bundle integrity before starting the server', () => {
+  const server = readFileSync(join(sourceRoot, 'tauri-shell', 'sidecar', 'server.ts'), 'utf8');
+  const bootStart = server.slice(server.indexOf("'boot.start':"), server.indexOf("'boot.stop':"));
+  assert.match(server, /isPackagedRuntime\(\)[\s\S]*bundle-manifest\.json[\s\S]*verifyBundle/);
+  assert.ok(bootStart.indexOf('verifyBundleIntegrity') >= 0, 'boot.start must invoke bundle verification');
+  assert.ok(
+    bootStart.indexOf('verifyBundleIntegrity') < bootStart.indexOf('guardedStartAndWait'),
+    'bundle verification must happen before any server process starts',
+  );
+});
+
+test('packaged boot rejects damaged bundles with bounded package summaries', () => {
+  const server = readFileSync(join(sourceRoot, 'tauri-shell', 'sidecar', 'server.ts'), 'utf8');
+  assert.match(server, /bundle integrity/i);
+  assert.match(server, /damaged\.slice\(0, 10\)\.map/);
+  assert.match(server, /expected/);
+  assert.match(server, /actual/);
+  assert.doesNotMatch(server, /while\s*\([^)]*verifyBundle/);
 });

@@ -1,0 +1,90 @@
+[data-region="overlay"] { }
+
+[data-region="overlay"][data-control-name="overlay-root"] {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-region="overlay"] [data-control-name="dialog-surface"] {
+  width: min(380px, calc(100vw - 32px));
+  padding: 28px 32px 22px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+[data-region="overlay"] [data-control-name="dialog-title"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+[data-region="overlay"] [data-control-name="dialog-body"] {
+  margin-bottom: 20px;
+}
+
+[data-region="overlay"] [data-control-name="dialog-actions"] {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+[data-region="overlay"] [data-control-name="dialog-actions"] > button {
+  padding: 10px;
+}
+
+@media (hover: none) {
+  [data-region="overlay"] [data-control-name="dialog-actions"] > button {
+    padding: 13px;
+  }
+}
+
+[data-region="overlay"][data-control-name="overlay-root"] {
+  background: var(--eac-shell-bg-overlay, rgba(5, 10, 24, .65));
+  backdrop-filter: blur(8px);
+}
+
+[data-region="overlay"] [data-control-name="dialog-surface"] {
+  border: 1px solid var(--eac-shell-border, rgba(255, 255, 255, .1));
+  border-radius: var(--eac-shell-radius-surface, 14px);
+  background: var(--eac-shell-card-bg, #1e1e2e);
+  box-shadow: var(--eac-shell-card-shadow, 0 12px 48px rgba(0, 0, 0, .6));
+}
+
+[data-region="overlay"] [data-control-name="dialog-title"] {
+  color: var(--eac-shell-text-primary, #dfe6ff);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+[data-region="overlay"] [data-control-name="dialog-body"] {
+  color: var(--eac-shell-text-secondary, #8b9ac4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+[data-region="overlay"] [data-control-name="system.default.exit-minimize"] {
+  border-color: var(--eac-shell-accent-soft-border, rgba(91, 140, 255, .4));
+  background: var(--eac-shell-accent-soft-bg, rgba(91, 140, 255, .1));
+  color: var(--eac-shell-accent-text, #a9c2ff);
+}
+
+[data-region="overlay"] [data-control-name="system.default.exit-quit"] {
+  border-color: var(--eac-shell-danger-soft-border, rgba(232, 50, 70, .3));
+  background: var(--eac-shell-danger-soft-bg, rgba(232, 50, 70, .1));
+  color: var(--eac-shell-danger, #ff7a85);
+}
+
+[data-region="overlay"] [data-control-name="system.default.exit-quit"]:hover {
+  background: var(--eac-shell-danger-soft-bg-hover, rgba(232, 50, 70, .2));
+}
+
+[data-region="overlay"] [data-control-name="overlay-close"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--eac-shell-text-tertiary, #5f6f9c);
+}

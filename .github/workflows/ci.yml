@@ -1,0 +1,270 @@
+name: Minimal core CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'dsh-desktop/**'
+      - 'tauri-shell/**'
+      - '.github/workflows/ci.yml'
+      - 'docs/adr/0006-minimal-core-scope.md'
+  workflow_dispatch:
+
+# GITHUB_TOKEN 最小权限：本 workflow 只读仓库（CodeQL actions/missing-workflow-permissions）。
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.7.0'
+  KERNEL_VERSION: '0.1.5-rc.2'
+
+jobs:
+  packages:
+    name: Installer packages
+    needs: [source-and-unit, rust-shell, staged-runtime]
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/staged-runtime-artifact.yml
+
+  source-and-unit:
+    name: Node source and unit tests (${{ matrix.os }}/${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            os: linux
+            arch: x64
+          - runner: ubuntu-22.04-arm
+            os: linux
+            arch: arm64
+          - runner: windows-latest
+            os: windows
+            arch: x64
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
+    defaults:
+      run:
+        working-directory: dsh-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('expected ${{ matrix.arch }}, got ' + process.arch)"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: dsh-desktop/package-lock.json
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@${{ env.PNPM_VERSION }} && pnpm --version
+
+      - name: Cache vendored kernel
+        uses: actions/cache@v4
+        with:
+          path: dsh-desktop/vendor/kernel
+          key: ${{ runner.os }}-${{ matrix.arch }}-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
+
+      - name: Prepare vendored kernel
+        run: node scripts/fetch-kernel.js
+
+      - name: Install dependencies
+        run: npm run ci:install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit and contract tests
+        run: npm test
+
+      - name: Check manifest drift
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/check-manifest-drift.mjs
+
+      - name: Upload generated Rust build input
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-bridge-${{ matrix.os }}-${{ matrix.arch }}
+          path: tauri-shell/sidecar/bridge.js
+          if-no-files-found: error
+          retention-days: 1
+
+  rust-shell:
+    name: Rust shell (${{ matrix.os }}/${{ matrix.arch }})
+    needs: source-and-unit
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            os: linux
+            arch: x64
+          - runner: ubuntu-22.04-arm
+            os: linux
+            arch: arm64
+          - runner: windows-latest
+            os: windows
+            arch: x64
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('expected ${{ matrix.arch }}, got ' + process.arch)"
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Download generated Rust build input
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-bridge-${{ matrix.os }}-${{ matrix.arch }}
+          path: tauri-shell/sidecar
+
+      - name: Prepare Tauri resource directory for Rust tests
+        working-directory: ${{ github.workspace }}
+        run: node -e "const fs=require('node:fs'); const root='tauri-shell'; const staged=root+'/staged-resources'; fs.mkdirSync(staged+'/sidecar',{recursive:true}); fs.mkdirSync(staged+'/dsh-desktop',{recursive:true}); fs.copyFileSync(root+'/sidecar/bridge.js',staged+'/sidecar/bridge.js'); fs.cpSync(root+'/artifacts',staged+'/ui-skin-manager',{recursive:true}); fs.copyFileSync(root+'/skin-manager-artifact.lock.json',staged+'/ui-skin-manager/artifact.lock.json')"
+
+      - name: Set up stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Fetch Windows Cargo dependencies
+        if: runner.os == 'Windows'
+        working-directory: tauri-shell
+        run: cargo fetch --locked
+
+      - name: Prepare Windows WebView2Loader resource
+        if: runner.os == 'Windows'
+        working-directory: ${{ github.workspace }}
+        run: node tauri-shell/prepare-webview2-loader.mjs --arch=${{ matrix.arch }}
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri-shell -> target
+          key: ${{ matrix.os }}-${{ matrix.arch }}-minimal-core
+
+      - name: Check formatting
+        working-directory: tauri-shell
+        run: cargo fmt -- --check
+
+      - name: Run Rust tests
+        working-directory: tauri-shell
+        run: cargo test --locked
+
+      - name: Check Rust shell
+        working-directory: tauri-shell
+        run: cargo check --locked
+
+  staged-runtime:
+    name: Staged runtime and isolated boot smoke (${{ matrix.os }}/${{ matrix.arch }})
+    needs: source-and-unit
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            os: linux
+            arch: x64
+            target: linux
+          - runner: ubuntu-22.04-arm
+            os: linux
+            arch: arm64
+            target: linux
+          - runner: windows-latest
+            os: windows
+            arch: x64
+            target: win32
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
+            target: win32
+    defaults:
+      run:
+        working-directory: dsh-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('expected ${{ matrix.arch }}, got ' + process.arch)"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: dsh-desktop/package-lock.json
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@${{ env.PNPM_VERSION }} && pnpm --version
+
+      - name: Cache vendored kernel
+        uses: actions/cache@v4
+        with:
+          path: dsh-desktop/vendor/kernel
+          key: ${{ runner.os }}-${{ matrix.arch }}-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
+
+      - name: Prepare vendored kernel
+        run: node scripts/fetch-kernel.js
+
+      - name: Install dependencies
+        run: npm run ci:install
+
+      - name: Fetch bundled Node and npm runtimes
+        run: npm run fetch-runtime
+
+      - name: Set up stable Rust for Windows resources
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Fetch Windows Cargo dependencies
+        if: runner.os == 'Windows'
+        working-directory: ${{ github.workspace }}/tauri-shell
+        run: cargo fetch --locked
+
+      - name: Assemble staged runtime
+        working-directory: ${{ github.workspace }}
+        run: node tauri-shell/stage-resources.mjs --target=${{ matrix.target }} --skip-npm
+
+      - name: Verify staged closure and bundle integrity
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/verify-staged-runtime.mjs
+
+      - name: Run isolated minimal boot smoke
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/minimal-boot-smoke.mjs
+
+      - name: Check manifest drift
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/check-manifest-drift.mjs

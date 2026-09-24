@@ -54,6 +54,8 @@ export function buildBundleManifest(nmRoot: string): BundleManifest {
   try { entries = fs.readdirSync(nmRoot, { withFileTypes: true }); } catch { return { version: 1, packages }; }
   for (const e of entries) {
     if (!e.isDirectory() || e.isSymbolicLink()) continue;
+    // npm creates .bin as a command shim directory, not as a package.
+    if (e.name === '.bin') continue;
     if (e.name.startsWith('@')) {
       let scoped;
       try { scoped = fs.readdirSync(path.join(nmRoot, e.name), { withFileTypes: true }); } catch { continue; }

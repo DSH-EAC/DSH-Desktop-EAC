@@ -29,6 +29,14 @@ interface GuardDeps {
   log(tag: string, msg: string): void;
 }
 
+/** 静态体检发现项（与 plugin-guard.ts 的 Finding 同形态；该模块尚未类型化）。 */
+export interface Finding {
+  code: string;
+  severity: 'high' | 'medium' | 'low';
+  message: string;
+  fixable: boolean;
+}
+
 /** 保护中心快照档案（对应 plugin-guard 的 meta.json 形态）。 */
 export interface GuardSnapshot {
   id: string;
@@ -53,6 +61,18 @@ export interface GuardInstance {
   markGood(id: string): void;
   /** 5.3.3 接线：boot 失败落事故留痕（供恢复中心展示）。 */
   reportIncident(title: string, detail: string): { ok: boolean; file?: string; error?: string };
+  // ---- v6 Task 3.3：插件保护中心 UI（dsh-plugin-shield）消费的动作面 ----
+  // 底层 plugin-guard 的 GuardApi 已实现这些方法；此前未在中间层暴露，
+  // 导致 guard.action 的 check / repair / incident / resolve-incident 四个
+  // 动作无法转发（UI 点了没反应）。
+  /** 静态体检：返回 findings 列表供 UI 渲染。 */
+  healthCheck(): { at: string; profile: string; findings: Finding[] };
+  /** 按体检结果自动修复；未传 findings 时由引擎自行体检。 */
+  repair(findings?: Finding[]): { applied: string[] };
+  /** 读取单条事故详情（UI 的「事故报告」展开）。 */
+  readIncident(id: string): { ok: boolean; content?: string; error?: string };
+  /** 标记事故已解决。 */
+  resolveIncident(id: string): { ok: boolean; error?: string };
 }
 
 let ctx!: GuardBoxCtx;

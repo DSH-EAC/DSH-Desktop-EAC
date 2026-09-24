@@ -1,0 +1,201 @@
+/* Structural rules for system.default.control. No visual values live here. */
+
+html.eac-shell,
+html.eac-shell body {
+  margin: 0;
+  min-height: 100%;
+}
+
+[data-control-name="system.default.shell-page"] {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+[data-control-name="system.default.shell-content"] {
+  max-width: 560px;
+  text-align: center;
+}
+
+[data-control-name="system.default.shell-title"] {
+  margin-bottom: 10px;
+}
+
+[data-control-name="system.default.shell-status"] {
+  margin-bottom: 6px;
+}
+
+[data-control-name="system.default.shell-log-path"] {
+  margin-bottom: 20px;
+}
+
+[data-control-name="system.default.shell-actions"] {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+[data-control-name="system.default.loading-spinner"] {
+  width: 34px;
+  height: 34px;
+  margin: 18px auto 0;
+}
+
+html[data-dsh-title-bar-height] body {
+  box-sizing: border-box !important;
+  padding-top: 36px !important;
+  overflow-x: hidden !important;
+}
+
+html[data-dsh-title-bar-height] [data-phase="hero"] [data-conversation-scroll] {
+  justify-content: flex-start !important;
+  overflow-x: hidden !important;
+}
+
+html[data-dsh-title-bar-height] [data-phase="hero"] [data-conversation-scroll] > * {
+  margin-block: auto !important;
+}
+
+html[data-dsh-title-bar-height] [data-control-name="popup-surface"] {
+  z-index: 5100 !important;
+}
+
+html[data-dsh-title-bar-height] [data-control-name="popup-surface"].dsh-popup-flip {
+  inset: calc(100% + 8px) auto auto !important;
+}
+
+html[data-dsh-title-bar-height] [data-control-name="composer"]:has([data-control-name="popup-surface"]) {
+  overflow: visible !important;
+}
+
+[data-control-name="dialog-surface"] {
+  overscroll-behavior: contain !important;
+  z-index: 5000 !important;
+}
+
+[data-control-name="dialog-surface"] [data-control-name="system.default.dialog-scroll-area"] {
+  overflow-anchor: none !important;
+  overscroll-behavior: contain !important;
+}
+
+[data-control-name="dialog-surface"] [data-control-name="system.default.dialog-panel"] {
+  overscroll-behavior: contain !important;
+}
+
+[data-control-name="popup-surface"] {
+  z-index: 5000 !important;
+}
+
+/* Visual selectors for system.default.style. Structure belongs to control/layout.css. */
+
+.eac-shell body,
+[data-region][data-control-name] {
+  color: var(--eac-shell-text-primary, #dfe6ff);
+  font-family: var(--eac-shell-font-family, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif);
+}
+
+.eac-shell body {
+  background: var(--eac-shell-bg-base, #0b1220);
+}
+
+[data-control-name="system.default.shell-page"] {
+  background: var(--eac-shell-bg-page, #0b1220);
+}
+
+[data-control-name="system.default.shell-title"] {
+  color: var(--eac-shell-text-primary, #dfe6ff);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+[data-control-name="system.default.shell-status"] {
+  color: var(--eac-shell-text-secondary, #8b9ac4);
+  font-size: 13px;
+}
+
+[data-control-name="system.default.shell-log-path"] {
+  color: var(--eac-shell-text-tertiary, #5f6f9c);
+  font: 12px var(--eac-shell-font-mono, Consolas, monospace);
+}
+
+button[data-control-name],
+[role="button"][data-control-name] {
+  border: 1px solid var(--eac-shell-border-strong, rgba(255, 255, 255, .18));
+  border-radius: var(--eac-shell-radius-control, 9px);
+  background: var(--eac-shell-accent-soft-bg-strong, rgba(91, 140, 255, .15));
+  color: var(--eac-shell-text-primary, #dfe6ff);
+  font: 13px var(--eac-shell-font-family, "Segoe UI", sans-serif);
+  cursor: pointer;
+  transition: background var(--eac-shell-motion-fast, 120ms), border-color var(--eac-shell-motion-fast, 120ms), color var(--eac-shell-motion-fast, 120ms), opacity var(--eac-shell-motion-fast, 120ms);
+}
+
+button[data-control-name]:hover,
+[role="button"][data-control-name]:hover {
+  background: var(--eac-shell-accent-soft-bg-hover, rgba(91, 140, 255, .22));
+}
+
+button[data-control-name]:focus-visible,
+[role="button"][data-control-name]:focus-visible {
+  outline: none;
+  box-shadow: var(--eac-shell-focus-ring, 0 0 0 2px rgba(91, 140, 255, .45));
+}
+
+button[data-control-name]:active,
+[role="button"][data-control-name]:active {
+  transform: translateY(1px);
+}
+
+[data-control-name][aria-selected="true"] {
+  border-color: var(--eac-shell-accent, #5b8cff);
+  background: var(--eac-shell-accent-soft-bg-hover, rgba(91, 140, 255, .22));
+}
+
+[data-control-name="system.default.loading-spinner"] {
+  border: 3px solid var(--eac-shell-border, rgba(255, 255, 255, .12));
+  border-top-color: var(--eac-shell-accent, #5b8cff);
+  border-radius: 50%;
+  animation: system-default-spin 1s linear infinite;
+}
+
+@keyframes system-default-spin {
+  to { transform: rotate(360deg); }
+}
+
+[data-control-name][data-state~="empty"] { opacity: .78; }
+
+[data-control-name][data-state~="idle"] { opacity: 1; }
+
+[data-control-name][data-state~="loading"] { cursor: progress; }
+
+[data-control-name][data-state~="running"] { border-color: var(--eac-shell-accent, #5b8cff); }
+
+[data-control-name][data-state~="success"] { border-color: var(--eac-shell-ok-border, rgba(61, 220, 132, .35)); background-color: var(--eac-shell-ok-soft-bg, rgba(61, 220, 132, .12)); }
+
+[data-control-name][data-state~="warning"] { border-color: var(--eac-shell-warn-border, rgba(255, 214, 102, .35)); background-color: var(--eac-shell-warn-soft-bg, rgba(255, 214, 102, .12)); }
+
+[data-control-name][data-state~="error"] { border-color: var(--eac-shell-danger-soft-border, rgba(232, 50, 70, .3)); background-color: var(--eac-shell-danger-soft-bg, rgba(232, 50, 70, .1)); }
+
+[data-control-name][data-state~="disabled"] { opacity: var(--eac-shell-opacity-disabled, .48); cursor: not-allowed; }
+
+[data-control-name][data-state~="collapsed"] { overflow: hidden; }
+
+[data-control-name][data-state~="hidden"] { visibility: hidden; }
+
+[data-control-name][data-state~="docked"] { box-shadow: inset 0 0 0 1px var(--eac-shell-border-weak, rgba(255, 255, 255, .07)); }
+
+[data-control-name][data-state~="floating"] { box-shadow: var(--eac-shell-card-shadow, 0 12px 48px rgba(0, 0, 0, .6)); }
+
+[data-control-name][data-state~="detached"] { border-color: var(--eac-shell-border-strong, rgba(255, 255, 255, .18)); }
+
+[data-control-name][data-state~="dragging"] { opacity: .68; cursor: grabbing; }
+
+[data-control-name][data-state~="drop-target"] { box-shadow: var(--eac-shell-focus-ring, 0 0 0 2px rgba(91, 140, 255, .45)); }
+
+[data-control-name][data-state~="dangerous"] { border-color: var(--eac-shell-danger-soft-border, rgba(232, 50, 70, .3)); color: var(--eac-shell-danger, #ff7a85); }
+
+[data-control-name][data-state~="animating"] { transition-duration: var(--eac-shell-motion-normal, 180ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-control-name] { transition: none !important; }
+  [data-control-name="system.default.loading-spinner"] { animation-duration: 2s; }
+}

@@ -4,6 +4,8 @@
 > 2026-08-22 版壳层重构交接——Tauri 当时还是 PoC，正文已过时，仅作回溯）。
 > 最新批次详情：`docs/HANDOVER-2026-08-29-5.3.3-batch1.md`（批次一）与
 > 5.3.3 批次二交付说明（见文末）。
+> CI 安装包矩阵（PR #406，Windows/Linux 四平台）进度与产物状态见
+> `docs/HANDOVER-2026-09-23-ci-installer-matrix.md`。
 
 ## 项目一句话
 
