@@ -28,6 +28,7 @@ window.__ModuleLoader__.load({
 		const zh = {
 			tab: "皮肤",
 			intro: "皮肤由社区作者制作，随 DSH Desktop 内置分发；切换后重启服务生效。每款皮肤的出处与许可标注在卡片与文末「来源与版权」。",
+			legacyNotice: "本页是旧的 Cordis 皮肤行路径，只影响 dsh web 皮肤层。EAC 槽位皮肤由「皮肤包」页（v6 管理器）管理——两者不是同一层。当前槽位快照：第 {n} 代。",
 			loading: "正在读取皮肤列表…",
 			loadFailed: "读取皮肤列表失败：",
 			retry: "重试",
@@ -62,6 +63,7 @@ window.__ModuleLoader__.load({
 		const en = {
 			tab: "Skins",
 			intro: "Skins are made by community authors and shipped with DSH Desktop; changes take effect after the service restarts. Attribution and licenses are shown on each card and in “Sources & Credits” below.",
+			legacyNotice: "This page is the legacy Cordis skin-row path and only affects the dsh web skin layer. EAC slot skins are managed by the “Skin packages” tab (the v6 manager) — they are not the same layer. Current slot snapshot: generation {n}.",
 			loading: "Reading skins…",
 			loadFailed: "Failed to read skins: ",
 			retry: "Retry",
@@ -94,6 +96,108 @@ window.__ModuleLoader__.load({
 			creditsNote: "Each skin follows its own license; maid-atelier is non-commercial."
 		};
 		const NS = "settings.dshSkinSwitch";
+		// v6 Task 6.2.4：皮肤包管理（manager coordinator RPC）自己的字典。
+		const NS_MANAGER = "settings.dshSkinManager";
+		const smZh = {
+			tab: "皮肤包",
+			intro: "逐 slot 选择皮肤包，再由管理器发布新一代快照。导入、选择、应用都是显式动作：本页不会自动启用、不会联网下载、也不会在后台更新。",
+			loading: "正在读取管理器状态…",
+			managerUnavailable: "皮肤管理器不可用：",
+			managerReady: "管理器",
+			capabilities: "能力",
+			capMissing: "本版本不提供：",
+			importTitle: "手动导入",
+			importHint: "填本地皮肤包的绝对路径（本版本不联网下载）。",
+			importPlaceholder: "D:\\packages\\my-skin.dshpack.tar",
+			inspect: "检查",
+			import: "导入",
+			inspecting: "检查中…",
+			importing: "导入中…",
+			inspected: "检查通过：",
+			imported: "已导入（尚未启用）：",
+			installedTitle: "已装列表",
+			installedEmpty: "还没有导入任何皮肤包。",
+			originOfficial: "官方",
+			originThirdParty: "第三方",
+			slotsTitle: "逐 slot 选择",
+			slotFallback: "默认坐标",
+			selectHint: "选择只是草稿；点「应用」才会发布新的一代。",
+			apply: "应用",
+			applying: "应用中…",
+			applied: "已发布第 {n} 代。",
+			reloadHint: "新世代要重载窗口才生效（宿主在页面引导脚本里读快照）。",
+			reloadNow: "重载窗口",
+			revert: "回退到上一代",
+			reverting: "回退中…",
+			reverted: "已回退，当前第 {n} 代。",
+			diagnose: "诊断",
+			diagnosing: "诊断中…",
+			diagnoseTitle: "诊断",
+			faultsTitle: "最近故障",
+			faultsEmpty: "本次会话没有故障。",
+			unavailableTitle: "本版本不提供的能力",
+			recover: "恢复执行",
+			recovering: "恢复执行中…",
+			recoveredClean: "恢复完成：上轮无遗留。",
+			recoveredOutcome: "恢复完成（{outcome}）：详见诊断输出。",
+			forceKeep: "强制保留",
+			forceAbandon: "断开并恢复",
+			forcePending: "确认窗中的 slot：",
+			nextStep: "下一步",
+			refused: "被拒绝：",
+			failed: "失败：",
+			refresh: "刷新状态"
+		};
+		const smEn = {
+			tab: "Skin packages",
+			intro: "Pick a skin package per slot, then let the manager publish a new snapshot generation. Import, select and apply are explicit actions: this page never auto-enables, never downloads and never updates in the background.",
+			loading: "Reading manager state…",
+			managerUnavailable: "Skin manager unavailable: ",
+			managerReady: "Manager",
+			capabilities: "Capabilities",
+			capMissing: "Not provided by this build: ",
+			importTitle: "Manual import",
+			importHint: "Enter the absolute path of a local skin package (this build never downloads).",
+			importPlaceholder: "D:\\packages\\my-skin.dshpack.tar",
+			inspect: "Inspect",
+			import: "Import",
+			inspecting: "Inspecting…",
+			importing: "Importing…",
+			inspected: "Inspection passed: ",
+			imported: "Imported (not enabled): ",
+			installedTitle: "Installed",
+			installedEmpty: "No skin package imported yet.",
+			originOfficial: "official",
+			originThirdParty: "third-party",
+			slotsTitle: "Per-slot selection",
+			slotFallback: "fallback coordinate",
+			selectHint: "Selecting only stages a draft; pressing Apply publishes a new generation.",
+			apply: "Apply",
+			applying: "Applying…",
+			applied: "Published generation {n}.",
+			reloadHint: "A new generation needs a window reload to take effect (the host reads the snapshot in its bootstrap script).",
+			reloadNow: "Reload window",
+			revert: "Revert to previous",
+			reverting: "Reverting…",
+			reverted: "Reverted, now at generation {n}.",
+			diagnose: "Diagnostics",
+			diagnosing: "Diagnosing…",
+			diagnoseTitle: "Diagnostics",
+			faultsTitle: "Recent faults",
+			faultsEmpty: "No fault in this session.",
+			unavailableTitle: "Capabilities this build does not provide",
+			recover: "Run recovery",
+			recovering: "Running recovery…",
+			recoveredClean: "Recovery finished: the previous run left nothing behind.",
+			recoveredOutcome: "Recovery finished ({outcome}): see the diagnostics output.",
+			forceKeep: "Force keep",
+			forceAbandon: "Disconnect & restore",
+			forcePending: "Slots in the confirmation window: ",
+			nextStep: "Next step",
+			refused: "Refused: ",
+			failed: "Failed: ",
+			refresh: "Refresh state"
+		};
 		//#endregion
 		//#region attribution
 		// 皮肤出处：kind → 文案/许可；所有 dsh-web-ui 系列皮肤同源。
@@ -259,11 +363,20 @@ window.__ModuleLoader__.load({
 			const [busy, setBusy] = react.useState({});
 			const [restart, setRestart] = react.useState({ needed: false, available: false });
 			const [localActive, setLocalActive] = react.useState(null);
+			// v6 Task 6.2.4：旧 Cordis 路径与 v6 槽位管理器的关系必须写在脸上。
+			// 只在挂载时读一次；读不到就不显示，不猜。
+			const [managerGeneration, setManagerGeneration] = react.useState(null);
 			const skins = useSkins(props);
 			react.useEffect(() => {
 				// 只探测桥接是否存在,绝不触发真正的重启。
 				const bridge = typeof window !== "undefined" ? window.dshDesktop : undefined;
 				setRestart((current) => ({ ...current, available: bridge !== undefined && typeof bridge.restartService === "function" }));
+				const api = bridge !== undefined && bridge !== null && typeof bridge.skinManager === "object" && bridge.skinManager !== null ? bridge.skinManager : null;
+				if (api === null) return;
+				api.status().then((result) => {
+					const snapshot = result && result.ok === true ? result.snapshot : null;
+					if (snapshot !== null && snapshot !== undefined) setManagerGeneration(snapshot.generation);
+				}, () => { /* 管理器不可用时旧 tab 不显示该提示 */ });
 			}, []);
 			const activeId = localActive !== null ? localActive : skins.state.activeId;
 			const run = (verb, call, okPrefix, failPrefix) => {
@@ -288,6 +401,10 @@ window.__ModuleLoader__.load({
 			return (0, react_jsx_runtime.jsxs)("div", {
 				className: s.section,
 				children: [
+					managerGeneration !== null ? (0, react_jsx_runtime.jsx)("p", {
+						className: s.notice,
+						children: t("legacyNotice").replace("{n}", String(managerGeneration))
+					}) : null,
 					(0, react_jsx_runtime.jsxs)("div", {
 						className: s.header,
 						children: [
@@ -370,6 +487,237 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region skin manager tab (v6 Task 6.2.4)
+		/** 桥上的皮肤管理器面；没有（旧壳/降级）时返回 null，页面据此显示不可用而不是假装可用。 */
+		function skinManagerBridge() {
+			const bridge = typeof window !== "undefined" ? window.dshDesktop : undefined;
+			if (bridge === undefined || bridge === null) return null;
+			return typeof bridge.skinManager === "object" && bridge.skinManager !== null ? bridge.skinManager : null;
+		}
+		/** 可定位的失败渲染：code + message + 下一步，三样都要有。 */
+		function FaultLine(props) {
+			const fault = props.fault;
+			if (!fault) return null;
+			return (0, react_jsx_runtime.jsx)("p", {
+				className: s.failure,
+				children: (0, react_jsx_runtime.jsxs)("span", {
+					children: [
+						(0, react_jsx_runtime.jsx)("strong", { children: props.label + String(fault.code || "?") + " — " }),
+						String(fault.message || ""),
+						(0, react_jsx_runtime.jsx)("br", {}),
+						(0, react_jsx_runtime.jsx)("span", { className: s.desc, children: props.nextStepLabel + ": " + String(fault.nextStep || "") })
+					]
+				})
+			});
+		}
+		/**
+		 * 皮肤包管理 tab。只经 `window.dshDesktop.skinManager.*`（coordinator RPC）与
+		 * manager 对话：本组件不挑回退坐标、不算世代号、不决定回滚目标。
+		 * 载入时只读一次状态，不做轮询、不自动应用、不自动下载。
+		 */
+		function SkinManagerTab(props) {
+			const t = props.t;
+			const [phase, setPhase] = react.useState("loading");
+			const [data, setData] = react.useState(null);
+			const [loadFault, setLoadFault] = react.useState(null);
+			const [archivePath, setArchivePath] = react.useState("");
+			const [busy, setBusy] = react.useState("");
+			const [notice, setNotice] = react.useState(null);
+			const [diag, setDiag] = react.useState(null);
+			const [needsReload, setNeedsReload] = react.useState(false);
+			const refresh = react.useCallback(() => {
+				const api = skinManagerBridge();
+				if (api === null) { setPhase("nobridge"); return; }
+				setPhase("loading");
+				api.status().then((result) => {
+					setData(result);
+					setLoadFault(result && result.fault ? result.fault : null);
+					setPhase("ready");
+				}, (error) => {
+					setLoadFault({ code: "BRIDGE_FAILED", message: String((error && error.message) || error), nextStep: "确认桌面壳在运行，然后重试" });
+					setPhase("ready");
+				});
+			}, []);
+			react.useEffect(() => { refresh(); }, [refresh]);
+			const run = (verb, call, onOk) => {
+				const api = skinManagerBridge();
+				if (api === null) { setNotice({ kind: "error", fault: { code: "BRIDGE_UNAVAILABLE", message: "皮肤管理器桥不存在", nextStep: "确认桌面壳版本包含 Task 6.2.4 的皮肤包管理" } }); return; }
+				setBusy(verb);
+				setNotice(null);
+				call(api).then((result) => {
+					setBusy("");
+					if (result === null || result === undefined || result.ok !== true) {
+						setNotice({ kind: "error", fault: (result && result.fault) || { code: "NO_RESULT", message: "没有返回结果", nextStep: "重试；反复出现请看诊断页" } });
+						return;
+					}
+					if (typeof onOk === "function") onOk(result);
+					refresh();
+				}, (error) => {
+					setBusy("");
+					setNotice({ kind: "error", fault: { code: "BRIDGE_FAILED", message: String((error && error.message) || error), nextStep: "确认桌面壳在运行，然后重试" } });
+				});
+			};
+			const reloadWindow = () => {
+				const bridge = typeof window !== "undefined" ? window.dshDesktop : undefined;
+				if (bridge !== undefined && bridge.windowControls !== undefined && typeof bridge.windowControls.reload === "function") bridge.windowControls.reload();
+			};
+			const manager = data && data.manager ? data.manager : null;
+			const capabilities = data && data.capabilities ? data.capabilities : null;
+			const installed = data && Array.isArray(data.installed) ? data.installed : [];
+			const slots = data && Array.isArray(data.slots) ? data.slots : [];
+			const snapshot = data && data.snapshot ? data.snapshot : null;
+			const unavailableCapabilities = capabilities === null ? [] : Object.keys(capabilities).filter((key) => capabilities[key] === false);
+			const slotOptions = (slot) => installed.filter((item) => Array.isArray(item.slots) && item.slots.indexOf(slot) >= 0);
+			return (0, react_jsx_runtime.jsxs)("div", {
+				className: s.section,
+				children: [
+					(0, react_jsx_runtime.jsx)("p", { className: s.status, children: t("intro") }),
+					phase === "nobridge" ? (0, react_jsx_runtime.jsx)("p", { className: s.notice, "data-kind": "error", children: t("managerUnavailable") + "bridge missing" }) : null,
+					phase === "loading" ? (0, react_jsx_runtime.jsx)("p", { className: s.status, children: t("loading") }) : null,
+					loadFault ? (0, react_jsx_runtime.jsx)(FaultLine, { label: t("managerUnavailable"), fault: loadFault, nextStepLabel: t("nextStep") }) : null,
+					manager !== null && manager.available === false ? (0, react_jsx_runtime.jsx)(FaultLine, { label: t("managerUnavailable"), fault: manager.fault, nextStepLabel: t("nextStep") }) : null,
+					manager !== null && manager.available === true ? (0, react_jsx_runtime.jsxs)("div", {
+						className: s.credits,
+						children: [
+							(0, react_jsx_runtime.jsxs)("p", { children: [t("managerReady") + ": v" + String(manager.version) + " · " + String(manager.source)] }),
+							snapshot !== null ? (0, react_jsx_runtime.jsx)("p", { children: "snapshot: gen " + String(snapshot.generation) + " · " + String(snapshot.profile.id) + "@" + String(snapshot.profile.version) }) : (0, react_jsx_runtime.jsx)("p", { children: "snapshot: none" }),
+							unavailableCapabilities.length > 0 ? (0, react_jsx_runtime.jsx)("small", { children: t("capMissing") + unavailableCapabilities.join(", ") }) : null
+						]
+					}) : null,
+					notice !== null ? (0, react_jsx_runtime.jsx)(FaultLine, { label: notice.kind === "error" ? t("failed") : t("refused"), fault: notice.fault, nextStepLabel: t("nextStep") }) : null,
+					manager !== null && manager.available === true ? (0, react_jsx_runtime.jsxs)("div", {
+						className: s.credits,
+						children: [
+							(0, react_jsx_runtime.jsx)("h3", { children: t("importTitle") }),
+							(0, react_jsx_runtime.jsx)("small", { children: t("importHint") }),
+							(0, react_jsx_runtime.jsx)("input", {
+								type: "text",
+								value: archivePath,
+								placeholder: t("importPlaceholder"),
+								onChange: (event) => setArchivePath(event.target.value),
+								style: { width: "100%", padding: "6px 8px", borderRadius: "6px", border: "1px solid var(--dsw-alias-border-l2)", background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-primary)" }
+							}),
+							(0, react_jsx_runtime.jsxs)("div", {
+								className: s.header,
+								children: [
+									(0, react_jsx_runtime.jsx)("button", {
+										type: "button", className: s.reset, disabled: busy !== "" || archivePath === "",
+										onClick: () => run("inspecting", (api) => api.inspect(archivePath), (result) => setNotice({ kind: "info", fault: null, text: t("inspected") + String(result.package.packageId) + "@" + String(result.package.packageVersion) + " · sha256:" + String(result.archiveSha256).slice(0, 12) })),
+										children: busy === "inspecting" ? t("inspecting") : t("inspect")
+									}),
+									(0, react_jsx_runtime.jsx)("button", {
+										type: "button", className: s.apply, disabled: busy !== "" || archivePath === "",
+										onClick: () => run("importing", (api) => api.importArchive(archivePath), (result) => setNotice({ kind: "info", fault: null, text: t("imported") + String(result.package.packageId) + "@" + String(result.package.packageVersion) })),
+										children: busy === "importing" ? t("importing") : t("import")
+									})
+								]
+							}),
+							notice !== null && notice.text ? (0, react_jsx_runtime.jsx)("p", { className: s.notice, children: notice.text }) : null
+						]
+					}) : null,
+					manager !== null && manager.available === true ? (0, react_jsx_runtime.jsxs)("div", {
+						className: s.credits,
+						children: [
+							(0, react_jsx_runtime.jsx)("h3", { children: t("installedTitle") }),
+							installed.length === 0 ? (0, react_jsx_runtime.jsx)("p", { children: t("installedEmpty") }) : null,
+							installed.map((item) => (0, react_jsx_runtime.jsxs)("p", {
+								children: [
+									(0, react_jsx_runtime.jsx)("strong", { children: String(item.packageId) + "@" + String(item.packageVersion) }),
+									" · " + (item.origin === "official" ? t("originOfficial") : t("originThirdParty")),
+									" · slots: " + (Array.isArray(item.slots) ? item.slots.join(", ") : "")
+								]
+							}, String(item.packageId) + "@" + String(item.packageVersion)))
+						]
+					}) : null,
+					manager !== null && manager.available === true ? (0, react_jsx_runtime.jsxs)("div", {
+						className: s.credits,
+						children: [
+							(0, react_jsx_runtime.jsx)("h3", { children: t("slotsTitle") }),
+							(0, react_jsx_runtime.jsx)("small", { children: t("selectHint") }),
+							slots.map((slot) => (0, react_jsx_runtime.jsxs)("p", {
+								children: [
+									(0, react_jsx_runtime.jsx)("strong", { children: String(slot.id) + ": " }),
+									(0, react_jsx_runtime.jsx)("select", {
+										value: slot.selected ? String(slot.selected.packageId) + "@" + String(slot.selected.packageVersion) : "",
+										disabled: busy !== "",
+										onChange: (event) => {
+											const value = event.target.value;
+											if (value === "") return run("selecting", (api) => api.deselect(slot.id));
+											const parts = value.split("@");
+											return run("selecting", (api) => api.select(slot.id, parts.slice(0, parts.length - 1).join("@"), parts[parts.length - 1]));
+										},
+										children: [(0, react_jsx_runtime.jsx)("option", { value: "", children: t("slotFallback") + " (" + String(slot.fallback.id) + "@" + String(slot.fallback.version) + ")" })].concat(
+											slotOptions(slot.id).map((item) => (0, react_jsx_runtime.jsx)("option", {
+												value: String(item.packageId) + "@" + String(item.packageVersion),
+												children: String(item.packageId) + "@" + String(item.packageVersion)
+											}, String(item.packageId) + "@" + String(item.packageVersion)))
+										)
+									})
+								]
+							}, String(slot.id)))
+						]
+					}) : null,
+					manager !== null && manager.available === true ? (0, react_jsx_runtime.jsxs)("div", {
+						className: s.header,
+						children: [
+							(0, react_jsx_runtime.jsx)("button", {
+								type: "button", className: s.apply, disabled: busy !== "",
+								onClick: () => run("applying", (api) => api.apply(), (result) => { setNeedsReload(result.reloadRequired === true); setNotice({ kind: "info", fault: null, text: t("applied").replace("{n}", String(result.generation)) }); }),
+								children: busy === "applying" ? t("applying") : t("apply")
+							}),
+							(0, react_jsx_runtime.jsx)("button", {
+								type: "button", className: s.reset, disabled: busy !== "",
+								onClick: () => run("reverting", (api) => api.revert(), (result) => { setNeedsReload(result.reloadRequired === true); setNotice({ kind: "info", fault: null, text: t("reverted").replace("{n}", String(result.generation)) }); }),
+								children: busy === "reverting" ? t("reverting") : t("revert")
+							}),
+							(0, react_jsx_runtime.jsx)("button", {
+								type: "button", className: s.reset, disabled: busy !== "",
+								onClick: () => run("diagnosing", (api) => api.diagnose(), (result) => setDiag(result)),
+								children: busy === "diagnosing" ? t("diagnosing") : t("diagnose")
+								}),
+								// 6.2.5 已审计面：恢复执行走 manager 真实接口（recoverSlotTransactions），
+								// 恢复报告（含 committed-state-not-written 的真实状态）在诊断输出里渲染。
+								capabilities !== null && capabilities.recovery === true ? (0, react_jsx_runtime.jsx)("button", {
+								type: "button", className: s.reset, disabled: busy !== "",
+								onClick: () => run("recovering", (api) => api.recover(), (result) => {
+									setDiag(result);
+									setNotice({ kind: "ok", text: result.clean ? t("recoveredClean") : t("recoveredOutcome").replace("{outcome}", String(result.outcome || "?")) });
+								}),
+								children: busy === "recovering" ? t("recovering") : t("recover")
+								}) : null,
+								(0, react_jsx_runtime.jsx)("button", { type: "button", className: s.reset, onClick: refresh, children: t("refresh") })
+						]
+					}) : null,
+					needsReload ? (0, react_jsx_runtime.jsxs)("div", {
+						className: s.restart,
+						children: [
+							(0, react_jsx_runtime.jsx)("span", { children: t("reloadHint") }),
+							(0, react_jsx_runtime.jsx)("button", { type: "button", onClick: reloadWindow, children: t("reloadNow") })
+						]
+					}) : null,
+					diag !== null ? (0, react_jsx_runtime.jsxs)("div", {
+						className: s.credits,
+						children: [
+							(0, react_jsx_runtime.jsx)("h3", { children: t("diagnoseTitle") }),
+							diag.report ? (0, react_jsx_runtime.jsxs)("div", { children: [
+								(0, react_jsx_runtime.jsx)("p", { children: "outcome: " + String(diag.report.outcome) + " · abandoned: " + String(diag.report.abandoned) + " · splits: " + String(diag.report.splits) }),
+								(Array.isArray(diag.report.diagnostics) ? diag.report.diagnostics : []).map((line, i) => (0, react_jsx_runtime.jsx)("p", { children: String(line) }, "diag-" + i))
+							] }) : null,
+							diag.forceEnable && Array.isArray(diag.forceEnable.pendingSlots) && diag.forceEnable.pendingSlots.length > 0
+								? (0, react_jsx_runtime.jsx)("p", { children: t("forcePending") + diag.forceEnable.pendingSlots.join(", ") })
+								: null,
+							(0, react_jsx_runtime.jsx)("h3", { children: t("unavailableTitle") }),
+							(Array.isArray(diag.unavailable) ? diag.unavailable : []).map((item) => (0, react_jsx_runtime.jsx)("p", { children: String(item.capability) + " — " + String(item.reason) + ": " + String(item.note) }, String(item.capability))),
+							(0, react_jsx_runtime.jsx)("h3", { children: t("faultsTitle") }),
+							(Array.isArray(diag.faults) && diag.faults.length > 0
+								? diag.faults.map((item) => (0, react_jsx_runtime.jsx)("p", { children: String(item.at) + " · " + String(item.code) + " — " + String(item.message) + " → " + String(item.nextStep) }, String(item.at) + String(item.code)))
+								: (0, react_jsx_runtime.jsx)("p", { children: t("faultsEmpty") }))
+						]
+					}) : null
+				]
+			});
+		}
+		//#endregion
 		//#region client index
 		/** Required browser services. */
 		const inject = ["slots", "locale", "remote"];
@@ -425,6 +773,24 @@ window.__ModuleLoader__.load({
 				locale: NS,
 				inject: injected
 			}, SkinTab));
+			// v6 Task 6.2.4：皮肤包管理 tab（coordinator RPC）。
+			//
+			// 与上面那个 tab 的分工必须明确，否则用户会以为两者在管同一件事：
+			//   * 本 tab（skin-manager）= EAC 槽位皮肤的**唯一**控制面，经 skin.* RPC
+			//     让 manager 决定选择/回退/世代；
+			//   * 旧 tab（skin）= 旧 Cordis 皮肤行路径，只影响 dsh web 皮肤层，
+			//     不写槽位绑定、也不代表 v6 的槽位皮肤状态。
+			// 决策记录见 evidence/6.2.4/DECISIONS-6.2.4.md。
+			ctx.effect(() => ctx.locale.register(NS_MANAGER, { zh: smZh, en: smEn }), "dsh-skin-switch: manager dictionary");
+			const tManager = ctx.locale.bind(NS_MANAGER);
+			ctx.slots.inject("settings.plugins.tab", () => ctx.slots.register({
+				name: "settings.plugins.tab",
+				id: "skin-manager",
+				order: 16,
+				label: () => tManager("tab"),
+				locale: NS_MANAGER,
+				inject: () => ({})
+			}, SkinManagerTab));
 		}
 		//#endregion
 		exports.apply = apply;

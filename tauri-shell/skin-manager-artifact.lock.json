@@ -5,10 +5,11 @@
   "manager": {
     "package": "@dsh-eac/ui-skin-manager",
     "version": "0.1.0-preview.1",
-    "sourceCommit": "a023b018c3751f731370917d74a40bed79e28342",
-    "ciRun": 35560125000,
+    "sourceCommit": "3e9933cc1529ca33c8223d9ca118866186b618c4",
+    "ciRun": null,
+    "localBuild": "git archive 3e9933c + npm pack (6.2.4 rework round 3; 6.2.5-audited recovery/journal/force-enable surface)",
     "artifact": "dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz",
-    "sha256": "13a4c5dbd1a31c9512f535a9c14f5072f933f284634f6763e569e65614a63378"
+    "sha256": "88fde34f8382cb3983f5e36b50e20740b56e32f86cccd92e798fec7b4f9be423"
   },
   "default": {
     "package": "system.default",
@@ -18,6 +19,8 @@
     "artifact": "system.default-2.0.0.dshpack.tar",
     "sha256": "eb8142e44bd9ae281c518e08c5e792506c9fd35b2bfde3119db0aaadff21aa7e"
   },
-  "resolvedRoot": "resolved/system.default",
+  "resolvedRoot": "resolved",
+  "snapshot": "snapshot.json",
+  "provenance": "manifest.json",
   "generation": 1
 }

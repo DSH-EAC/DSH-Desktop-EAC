@@ -135,6 +135,35 @@
     guard: {
       action: function (action: string, value?: unknown) { return call('guard.action', { action: action, value: value }); },
     },
+    // ---- v6 Task 6.2.4：UI 皮肤管理器（coordinator RPC 的页面侧面）----
+    // 只做转发：选择 / 回滚 / 兼容性判定全在 manager 侧，页面不得另写策略。
+    // 每个方法都返回 {ok:true,...} 或 {ok:false, fault:{code,message,nextStep}}，
+    // 失败不走 reject —— UI 必须能拿到可定位的 code 与下一步，而不是一句 message。
+    skinManager: {
+      status: function () { return call('skin.status', {}); },
+      list: function () { return call('skin.list', {}); },
+      inspect: function (archivePath: string) { return call('skin.inspect', { archivePath: archivePath }); },
+      importArchive: function (archivePath: string, expectedArchiveSha256?: string) {
+        var params: Record<string, unknown> = { archivePath: archivePath };
+        if (typeof expectedArchiveSha256 === 'string' && expectedArchiveSha256) params.expectedArchiveSha256 = expectedArchiveSha256;
+        return call('skin.import', params);
+      },
+      select: function (slot: string, packageId: string, packageVersion: string) {
+        return call('skin.select', { slot: slot, packageId: packageId, packageVersion: packageVersion });
+      },
+      deselect: function (slot?: string) { return call('skin.deselect', slot ? { slot: slot } : {}); },
+      apply: function () { return call('skin.apply', {}); },
+      revert: function (slot?: string) { return call('skin.revert', slot ? { slot: slot } : {}); },
+      diagnose: function () { return call('skin.diagnose', {}); },
+      // 6.2.5 已审计面（manager 3e9933c）：恢复执行与持久强制确认，真实接口。
+      recover: function () { return call('skin.recover', {}); },
+      forceEnable: {
+        begin: function (slot: string, errorCode: string) { return call('skin.force-enable', { action: 'begin', slot: slot, errorCode: errorCode }); },
+        keep: function (slot: string) { return call('skin.force-enable', { action: 'keep', slot: slot }); },
+        abandon: function (slot: string) { return call('skin.force-enable', { action: 'abandon', slot: slot }); },
+        recover: function () { return call('skin.force-enable', { action: 'recover' }); },
+      },
+    },
     fileDrop: {
       save: function (payload: Record<string, unknown>) { return call('file-drop.save', payload || {}); },
     },
@@ -207,8 +236,20 @@
     maxBtn.setAttribute('aria-pressed', String(isMax));
   }
 
-  function injectUiSkin(): void {
-    var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
+  var activeGeneration = 0;
+  var activeSlots: Record<string, string> = {};
+
+  async function injectUiSkin(): Promise<void> {
+    // Never consume a snapshot baked into a WebView initialization script.
+    // This read-only L1 RPC neither starts recovery nor cancels a live force-enable.
+    var manager: any = {};
+    try { manager = await call('win.skin-bootstrap', {}); } catch (_) { /* embedded recovery */ }
+    // A transaction may have completed while the bootstrap RPC was in flight.
+    // Its styles and generation must not be overwritten by an older response.
+    if (activeGeneration > 0) return;
+    (window as any).__DSH_UI_SKIN_MANAGER__ = manager;
+    activeGeneration = manager && manager.enabled === true ? Number(manager.generation) : 0;
+    activeSlots = manager && manager.enabled === true ? manager.slots : {};
     if (manager && manager.enabled === true && manager.slots) {
       var generation = String(manager.generation);
       Object.keys(manager.slots).forEach(function (slot) {
@@ -233,10 +274,6 @@
   // Generation-aware host bridge. Candidate styles are staged before the
   // previous generation is removed; the manager receives an explicit ack.
   (function installUiSkinTransactionBridge(): void {
-    var activeGeneration = 0;
-    var activeSlots: Record<string, string> = {};
-    var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
-    if (manager && Number.isFinite(Number(manager.generation))) activeGeneration = Number(manager.generation);
     function acknowledge(generation: number, ok: boolean, error?: string): void {
       window.dispatchEvent(new CustomEvent('dsh-ui-skin-transaction-ack', {
         detail: {generation: generation, context: 'webview', ok: ok, error: error || undefined}

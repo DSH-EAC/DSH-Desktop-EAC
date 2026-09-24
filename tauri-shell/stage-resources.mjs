@@ -84,6 +84,8 @@ const LIB_DESKTOP = [
   'install-profile.js', 'plugin-sync-registry.js',
   // Task 3.3 阶段 3：files.revert 的白名单根
   'file-roots.js',
+  // Task 6.2.4：skin.* 适配层（导入管理 UI 的 coordinator RPC）
+  'skin-manager.js',
 ];
 const SCRIPTS = [
   'patch-session-manage.js', 'patch-deps.js',
@@ -246,8 +248,9 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills�
     copyRequired(path.join(dd, 'assets', name), path.join(staged, 'dsh-desktop', 'assets', name), '本体资产');
   }
   cpSync(path.join(dd, 'assets', 'skills'), path.join(staged, 'dsh-desktop', 'assets', 'skills'), { recursive: true });
+  const hostProfilePath = path.join(root, 'tauri-shell', 'host-profile.json');
   copyRequired(
-    path.join(root, 'tauri-shell', 'host-profile.json'),
+    hostProfilePath,
     path.join(staged, 'ui-skin-manager', 'host-profile.json'),
     'UI skin HostProfile',
   );
@@ -257,6 +260,30 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills�
   const managerLockPath = path.join(root, 'tauri-shell', 'skin-manager-artifact.lock.json');
   if (existsSync(managerArtifacts) && existsSync(managerLockPath)) {
     const lock = JSON.parse(readFileSync(managerLockPath, 'utf8'));
+    // 默认回退坐标一致性（Task 6.2.1）：host-profile 的 fallbackSkin 是默认
+    // 回退坐标，必须与 lock 同源。历史上它是手写副本（10c6461 抄了切换前的
+    // 旧摘要 0b3eca84…，同批 lock 已是 eb8142e4…），而这里只校验制品摘要、
+    // 不比对 profile，漂移一路进包。装配前直接拒绝，避免产出坏坐标的载荷。
+    {
+      const profile = JSON.parse(readFileSync(hostProfilePath, 'utf8'));
+      const fallback = profile?.fallbackSkin;
+      const locked = {
+        id: lock.default.package,
+        version: lock.default.version,
+        digest: `sha256:${lock.default.sha256}`,
+      };
+      if (
+        fallback?.id !== locked.id
+        || fallback?.version !== locked.version
+        || fallback?.digest !== locked.digest
+      ) {
+        throw new Error(
+          `[stage] HostProfile fallbackSkin 与 lock 默认制品坐标漂移：`
+          + `profile=${fallback?.id}@${fallback?.version} ${fallback?.digest} `
+          + `lock=${locked.id}@${locked.version} ${locked.digest}`,
+        );
+      }
+    }
     const expected = new Map([
       [lock.manager.artifact, lock.manager.sha256],
       [lock.default.artifact, lock.default.sha256],
@@ -269,6 +296,48 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills�
     }
     cpSync(managerArtifacts, path.join(staged, 'ui-skin-manager'), { recursive: true });
     cpSync(managerLockPath, path.join(staged, 'ui-skin-manager', 'artifact.lock.json'));
+    // 逐槽快照一致性（Task 6.2.3）：消费根是**快照根**，包身份不再写进路径。
+    // 装配前独立复核 manager 产出的 snapshot.json：默认包身份必须等于 lock、
+    // 每条资源必须落在本代目录内且字节摘要一致。这样"宿主只消费已验证坐标"
+    // 在打包期就成立，而不是等运行时才发现载荷是坏的。
+    {
+      const resolvedRoot = path.join(managerArtifacts, lock.resolvedRoot ?? 'resolved');
+      const snapshotPath = path.join(resolvedRoot, lock.snapshot ?? 'snapshot.json');
+      if (!existsSync(snapshotPath)) {
+        throw new Error(`[stage] resolved snapshot missing: ${snapshotPath}`);
+      }
+      const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+      if (snapshot.schema !== 'dsh-eac-active-binding-snapshot@1') {
+        throw new Error(`[stage] unexpected snapshot schema: ${snapshot.schema}`);
+      }
+      if (snapshot.fault !== null) throw new Error('[stage] the resolved snapshot carries a fault');
+      if (snapshot.generation !== lock.generation) {
+        throw new Error(`[stage] snapshot generation ${snapshot.generation} != lock ${lock.generation}`);
+      }
+      for (const binding of snapshot.bindings ?? []) {
+        if (binding.package.id !== lock.default.package) continue;
+        if (binding.package.version !== lock.default.version
+          || binding.package.digest !== `sha256:${lock.default.sha256}`) {
+          throw new Error(
+            `[stage] ${binding.slot} binds the default package id with a version/digest the build lock `
+            + `does not record: ${binding.package.version} ${binding.package.digest}`,
+          );
+        }
+      }
+      for (const asset of snapshot.assets ?? []) {
+        const expected = `gen-${snapshot.generation}/${asset.key}`;
+        if (asset.path !== expected) {
+          throw new Error(`[stage] ${asset.key} resolves to ${asset.path}, expected ${expected}`);
+        }
+        const file = path.join(resolvedRoot, ...asset.path.split('/'));
+        if (!existsSync(file)) throw new Error(`[stage] resolved asset missing: ${asset.path}`);
+        const actual = `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`;
+        if (actual !== asset.sha256) {
+          throw new Error(`[stage] resolved asset digest mismatch: ${asset.path}`);
+        }
+      }
+      console.log(`[stage] verified resolved snapshot: ${snapshot.bindings.length} slots, ${snapshot.assets.length} assets`);
+    }
     console.log('[stage] pinned UI skin manager artifacts staged');
   }
   // v6 Task 3.3：内置插件随行。只拷当前已接回的内置插件目录

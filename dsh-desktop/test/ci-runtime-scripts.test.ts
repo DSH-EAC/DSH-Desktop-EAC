@@ -32,7 +32,9 @@ function createStageFixture(): string {
     // v6 Task 3.3：插件治理三件套 + lib/desktop 依赖
     'guard-box.js', 'companion-sync.js', 'plugin-ops.js', 'install-profile.js', 'plugin-sync-registry.js',
     // v6 Task 3.3 阶段 3：files.* 白名单根
-    'file-roots.js']) {
+    'file-roots.js',
+    // v6 Task 6.2.4：skin.* 适配层
+    'skin-manager.js']) {
     writeFileSync(join(desktop, 'lib', 'desktop', file), 'module.exports = {};\n');
   }
   // v6 Task 3.3：companion-sync 顶层 require 的根模块闭包
@@ -55,8 +57,8 @@ test('staged runtime verifier accepts the minimal runtime closure', () => {
   try {
     const result = verifyStagedRuntime(root);
     assert.equal(result.bundle.ok, true);
-    // v6 Task 3.3：治理闭包（32）+ 阶段 3 的 file-roots（33）。
-    assert.equal(result.requiredFiles, 33);
+    // v6 Task 3.3：治理闭包（32）+ 阶段 3 的 file-roots（33）+ 6.2.4 的 skin-manager（34）。
+    assert.equal(result.requiredFiles, 34);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

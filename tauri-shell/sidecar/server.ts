@@ -65,12 +65,19 @@ const companionSyncMod = mount('companion-sync');
 const pluginOpsMod = mount('plugin-ops');
 // v6 Task 3.3：files.* 白名单根（files.revert / files.authorize-open 消费）。
 const fileRootsMod = mount('file-roots');
+// v6 Task 6.2.4：导入管理 UI 的 coordinator RPC 适配层（skin.* 方法族）。
+// 本模块只做「定位 manager / 翻译显式意图 / 原样带出 fault」，不另写选择与回滚策略。
+const skinManagerMod = mount('skin-manager') as Mod & {
+  invoke(method: string, params: unknown): Promise<unknown>;
+  SKIN_MANAGER_METHODS: string[];
+  acquireHostOwnership(): Promise<{owns(): Promise<boolean>}>;
+};
 
 // v6 Task 3.1（ADR 0006 v3 · 严格模式）：本体只保留对 dsh 的最简包装。
 // capability-stubs 仅提供内部 boot glue，不注册公开降级方法。
 import stubs = require('./capability-stubs');
 
-const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'guard-box', 'runtime-patches', 'companion-sync', 'plugin-ops', 'file-roots', 'boot-server'];
+const MOUNTED = ['proc', 'platform', 'runtime-paths', 'profile', 'guard-box', 'runtime-patches', 'companion-sync', 'plugin-ops', 'file-roots', 'boot-server', 'skin-manager'];
 
 // 打包态判定 + 资源根：Rust 壳 spawn sidecar 时注入 DSH_SHELL_EXE /
 // DSH_RESOURCE_ROOT（main.rs Sidecar::spawn）。DSH_RESOURCE_ROOT 存在即打包态；
@@ -110,6 +117,13 @@ companionSyncMod.init({
   showMainWindow: () => say('showMainWindow (host-delegated)'),
   notify: notifyFallback,
   platform: process.platform,
+});
+// v6 Task 6.2.4：skin.* 适配层注入点（资源根 / 打包态判定 / 状态根）。
+skinManagerMod.init({
+  log,
+  resourceRoot: () => resourceRoot(),
+  isPackaged: () => isPackagedRuntime(),
+  userDataDir: () => userDataDir,
 });
 
 // ---- boot-server（P2：dsh web 服务编排） --------------------------------
@@ -557,6 +571,33 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
   // 原地重启 Web 服务核心。
   'boot.restart': async (): Promise<RpcResult> => restartWebServiceCore(),
 };
+
+// v6 Task 6.2.4：skin.* 方法族（导入管理 UI 的 coordinator RPC）。
+//
+// 单一入口转给适配层：这里不解析业务语义、不做策略判断，只把参数原样传下去、
+// 把结构化结果（含 ok:false 的 fault）原样带回来。UI 需要的是 code + nextStep，
+// 不是一句被 transport 抹平的 message，所以失败也走正常结果而不是 JSON-RPC error。
+// One lifetime owner per canonical resolved root. Do not use the publisher lock:
+// recovery and force rollback acquire that lock internally. Share the acquisition
+// Promise so simultaneous initial RPCs cannot contend with this process itself.
+let skinOwnership: Promise<{owns(): Promise<boolean>}> | undefined;
+for (const method of skinManagerMod.SKIN_MANAGER_METHODS) {
+  methods[method] = async (p: RpcParams): Promise<unknown> => {
+    try {
+      skinOwnership ??= skinManagerMod.acquireHostOwnership();
+      const owner = await skinOwnership;
+      if (!await owner.owns()) throw new Error('Sidecar no longer owns the skin root');
+    } catch (error) {
+      // A rejected sidecar stays rejected; restart it after the owner exits.
+      return {ok: false, ready: false, fault: {
+        code: 'SKIN_OWNER_UNAVAILABLE',
+        message: String(error instanceof Error ? error.message : error),
+        nextStep: 'Close the other skin host, then restart this host',
+      }};
+    }
+    return skinManagerMod.invoke(method, p);
+  };
+}
 
 // ---- 内部 boot glue --------------------------------------------------------
 const bootFailureRecorder = stubs.makeBootFailureRecorder(log);
