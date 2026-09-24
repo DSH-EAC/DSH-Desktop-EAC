@@ -10,6 +10,7 @@ import {
   isMachO,
   pruneDarwinPayloads,
   pruneLinuxPayloads,
+  pruneMuslNodeAddonBinaries,
   pruneNonLinuxPrebuilds,
   pruneNonDarwinPrebuilds,
 } from '../../tauri-shell/stage-platform-prune.mjs';
@@ -116,4 +117,36 @@ test('pruneNonLinuxPrebuilds 分别保留 linux-x64 与 linux-arm64', () => {
 
     assert.deepEqual(fs.readdirSync(pre), [`linux-${arch}`]);
   }
+});
+
+test('pruneMuslNodeAddonBinaries 只删 node-addon-system 的 musl 变体，保留 glibc', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'musl-addon-'));
+  const scope = path.join(dir, '@deepseek-ai');
+  const linux = path.join(scope, 'node-addon-system-linux-x64');
+  const darwin = path.join(scope, 'node-addon-system-darwin-arm64');
+  const other = path.join(scope, 'dsh-tool-bash');
+  for (const base of [linux, darwin, other]) {
+    fs.mkdirSync(path.join(base, 'bin', 'musl'), { recursive: true });
+    fs.mkdirSync(path.join(base, 'bin', 'glibc'), { recursive: true });
+    fs.writeFileSync(path.join(base, 'bin', 'musl', 'system.node'), ELF_X64);
+    fs.writeFileSync(path.join(base, 'bin', 'glibc', 'system.node'), ELF_X64);
+  }
+
+  pruneMuslNodeAddonBinaries(dir);
+
+  assert.equal(fs.existsSync(path.join(linux, 'bin', 'musl')), false);
+  assert.equal(fs.existsSync(path.join(linux, 'bin', 'glibc', 'system.node')), true);
+  // 非 linux 平台包与其他 @deepseek-ai 包不受影响
+  assert.equal(fs.existsSync(path.join(darwin, 'bin', 'musl', 'system.node')), true);
+  assert.equal(fs.existsSync(path.join(other, 'bin', 'musl', 'system.node')), true);
+});
+
+test('pruneMuslNodeAddonBinaries 在缺少 glibc 兜底时拒绝剔除', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'musl-addon-'));
+  const linux = path.join(dir, '@deepseek-ai', 'node-addon-system-linux-arm64');
+  fs.mkdirSync(path.join(linux, 'bin', 'musl'), { recursive: true });
+  fs.writeFileSync(path.join(linux, 'bin', 'musl', 'system.node'), ELF_ARM64);
+
+  assert.throws(() => pruneMuslNodeAddonBinaries(dir), /缺少 glibc\/system\.node/);
+  assert.equal(fs.existsSync(path.join(linux, 'bin', 'musl', 'system.node')), true);
 });

@@ -5,11 +5,6 @@ on:
     branches:
       - dev
       - main
-    paths:
-      - 'dsh-desktop/**'
-      - 'tauri-shell/**'
-      - '.github/workflows/ci.yml'
-      - 'docs/adr/0006-minimal-core-scope.md'
   push:
     branches:
       - dev
@@ -35,6 +30,12 @@ env:
   KERNEL_VERSION: '0.1.5-rc.2'
 
 jobs:
+  packages:
+    name: Installer packages
+    needs: [source-and-unit, rust-shell, staged-runtime]
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/staged-runtime-artifact.yml
+
   source-and-unit:
     name: Node source and unit tests (${{ matrix.os }}/${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}

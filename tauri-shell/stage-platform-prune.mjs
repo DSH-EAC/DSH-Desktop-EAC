@@ -2,7 +2,7 @@
 // 平台原生 payload 裁剪（stage-resources.mjs 装配期使用）。
 // 独立模块：stage-resources.mjs 无 main guard，import 即执行全量装配，
 // 纯函数放这里供 node:test 直接导入。
-import { readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 const LINUX_ELF_MACHINES = {
@@ -62,6 +62,31 @@ export function pruneNonLinuxPrebuilds(dir, arch) {
       pruneNonLinuxPrebuilds(child, arch);
     }
   }
+}
+
+/** 删除 node-addon-system 的 musl 变体（glibc 发行版里不可达）。
+ * 该包同时分发 `bin/glibc/system.node` 与 `bin/musl/system.node`，运行时按
+ * `process.report.header.glibcVersionRuntime` 二选一（内核 native/system
+ * packages/entry/src/flock.ts）。发行目标是 glibc 的 deb/AppImage，musl 那份
+ * 永远不可达，却是静态链接的 .node：linuxdeploy 对它调 ldd 会直接 abort
+ * （`Failed to run ldd: exited with code 1`），AppImage 打包整体失败。
+ * `pruneMuslPackages` 只看包名里的 linuxmusl 字样，命中不了这个子目录。 */
+export function pruneMuslNodeAddonBinaries(nodeModules) {
+  const scope = path.join(nodeModules, '@deepseek-ai');
+  if (!existsSync(scope)) return;
+  const pruned = [];
+  for (const entry of readdirSync(scope, { withFileTypes: true })) {
+    if (entry.isDirectory() && /^node-addon-system-linux-/.test(entry.name)) {
+      const packageDir = path.join(scope, entry.name);
+      const glibc = path.join(packageDir, 'bin', 'glibc', 'system.node');
+      if (!existsSync(glibc)) {
+        throw new Error(`[stage] ${entry.name} 缺少 glibc/system.node，无法安全剔除 musl 变体`);
+      }
+      rmSync(path.join(packageDir, 'bin', 'musl'), { recursive: true, force: true });
+      pruned.push(entry.name);
+    }
+  }
+  if (pruned.length) console.log(`[stage] 已剔除 musl 变体：${pruned.join(', ')}`);
 }
 
 /** 是否为 64 位小端 Mach-O（.node 在 macOS 上为 Mach-O dylib）。

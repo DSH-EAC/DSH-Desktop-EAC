@@ -20,6 +20,7 @@ import {
   assertSupportedStageArch,
   pruneDarwinPayloads,
   pruneLinuxPayloads,
+  pruneMuslNodeAddonBinaries,
   pruneNonDarwinPrebuilds,
   pruneNonLinuxPrebuilds,
 } from './stage-platform-prune.mjs';
@@ -367,6 +368,10 @@ if (targetPlatform === 'linux') {
     path.join(nmDest, '@koromix', `koffi-linux-${process.arch}`, `musl_${process.arch}`),
     { recursive: true, force: true },
   );
+  // node-addon-system 的 musl 变体：发行目标是 glibc 的 deb/AppImage，运行时
+  // 只按 glibc 选择 bin/glibc/system.node（flock.ts 的 glibcVersionRuntime 判定）。
+  // 保留 musl 那份会让 linuxdeploy 在 AppImage 阶段对静态 .node 调 ldd 而 abort。
+  pruneMuslNodeAddonBinaries(nmDest);
 }
 if (targetPlatform === 'darwin') {
   console.log('[stage] 移除 Darwin 不可达的 Windows/Linux payload');

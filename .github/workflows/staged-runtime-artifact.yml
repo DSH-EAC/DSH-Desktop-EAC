@@ -1,0 +1,125 @@
+name: Installer packages
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.7.0'
+  KERNEL_VERSION: '0.1.5-rc.2'
+
+jobs:
+  build:
+    name: Installer (${{ matrix.os }}/${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            os: windows
+            arch: x64
+            target: win32
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
+            target: win32
+          - runner: ubuntu-22.04
+            os: linux
+            arch: x64
+            target: linux
+          - runner: ubuntu-22.04-arm
+            os: linux
+            arch: arm64
+            target: linux
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: dsh-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify native runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('expected ${{ matrix.arch }}, got ' + process.arch)"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: dsh-desktop/package-lock.json
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@${{ env.PNPM_VERSION }} && pnpm --version
+
+      - name: Cache vendored kernel
+        uses: actions/cache@v4
+        with:
+          path: dsh-desktop/vendor/kernel
+          key: ${{ runner.os }}-${{ matrix.arch }}-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('dsh-desktop/scripts/fetch-kernel.ts') }}
+
+      - name: Prepare vendored kernel
+        run: node scripts/fetch-kernel.js
+
+      - name: Install dependencies
+        run: npm run ci:install
+
+      - name: Fetch bundled Node and npm runtimes
+        run: npm run fetch-runtime
+
+      - name: Set up stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2
+
+      - name: Fetch Cargo dependencies
+        working-directory: ${{ github.workspace }}/tauri-shell
+        run: cargo fetch --locked
+
+      - name: Assemble staged runtime
+        working-directory: ${{ github.workspace }}
+        run: node tauri-shell/stage-resources.mjs --target=${{ matrix.target }} --skip-npm
+
+      - name: Verify staged closure and bundle integrity
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/verify-staged-runtime.mjs
+
+      - name: Build Tauri installers
+        working-directory: ${{ github.workspace }}/tauri-shell
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: npx -y @tauri-apps/cli@2 build --verbose
+
+      - name: Build portable package
+        if: runner.os == 'Windows'
+        working-directory: ${{ github.workspace }}/tauri-shell
+        run: node make-portable.mjs --out target/release/portable
+
+      - name: Upload Windows installer packages
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-eac-windows-${{ matrix.arch }}-installers
+          path: |
+            tauri-shell/target/release/bundle/nsis/*.exe
+            tauri-shell/target/release/portable/*.zip
+            tauri-shell/target/release/portable/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Linux installer packages
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-eac-linux-${{ matrix.arch }}-installers
+          path: |
+            tauri-shell/target/release/bundle/deb/*.deb
+            tauri-shell/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 7

@@ -91,6 +91,36 @@ test('Linux bundle audit rejects musl native modules in the glibc distribution',
   }
 });
 
+test('Linux bundle audit rejects node-addon-system bin/musl variant', () => {
+  const root = fixture();
+  const native = path.join(
+    root, 'dsh-desktop', 'node_modules', '@deepseek-ai',
+    'node-addon-system-linux-x64', 'bin', 'musl', 'system.node',
+  );
+  fs.mkdirSync(path.dirname(native), { recursive: true });
+  fs.writeFileSync(native, ELF);
+  try {
+    assert.throws(() => auditLinuxBundle(root), /musl payload in glibc bundle.*bin\/musl\/system\.node/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Linux bundle audit accepts the glibc node-addon-system variant', () => {
+  const root = fixture();
+  const native = path.join(
+    root, 'dsh-desktop', 'node_modules', '@deepseek-ai',
+    'node-addon-system-linux-x64', 'bin', 'glibc', 'system.node',
+  );
+  fs.mkdirSync(path.dirname(native), { recursive: true });
+  fs.writeFileSync(native, ELF);
+  try {
+    assert.doesNotThrow(() => auditLinuxBundle(root));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('Linux bundle audit rejects embedded local build paths', () => {
   const root = fixture();
   const generated = path.join(root, 'dsh-desktop', 'generated.js');
