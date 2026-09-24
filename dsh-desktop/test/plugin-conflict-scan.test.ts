@@ -10,7 +10,15 @@ import { pathToFileURL } from 'node:url';
 // 安装前的轻量冲突预检：refuse（会直接拒绝安装）/ warn（弹窗提醒），
 // 只读不写，skipCheck 仍可绕过 refuse（风险自负）。
 
-const mod = await import(pathToFileURL(join('assets', 'plugins', 'dsh-unified-market', 'lib', 'plugin-conflict-scan.mjs')).href);
+const mod = await import(pathToFileURL(join(
+  import.meta.dirname,
+  '..',
+  'assets',
+  'plugins',
+  'dsh-unified-market',
+  'lib',
+  'plugin-conflict-scan.mjs',
+)).href);
 const { parsePatchRows, scanCandidate, collectProfileState } = mod;
 
 const EMPTY_PROFILE = { builtinNames: [], bundles: [], dependencies: {}, patchRows: [], installed: [] };
