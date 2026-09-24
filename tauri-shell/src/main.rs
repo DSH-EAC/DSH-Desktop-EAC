@@ -209,7 +209,7 @@ mod shell_tests {
         assert!(snapshot.assets.get("../escape.css").is_none());
         assert!(snapshot.assets.get("unknown.css").is_none());
         assert!(ui_skin_slot_is_supported("session"));
-        assert!(!ui_skin_slot_is_supported("unknown-slot"));
+        assert!(!ui_skin_slot_is_supported("../unknown-slot"));
         std::env::remove_var("DSH_UI_SKIN_MANAGER");
     }
 
@@ -1829,6 +1829,8 @@ struct UiSkinManagerSnapshot {
     assets: HashMap<String, String>,
     #[serde(rename = "slotAssets", default)]
     slot_assets: HashMap<String, Vec<String>>,
+    #[serde(rename = "slotDefinitions", default)]
+    slot_definitions: HashMap<String, Value>,
     fault: Option<String>,
 }
 
@@ -1873,6 +1875,19 @@ fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
             && ui_skin_asset_path_is_safe(relative)
             && ui_skin_asset_file_is_inside(&root, relative)
     });
+    let slot_definitions = if snapshot.slot_definitions.is_empty() {
+        snapshot
+            .slot_assets
+            .keys()
+            .map(|slot| (slot.clone(), Value::Bool(true)))
+            .collect::<HashMap<_, _>>()
+    } else {
+        snapshot.slot_definitions.clone()
+    };
+    let slot_definitions_valid = slot_definitions.iter().all(|(slot, definition)| {
+        ui_skin_slot_is_supported(slot)
+            && (definition.is_boolean() || definition.is_object())
+    });
     let slot_assets_valid = snapshot.slot_assets.values().all(|assets| {
         assets.iter().all(|asset| {
             ui_skin_asset_path_is_safe(asset) && snapshot.assets.contains_key(asset)
@@ -1880,12 +1895,13 @@ fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
     }) && snapshot
         .slot_assets
         .keys()
-        .all(|slot| ui_skin_slot_is_supported(slot));
+        .all(|slot| slot_definitions.contains_key(slot));
     (snapshot.package == "system.default"
         && snapshot.version == "2.0.0"
         && snapshot.digest == format!("sha256:{locked_default_digest}")
         && snapshot.fault.is_none()
         && assets_valid
+        && slot_definitions_valid
         && slot_assets_valid)
     .then_some(snapshot)
 }
@@ -1900,15 +1916,13 @@ fn ui_skin_asset_path_is_safe(file: &str) -> bool {
 }
 
 fn ui_skin_slot_is_supported(slot: &str) -> bool {
-    matches!(
-        slot,
-        "top-sidebar"
-            | "bottom-sidebar"
-            | "left-sidebar"
-            | "right-sidebar"
-            | "session"
-            | "overlay"
-    )
+    !slot.is_empty()
+        && slot.len() <= 128
+        && slot.bytes().next().is_some_and(|byte| byte.is_ascii_alphanumeric())
+        && slot.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_alphanumeric()
+                || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'-'))
+        })
 }
 
 /// Resolve before serving so a symlink cannot escape the pinned package root.
@@ -1951,6 +1965,15 @@ fn ui_skin_manager_bootstrap_json() -> String {
             (slot, css)
         })
         .collect::<HashMap<_, _>>();
+    let slot_definitions = if snapshot.slot_definitions.is_empty() {
+        snapshot
+            .slot_assets
+            .keys()
+            .map(|slot| (slot.clone(), Value::Bool(true)))
+            .collect::<HashMap<_, _>>()
+    } else {
+        snapshot.slot_definitions.clone()
+    };
     serde_json::to_string(&serde_json::json!({
         "enabled": true,
         "package": snapshot.package,
@@ -1958,6 +1981,7 @@ fn ui_skin_manager_bootstrap_json() -> String {
         "digest": snapshot.digest,
         "generation": snapshot.generation,
         "slots": slots,
+        "slotDefinitions": slot_definitions,
     }))
     .unwrap_or_else(|_| "{}".to_string())
 }

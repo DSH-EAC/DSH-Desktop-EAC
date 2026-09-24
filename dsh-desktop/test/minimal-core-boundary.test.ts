@@ -9,6 +9,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (...parts: string[]): string => readFileSync(join(root, ...parts), 'utf8');
 const main = read('tauri-shell', 'src', 'main.rs');
 const bridge = read('tauri-shell', 'sidecar', 'bridge.ts');
+const hostProfile = read('tauri-shell', 'host-profile.json');
 const server = read('tauri-shell', 'sidecar', 'server.ts');
 const stubs = read('tauri-shell', 'sidecar', 'capability-stubs.ts');
 const stage = read('tauri-shell', 'stage-resources.mjs');
@@ -95,11 +96,13 @@ test('bundle integrity remains in build manifest generation and startup verifica
   assert.match(server, /verifyBundle/);
 });
 
-test('UI skin startup and hot-switch paths reject slots outside HostProfile', () => {
+test('UI skin startup and hot-switch paths consume dynamic HostProfile slots', () => {
   for (const slot of ['top-sidebar', 'bottom-sidebar', 'left-sidebar', 'right-sidebar', 'session', 'overlay']) {
-    assert.match(main, new RegExp(`"${slot}"`), `Rust snapshot gate 缺少 ${slot}`);
-    assert.match(bridge, new RegExp(`'${slot}'\\s*:\\s*true`), `WebView transaction gate 缺少 ${slot}`);
+    assert.match(hostProfile, new RegExp(`"${slot}"`), `默认 HostProfile 缺少 ${slot}`);
   }
+  assert.match(main, /slot_definitions/);
+  assert.match(bridge, /slotDefinitions/);
+  assert.match(bridge, /removeSlots/);
   assert.match(main, /ui_skin_slot_is_supported/);
   assert.match(bridge, /UNSUPPORTED_SLOT/);
 });
@@ -111,6 +114,7 @@ test('UI skin transaction keeps bootstrap and per-slot generations isolated', ()
     removed = false;
     attributes = new Map<string, string>();
     setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
+    getAttribute(name: string): string | null { return this.attributes.get(name) || null; }
     remove(): void { this.removed = true; }
   }
   const styles: FakeStyle[] = [];
@@ -149,6 +153,7 @@ test('UI skin transaction keeps bootstrap and per-slot generations isolated', ()
     window,
     document,
     CustomEvent: FakeCustomEvent,
+
     UI_SKIN_SLOTS: {
       'top-sidebar': true,
       'bottom-sidebar': true,
@@ -166,12 +171,15 @@ test('UI skin transaction keeps bootstrap and per-slot generations isolated', ()
   assert.ok(start >= 0 && end > start, 'transaction bridge IIFE must remain present');
   const transaction = bridge.slice(start, end + '\n  })();'.length)
     .replace(/:\s*(?:void|number|string|boolean|Event|Record<string, number>)/g, '')
+    .replace(/:\s*Record<string, unknown>/g, '')
     .replace(/\?:\s*string/g, '')
     .replace(/([A-Za-z_$][\w$]*)\?/g, '$1')
     .replace(/:\s*HTMLStyleElement\[\]/g, '')
     .replace(/\((window|event) as (?:any|CustomEvent)\)/g, '$1')
-    .replace(/ as (?:any|Record<string, unknown> \| undefined)/g, '');
-  vm.runInNewContext(transaction, context);
+    .replace(/\):\s*(?:boolean|string)/g, ')')
+    .replace(/ as (?:any|unknown\[\]|unknown|Record<string, unknown> \| undefined)/g, '');
+  const slotRefresh = `function refreshUiSkinSlots(manager) { UI_SKIN_SLOTS = {}; Object.keys((manager && manager.slotDefinitions) || {}).forEach(function (slot) { UI_SKIN_SLOTS[slot] = manager.slotDefinitions[slot]; }); Object.keys((manager && manager.slots) || {}).forEach(function (slot) { if (UI_SKIN_SLOTS[slot] === undefined) UI_SKIN_SLOTS[slot] = true; }); }`;
+  vm.runInNewContext(slotRefresh + transaction, context);
 
   // Match startup order: the transaction bridge is installed first, then
   // injectUiSkin publishes the manager's bootstrap generation.
@@ -180,7 +188,9 @@ test('UI skin transaction keeps bootstrap and per-slot generations isolated', ()
   assert.ok(injectStart >= 0 && injectEnd > injectStart, 'injectUiSkin must remain present');
   const inject = bridge.slice(injectStart, injectEnd + '\n  }'.length)
     .replace(/:\s*(?:void|number|string|boolean|Event|Record<string, number>)/g, '')
-    .replace(/ as (?:any|Record<string, unknown> \| undefined)/g, '');
+    .replace(/:\s*Record<string, unknown>/g, '')
+    .replace(/\):\s*(?:boolean|string)/g, ')')
+    .replace(/ as (?:any|unknown\[\]|unknown|Record<string, unknown> \| undefined)/g, '');
   const injectUiSkin = vm.runInNewContext(`(${inject})`, context) as () => void;
   injectUiSkin();
   assert.deepEqual(styles.filter((node) => !node.removed).map((node) => node.id).sort(), [
@@ -212,7 +222,21 @@ test('UI skin transaction keeps bootstrap and per-slot generations isolated', ()
   assert.equal(acks.at(-1).error, 'STALE_OR_INVALID_GENERATION');
   assert.deepEqual(styles.filter((node) => !node.removed).map((node) => node.id).sort(), beforeStale);
 
-  dispatch({generation: 4, slots: {'unknown-slot': 'must-not-mount'}});
+  dispatch({generation: 4, slots: {'../unknown-slot': 'must-not-mount'}});
   assert.equal(acks.at(-1).error, 'UNSUPPORTED_SLOT');
   assert.deepEqual(styles.filter((node) => !node.removed).map((node) => node.id).sort(), beforeStale);
+
+  // Slot topology is extensible: add a slot with an explicit definition,
+  // update its contribution, then remove it without disturbing other slots.
+  dispatch({generation: 5, slotDefinitions: {'composer': {id: 'composer'}}, slots: {composer: 'composer-v1'}});
+  assert.equal(acks.at(-1).ok, true);
+  assert.equal(styles.some((node) => !node.removed && node.id === 'dsh-ui-skin-composer-5'), true);
+  dispatch({generation: 6, slotDefinitions: {'composer': {id: 'composer'}}, slots: {composer: 'composer-v2'}});
+  assert.equal(acks.at(-1).ok, true);
+  assert.equal(styles.some((node) => node.removed && node.id === 'dsh-ui-skin-composer-5'), true);
+  assert.equal(styles.some((node) => !node.removed && node.id === 'dsh-ui-skin-composer-6'), true);
+  dispatch({generation: 7, removeSlots: ['composer']});
+  assert.equal(acks.at(-1).ok, true);
+  assert.equal(styles.some((node) => !node.removed && node.id === 'dsh-ui-skin-composer-6'), false);
+  assert.equal(styles.some((node) => !node.removed && node.id === 'dsh-ui-skin-top-sidebar-2'), true);
 });

@@ -18,14 +18,26 @@
 (function () {
   var BAR_ID = '__dsh_desktop_chrome__';
   var BAR_HEIGHT = 36;
-  var UI_SKIN_SLOTS: Record<string, true> = {
-    'top-sidebar': true,
-    'bottom-sidebar': true,
-    'left-sidebar': true,
-    'right-sidebar': true,
-    'session': true,
-    'overlay': true,
-  };
+  // The manager/profile owns slot topology. The default profile currently
+  // contributes six slots, but that list is intentionally not a bridge
+  // allowlist: a package may add, remove, or revise slot definitions.
+  var UI_SKIN_SLOTS: Record<string, unknown> = {};
+  function refreshUiSkinSlots(manager: any): void {
+    UI_SKIN_SLOTS = {};
+    if (!manager || !manager.enabled || !manager.slots) return;
+    var definitions = manager.slotDefinitions;
+    if (definitions && typeof definitions === 'object' && !Array.isArray(definitions)) {
+      Object.keys(definitions).forEach(function (slot) {
+        if (/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(slot)) UI_SKIN_SLOTS[slot] = definitions[slot];
+      });
+    }
+    // Backward-compatible bootstrap snapshots may not carry definitions.
+    Object.keys(manager.slots).forEach(function (slot) {
+      if (/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(slot) && UI_SKIN_SLOTS[slot] === undefined) {
+        UI_SKIN_SLOTS[slot] = true;
+      }
+    });
+  }
 
   // 回环 WS JSON-RPC 客户端（单源：assets/ws-jsonrpc-client.js，Rust 壳在
   // initialization_script 序列中先注入本桥）。connect/queue/call/重连逻辑
@@ -218,6 +230,7 @@
   function injectUiSkin(): void {
     var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
     if (manager && manager.enabled === true && manager.slots) {
+      refreshUiSkinSlots(manager);
       var generation = String(manager.generation);
       Object.keys(manager.slots).forEach(function (slot) {
         if (!UI_SKIN_SLOTS[slot]) return;
@@ -250,6 +263,17 @@
     // remove styles installed during bootstrap instead of leaking generation 1.
     var activeGenerations: Record<string, number> = {};
     var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
+    UI_SKIN_SLOTS = {};
+    if (manager && manager.enabled && manager.slots) {
+      var definitions = manager.slotDefinitions;
+      if (definitions && typeof definitions === 'object' && !Array.isArray(definitions)) {
+        Object.keys(definitions).forEach(function (slot) { UI_SKIN_SLOTS[slot] = definitions[slot]; });
+      }
+      Object.keys(manager.slots).forEach(function (slot) {
+        if (UI_SKIN_SLOTS[slot] === undefined) UI_SKIN_SLOTS[slot] = true;
+      });
+    }
+    var activeDefinitions: Record<string, unknown> = Object.assign({}, UI_SKIN_SLOTS);
     if (manager && manager.slots) {
       var managerGeneration = Number(manager.generation);
       Object.keys(manager.slots).forEach(function (slot): void {
@@ -269,19 +293,28 @@
     window.addEventListener('dsh-ui-skin-transaction', function (event: Event): void {
       var detail = (event as CustomEvent).detail || {};
       var slots = detail.slots as Record<string, unknown> | undefined;
+      var removeSlots = Array.isArray(detail.removeSlots) ? detail.removeSlots as unknown[] : [];
+      var slotDefinitions = detail.slotDefinitions as Record<string, unknown> | undefined;
       if (!slots && typeof detail.slot === 'string') {
         slots = {};
         slots[detail.slot] = detail.css === undefined ? detail.style : detail.css;
       }
       var generation = Number(detail.generation);
-      if (!slots || Object.keys(slots).length === 0) {
+      if ((!slots || Object.keys(slots).length === 0) && removeSlots.length === 0
+        && (!slotDefinitions || Object.keys(slotDefinitions).length === 0)) {
         acknowledge(generation, false, 'STALE_OR_INVALID_GENERATION');
         return;
       }
       var transactionGenerations: Record<string, number> = {};
-      var transactionSlots = slots;
+      var transactionSlots = slots || {};
       var slotNames = Object.keys(transactionSlots);
-      if (slotNames.some(function (slot): boolean { return !UI_SKIN_SLOTS[slot]; })) {
+      var removalNames = removeSlots.filter(function (slot) { return typeof slot === 'string'; });
+      if (removalNames.length !== removeSlots.length
+        || slotNames.some(function (slot): boolean {
+          return !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(slot)
+            || (activeDefinitions[slot] === undefined && (!slotDefinitions || slotDefinitions[slot] === undefined));
+        })
+        || removalNames.some(function (slot): boolean { return activeDefinitions[slot] === undefined; })) {
         acknowledge(generation, false, 'UNSUPPORTED_SLOT');
         return;
       }
@@ -319,6 +352,23 @@
           }
           activeGenerations[slot] = slotGeneration;
         });
+        removalNames.forEach(function (slot): void {
+          var oldGeneration = activeGenerations[slot];
+          if (oldGeneration !== undefined) {
+            var old = document.querySelectorAll('[data-skin-slot="' + slot + '"][data-skin-generation="' + oldGeneration + '"]');
+            old.forEach(function (node): void { node.remove(); });
+          }
+          delete activeGenerations[slot];
+          delete activeDefinitions[slot];
+        });
+        var definitionsToApply = slotDefinitions && typeof slotDefinitions === 'object' && !Array.isArray(slotDefinitions)
+          ? slotDefinitions : {};
+        if (Object.keys(definitionsToApply).length > 0) {
+          Object.keys(definitionsToApply).forEach(function (slot): void {
+            if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(slot)) throw new Error('UNSUPPORTED_SLOT');
+            activeDefinitions[slot] = definitionsToApply[slot];
+          });
+        }
         acknowledge(generation, true);
       } catch (error) {
         staged.forEach(function (style): void { style.remove(); });
