@@ -236,8 +236,20 @@
     maxBtn.setAttribute('aria-pressed', String(isMax));
   }
 
-  function injectUiSkin(): void {
-    var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
+  var activeGeneration = 0;
+  var activeSlots: Record<string, string> = {};
+
+  async function injectUiSkin(): Promise<void> {
+    // Never consume a snapshot baked into a WebView initialization script.
+    // This read-only L1 RPC neither starts recovery nor cancels a live force-enable.
+    var manager: any = {};
+    try { manager = await call('win.skin-bootstrap', {}); } catch (_) { /* embedded recovery */ }
+    // A transaction may have completed while the bootstrap RPC was in flight.
+    // Its styles and generation must not be overwritten by an older response.
+    if (activeGeneration > 0) return;
+    (window as any).__DSH_UI_SKIN_MANAGER__ = manager;
+    activeGeneration = manager && manager.enabled === true ? Number(manager.generation) : 0;
+    activeSlots = manager && manager.enabled === true ? manager.slots : {};
     if (manager && manager.enabled === true && manager.slots) {
       var generation = String(manager.generation);
       Object.keys(manager.slots).forEach(function (slot) {
@@ -262,10 +274,6 @@
   // Generation-aware host bridge. Candidate styles are staged before the
   // previous generation is removed; the manager receives an explicit ack.
   (function installUiSkinTransactionBridge(): void {
-    var activeGeneration = 0;
-    var activeSlots: Record<string, string> = {};
-    var manager = (window as any).__DSH_UI_SKIN_MANAGER__;
-    if (manager && Number.isFinite(Number(manager.generation))) activeGeneration = Number(manager.generation);
     function acknowledge(generation: number, ok: boolean, error?: string): void {
       window.dispatchEvent(new CustomEvent('dsh-ui-skin-transaction-ack', {
         detail: {generation: generation, context: 'webview', ok: ok, error: error || undefined}

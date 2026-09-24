@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // v6 Task 6.2.4：导入管理 UI 的 coordinator RPC 适配层测试。
 //
@@ -381,6 +381,8 @@ function writePackagedResourceLayout(root: string): void {
     path.join(managerDir, 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz'),
   );
   fs.copyFileSync(HOST_PROFILE, path.join(managerDir, 'host-profile.json'));
+  fs.copyFileSync(OFFICIAL_ARCHIVE, path.join(managerDir, lock.default.artifact));
+  fs.copyFileSync(path.join(eacRoot, 'tauri-shell', 'skin-manager-artifact.lock.json'), path.join(managerDir, 'artifact.lock.json'));
   // 随包默认快照根：只读兜底，测试中它的 mtime/内容必须全程不变。
   const resolved = path.join(managerDir, 'resolved');
   fs.mkdirSync(resolved, { recursive: true });
@@ -496,10 +498,8 @@ test('真 manager（pinned tgz）：导入 → 逐 slot 选择 → Apply → 读
   const manager = status['manager'] as Record<string, unknown>;
   assert.equal(manager['source'], 'pinned-artifact');
 
-  // 默认回退坐标必须先在 catalog 里，publish 才能解析未选中的 slot。
-  const official = await adapter.invoke('skin.import', { archivePath: OFFICIAL_ARCHIVE });
-  assert.equal(official['ok'], true, '导入默认制品失败: ' + JSON.stringify(official['fault'] ?? {}));
-  assert.equal(official['enabled'], false);
+  // Fresh user imports only the third-party package; defaults must be registered safely.
+  assert.equal(fs.existsSync(path.join(resolved, 'snapshot.json')), false);
 
   const third = await adapter.invoke('skin.import', { archivePath: thirdParty });
   assert.equal(third['ok'], true, '导入第三方包失败: ' + JSON.stringify(third['fault'] ?? {}));
@@ -554,6 +554,237 @@ test('真 manager（pinned tgz）：导入 → 逐 slot 选择 → Apply → 读
   assert.equal((finalStatus['manager'] as Record<string, unknown>)['available'], true);
 
   clearSkinEnv();
+});
+
+test('F3 pinned force controller survives RPC boundaries', async () => {
+  const root = tempDir('skin-force-');
+  const resources = path.join(root, 'resources');
+  writePackagedResourceLayout(resources);
+  const adapter = freshPackagedAdapter({}, path.join(root, 'user'), resources);
+  assert.equal((await adapter.invoke('skin.apply')).ok, true);
+  assert.equal((await adapter.invoke('skin.import', {archivePath: path.join(here, 'fixtures/skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar')})).ok, true);
+  assert.equal((await adapter.invoke('skin.select', {slot: 'session', packageId: THIRD_PARTY_ID, packageVersion: '1.0.0'})).ok, true);
+  const begin = await adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'});
+  assert.equal(begin.ok, true, JSON.stringify(begin));
+  const status = await adapter.invoke('skin.status');
+  assert.deepEqual((status.forceEnable as {pendingSlots: string[]})?.pendingSlots, ['session']);
+  const kept = await adapter.invoke('skin.force-enable', {action: 'keep', slot: 'session'});
+  assert.equal(kept.ok, true, JSON.stringify(kept));
+  assert.equal(kept.outcome, 'kept');
+  assert.equal((await adapter.invoke('skin.select', {slot: 'session', packageId: THIRD_PARTY_ID, packageVersion: '1.0.0'})).ok, true);
+  assert.equal((await adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'})).ok, true);
+  const abandoned = await adapter.invoke('skin.force-enable', {action: 'abandon', slot: 'session'});
+  assert.equal(abandoned.ok, true, JSON.stringify(abandoned));
+  assert.equal(((abandoned.snapshot as {slots: Array<{slot: string; packageId: string}>}).slots.find(item => item.slot === 'session'))?.packageId, THIRD_PARTY_ID, 'restore must use current pre-candidate state, not previous generation');
+  assert.equal((await adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'})).ok, true);
+  const reopened = freshPackagedAdapter({}, path.join(root, 'user'), resources);
+  const recovered = await reopened.invoke('skin.force-enable', {action: 'recover'});
+  assert.equal(recovered.ok, true, JSON.stringify(recovered));
+  assert.equal(fs.existsSync(path.join(root, 'user/ui-skin-manager/force-enable/session.force-enable.json')), false, 'ack only after actual restore');
+});
+
+test('F4 pinned restore failure must retain evidence and return failure', async () => {
+  const root = tempDir('skin-force-failure-');
+  const resources = path.join(root, 'resources');
+  writePackagedResourceLayout(resources);
+  const adapter = freshPackagedAdapter({}, path.join(root, 'user'), resources);
+  assert.equal((await adapter.invoke('skin.apply')).ok, true);
+  await adapter.invoke('skin.import', {archivePath: path.join(here, 'fixtures/skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar')});
+  await adapter.invoke('skin.select', {slot: 'session', packageId: THIRD_PARTY_ID, packageVersion: '1.0.0'});
+  assert.equal((await adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'})).ok, true);
+  const status = await adapter.invoke('skin.status');
+  const manager = await import(pathToFileURL(path.join((status.manager as {packageRoot: string}).packageRoot, 'src/index.ts')).href);
+  const original = manager.BindingStore.prototype.commit;
+  try {
+    manager.BindingStore.prototype.commit = async () => { throw new Error('restore commit fault'); };
+    const failed = await adapter.invoke('skin.force-enable', {action: 'abandon', slot: 'session'});
+    assert.equal(failed.ok, false, JSON.stringify(failed));
+    assert.equal(fs.existsSync(path.join(root, 'user/ui-skin-manager/force-enable/session.force-enable.json')), true);
+  } finally { manager.BindingStore.prototype.commit = original; }
+});
+
+test('F5 pinned commit failure is reconciled without deleting live assets', async () => {
+  const root = tempDir('skin-split-');
+  const resources = path.join(root, 'resources');
+  const user = path.join(root, 'user');
+  writePackagedResourceLayout(resources);
+  const adapter = freshPackagedAdapter({}, user, resources);
+  assert.equal((await adapter.invoke('skin.apply')).ok, true);
+  const status = await adapter.invoke('skin.status');
+  const manager = await import(pathToFileURL(path.join((status.manager as {packageRoot: string}).packageRoot, 'src/index.ts')).href);
+  const original = manager.BindingStore.prototype.commit;
+  try {
+    manager.BindingStore.prototype.commit = async () => { throw new Error('injected commit failure'); };
+    const failed = await adapter.invoke('skin.apply');
+    assert.equal(faultOf(failed).code, 'SNAPSHOT_BINDING_COMMIT_FAILED');
+  } finally { manager.BindingStore.prototype.commit = original; }
+  const snapshotFile = path.join(user, 'ui-skin-manager/resolved/snapshot.json');
+  const before = fs.readFileSync(snapshotFile);
+  const recovered = await adapter.invoke('skin.recover');
+  assert.equal(recovered.clean, false, JSON.stringify(recovered));
+  assert.equal(recovered.outcome, 'committed-state-not-written');
+  assert.equal(recovered.reconciled, true);
+  assert.equal((recovered.readback as {generation: number}).generation, 2);
+  assert.deepEqual(fs.readFileSync(snapshotFile), before);
+  const applied = await adapter.invoke('skin.apply');
+  assert.equal(applied.ok, true, JSON.stringify(applied));
+});
+
+async function fixtureForce() {
+  const root = tempDir('skin-cont-');
+  const resources = path.join(root, 'resources');
+  const user = path.join(root, 'user');
+  writePackagedResourceLayout(resources);
+  const adapter = freshPackagedAdapter({}, user, resources);
+  assert.equal((await adapter.invoke('skin.apply')).ok, true);
+  const status = await adapter.invoke('skin.status');
+  const manager = await import(pathToFileURL(path.join((status.manager as {packageRoot: string}).packageRoot, 'src/index.ts')).href);
+  return {root, resources, user, adapter, manager, resolved: path.join(user, 'ui-skin-manager/resolved')};
+}
+
+test('F5 legacy no-journal split reconciles and returns exact readback', async () => {
+  const f = await fixtureForce();
+  const store = new f.manager.BindingStore(path.join(f.user, 'ui-skin-manager/bindings'));
+  const original = f.manager.BindingStore.prototype.commit;
+  try {
+    f.manager.BindingStore.prototype.commit = async () => { throw new Error('legacy failure'); };
+    assert.equal((await f.adapter.invoke('skin.apply')).ok, false);
+  } finally { f.manager.BindingStore.prototype.commit = original; }
+  fs.rmSync(path.join(f.user, 'ui-skin-manager/journal'), {recursive: true, force: true});
+  const recovered = await f.adapter.invoke('skin.recover');
+  assert.equal(recovered.ok, true, JSON.stringify(recovered));
+  assert.equal(recovered.reconciled, true);
+  assert.equal(recovered.clean, false);
+  assert.deepEqual(recovered.readback, (await store.committed()).value);
+  assert.deepEqual((recovered.report as Record<string, unknown>).bindings, recovered.readback);
+  assert.equal((await f.adapter.invoke('skin.apply')).ok, true);
+});
+
+test('F4 keep refuses live digest drift even when draft is unchanged', async () => {
+  const f = await fixtureForce();
+  await f.adapter.invoke('skin.import', {archivePath: path.join(here, 'fixtures/skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar')});
+  await f.adapter.invoke('skin.select', {slot: 'session', packageId: THIRD_PARTY_ID, packageVersion: '1.0.0'});
+  assert.equal((await f.adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'})).ok, true);
+  const file = path.join(f.resolved, 'snapshot.json');
+  const snapshot = JSON.parse(fs.readFileSync(file, 'utf8'));
+  snapshot.bindings.find((b: {slot: string}) => b.slot === 'session').package.digest = 'sha256:' + 'f'.repeat(64);
+  fs.writeFileSync(file, JSON.stringify(snapshot));
+  const kept = await f.adapter.invoke('skin.force-enable', {action: 'keep', slot: 'session'});
+  assert.equal(kept.ok, false, JSON.stringify(kept));
+  assert.equal(fs.existsSync(path.join(f.user, 'ui-skin-manager/force-enable/session.force-enable.json')), true);
+});
+
+test('startup gate recovers orphan confirmation while refresh preserves live confirmation', async () => {
+  const f = await fixtureForce();
+  assert.equal((await f.adapter.invoke('skin.startup')).ready, true);
+  await f.adapter.invoke('skin.import', {archivePath: path.join(here, 'fixtures/skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar')});
+  await f.adapter.invoke('skin.select', {slot: 'session', packageId: THIRD_PARTY_ID, packageVersion: '1.0.0'});
+  assert.equal((await f.adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'})).ok, true);
+  assert.equal((await f.adapter.invoke('skin.startup')).ready, true);
+  assert.deepEqual(((await f.adapter.invoke('skin.status')).forceEnable as {pendingSlots: string[]}).pendingSlots, ['session']);
+  const restarted = freshPackagedAdapter({}, f.user, f.resources);
+  const gate = await restarted.invoke('skin.startup');
+  assert.equal(gate.ready, true, JSON.stringify(gate));
+  assert.equal(fs.existsSync(path.join(f.user, 'ui-skin-manager/force-enable/session.force-enable.json')), false);
+  const status = await restarted.invoke('skin.status');
+  assert.equal((status.snapshot as {slots: Array<{slot: string; packageId: string}>}).slots.find(b => b.slot === 'session')?.packageId, 'system.default');
+});
+
+function variantArchive(root: string, slot: string): string {
+  const source = fs.readFileSync(path.join(here, 'fixtures/skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar'));
+  const blocks: Buffer[] = [];
+  for (let at = 0; at + 512 <= source.length;) {
+    const header = Buffer.from(source.subarray(at, at + 512));
+    if (header.every(b => b === 0)) break;
+    const name = header.subarray(0, 100).toString().replace(/\0.*$/, '');
+    const size = parseInt(header.subarray(124, 136).toString().replace(/\0.*$/, '').trim(), 8) || 0;
+    let body = source.subarray(at + 512, at + 512 + size);
+    at += 512 + Math.ceil(size / 512) * 512;
+    if (name === 'skin.json') {
+      const manifest = JSON.parse(body.toString());
+      manifest.metadata.id = THIRD_PARTY_ID + '-other';
+      manifest.contributions[0].slot = slot;
+      body = Buffer.from(JSON.stringify(manifest));
+      header.write(body.length.toString(8).padStart(11, '0') + '\0', 124, 12, 'ascii');
+      header.fill(32, 148, 156);
+      const checksum = header.reduce((sum, b) => sum + b, 0);
+      header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii');
+    }
+    blocks.push(header, body, Buffer.alloc((512 - body.length % 512) % 512));
+  }
+  const file = path.join(root, 'other.tar');
+  fs.writeFileSync(file, Buffer.concat([...blocks, Buffer.alloc(1024)]));
+  return file;
+}
+
+test('F4 real 30 second timeout preserves newly imported other-slot commit', async () => {
+  const f = await fixtureForce();
+  await f.adapter.invoke('skin.import', {archivePath: path.join(here, 'fixtures/skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar')});
+  await f.adapter.invoke('skin.select', {slot: 'session', packageId: THIRD_PARTY_ID, packageVersion: '1.0.0'});
+  const started = Date.now();
+  assert.equal((await f.adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'})).ok, true);
+  const imported = await f.adapter.invoke('skin.import', {archivePath: variantArchive(f.root, 'top-sidebar')});
+  assert.equal(imported.ok, true, JSON.stringify(imported));
+  await f.adapter.invoke('skin.select', {slot: 'top-sidebar', packageId: THIRD_PARTY_ID + '-other', packageVersion: '1.0.0'});
+  assert.equal((await f.adapter.invoke('skin.apply')).ok, true);
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, 30500 - (Date.now() - started))));
+  const status = await f.adapter.invoke('skin.status');
+  assert.ok(Date.now() - started >= 30000);
+  const slots = (status.snapshot as {slots: Array<{slot: string; packageId: string}>}).slots;
+  assert.equal(slots.find(b => b.slot === 'session')?.packageId, 'system.default');
+  assert.equal(slots.find(b => b.slot === 'top-sidebar')?.packageId, THIRD_PARTY_ID + '-other');
+  assert.deepEqual((status.forceEnable as {pendingSlots: string[]}).pendingSlots, []);
+  assert.equal(fs.existsSync(path.join(f.user, 'ui-skin-manager/force-enable/session.force-enable.json')), false);
+});
+
+test('F5 damaged live asset refuses reconciliation and preserves split', async () => {
+  const f = await fixtureForce();
+  const original = f.manager.BindingStore.prototype.commit;
+  try {
+    f.manager.BindingStore.prototype.commit = async () => { throw new Error('split'); };
+    assert.equal((await f.adapter.invoke('skin.apply')).ok, false);
+  } finally { f.manager.BindingStore.prototype.commit = original; }
+  const snapshot = JSON.parse(fs.readFileSync(path.join(f.resolved, 'snapshot.json'), 'utf8'));
+  const files = fs.readdirSync(path.join(f.resolved, 'gen-2'), {recursive: true}).filter(file => String(file).endsWith('.css'));
+  assert.ok(files.length);
+  fs.writeFileSync(path.join(f.resolved, 'gen-2', String(files[0])), 'damaged');
+  const result = await f.adapter.invoke('skin.recover');
+  assert.equal(result.ok, false, JSON.stringify(result));
+  const store = new f.manager.BindingStore(path.join(f.user, 'ui-skin-manager/bindings'));
+  assert.equal((await store.committed()).value.generation, 1);
+  assert.equal(snapshot.generation, 2);
+});
+
+test('genuine incompatible catalog manifest cannot be forced via client error code', async () => {
+  const f = await fixtureForce();
+  await f.adapter.invoke('skin.import', {archivePath: path.join(here, 'fixtures/skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar')});
+  await f.adapter.invoke('skin.select', {slot: 'session', packageId: THIRD_PARTY_ID, packageVersion: '1.0.0'});
+  const catalogFile = path.join(f.user, 'ui-skin-manager/catalog.json');
+  const catalog = JSON.parse(fs.readFileSync(catalogFile, 'utf8'));
+  const entry = catalog.packages.find((p: {manifest: {metadata: {id: string}}}) => p.manifest.metadata.id === THIRD_PARTY_ID);
+  entry.manifest.engines.hostProfile = '^99.0.0';
+  fs.writeFileSync(catalogFile, JSON.stringify(catalog));
+  const before = fs.readFileSync(path.join(f.resolved, 'snapshot.json'));
+  const forced = await f.adapter.invoke('skin.force-enable', {action: 'begin', slot: 'session', errorCode: 'COMPATIBILITY_SLOT_KIND'});
+  assert.equal(forced.ok, false, JSON.stringify(forced));
+  assert.equal(faultOf(forced).code, 'FORCE_ENABLE_OVERRIDE_UNSUPPORTED');
+  assert.deepEqual(fs.readFileSync(path.join(f.resolved, 'snapshot.json')), before);
+});
+
+test('default archive corruption and installed-tree corruption reject apply', async () => {
+  const f = await fixtureForce();
+  const lock = JSON.parse(fs.readFileSync(path.join(f.resources, 'ui-skin-manager/artifact.lock.json'), 'utf8'));
+  const archive = path.join(f.resources, 'ui-skin-manager', lock.default.artifact);
+  const bytes = fs.readFileSync(archive);
+  fs.writeFileSync(archive, Buffer.concat([bytes, Buffer.from('corrupt')]));
+  const broken = await f.adapter.invoke('skin.apply');
+  assert.equal(broken.ok, false, JSON.stringify(broken));
+  fs.writeFileSync(archive, bytes);
+  const catalog = await f.manager.PackageCatalog.open(path.join(f.user, 'ui-skin-manager/catalog.json'));
+  const entry = catalog.get('system.default', '2.0.0');
+  fs.writeFileSync(path.join(entry.versionPath, 'skin.json'), '{}');
+  const damaged = await f.adapter.invoke('skin.apply');
+  assert.equal(damaged.ok, false, JSON.stringify(damaged));
 });
 
 test('真 manager 下：摘要不符时拒绝导入并给出下一步', async () => {

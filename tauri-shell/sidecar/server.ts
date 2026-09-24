@@ -70,6 +70,7 @@ const fileRootsMod = mount('file-roots');
 const skinManagerMod = mount('skin-manager') as Mod & {
   invoke(method: string, params: unknown): Promise<unknown>;
   SKIN_MANAGER_METHODS: string[];
+  acquireHostOwnership(): Promise<{owns(): Promise<boolean>}>;
 };
 
 // v6 Task 3.1（ADR 0006 v3 · 严格模式）：本体只保留对 dsh 的最简包装。
@@ -576,8 +577,26 @@ const methods: Record<string, (p: RpcParams) => unknown> = {
 // 单一入口转给适配层：这里不解析业务语义、不做策略判断，只把参数原样传下去、
 // 把结构化结果（含 ok:false 的 fault）原样带回来。UI 需要的是 code + nextStep，
 // 不是一句被 transport 抹平的 message，所以失败也走正常结果而不是 JSON-RPC error。
+// One lifetime owner per canonical resolved root. Do not use the publisher lock:
+// recovery and force rollback acquire that lock internally. Share the acquisition
+// Promise so simultaneous initial RPCs cannot contend with this process itself.
+let skinOwnership: Promise<{owns(): Promise<boolean>}> | undefined;
 for (const method of skinManagerMod.SKIN_MANAGER_METHODS) {
-  methods[method] = (p: RpcParams): Promise<unknown> => skinManagerMod.invoke(method, p);
+  methods[method] = async (p: RpcParams): Promise<unknown> => {
+    try {
+      skinOwnership ??= skinManagerMod.acquireHostOwnership();
+      const owner = await skinOwnership;
+      if (!await owner.owns()) throw new Error('Sidecar no longer owns the skin root');
+    } catch (error) {
+      // A rejected sidecar stays rejected; restart it after the owner exits.
+      return {ok: false, ready: false, fault: {
+        code: 'SKIN_OWNER_UNAVAILABLE',
+        message: String(error instanceof Error ? error.message : error),
+        nextStep: 'Close the other skin host, then restart this host',
+      }};
+    }
+    return skinManagerMod.invoke(method, p);
+  };
 }
 
 // ---- 内部 boot glue --------------------------------------------------------

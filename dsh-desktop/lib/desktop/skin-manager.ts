@@ -630,6 +630,7 @@ interface ManagerEnv {
   catalog: {list(): unknown[]; get(id: string, version: string): unknown};
   profile: unknown;
   bindings: {
+    commit(value: {generation: number; bindings: Record<string, unknown>}): Promise<void>;
     committed(): Promise<{value?: {generation: number; bindings: Record<string, unknown>}; diagnostic?: string}>;
     previous(): Promise<{value?: {generation: number; bindings: Record<string, unknown>}}>;
     previousGenerations(): Promise<Array<{generation: number}>>;
@@ -648,12 +649,22 @@ interface ManagerEnv {
   forceEnable?: {
     begin(request: Record<string, unknown>): Promise<unknown>;
     keep(slot: string): Promise<string>;
+    expire(slot: string): Promise<string | undefined>;
     abandon(slot: string): Promise<string>;
+    acknowledge(slot: string): Promise<void>;
     recover(options?: Record<string, unknown>): Promise<Record<string, unknown>>;
     pendingSlots(): string[];
     pending(slot: string): unknown;
     directory: string;
   };
+}
+
+const forceControllers = new Map<string, NonNullable<ManagerEnv['forceEnable']>>();
+let rpcTail: Promise<unknown> = Promise.resolve();
+function serialize<T>(operation: () => Promise<T>): Promise<T> {
+  const run = rpcTail.then(operation, operation);
+  rpcTail = run.then(() => undefined, () => undefined);
+  return run;
 }
 
 async function openEnv(): Promise<{ok: true; env: ManagerEnv} | {ok: false; fault: SkinFault}> {
@@ -735,6 +746,32 @@ async function openEnv(): Promise<{ok: true; env: ManagerEnv} | {ok: false; faul
   const BindingStoreCtor = module['BindingStore'] as new (directory: string) => ManagerEnv['bindings'];
   const catalog = (await catalogFactory.open(path.join(stateDir, 'catalog.json'))) as ManagerEnv['catalog'];
   const bindings = new BindingStoreCtor(path.join(stateDir, 'bindings'));
+  // Re-import verifies the complete installed tree even on an idempotent hit.
+  // Explicit development source overrides retain their own fixture contract.
+  if (result.manager.source !== 'override') {
+    const resourceDir = managerResourceDir();
+    const lockFile = firstExisting([path.join(resourceDir, 'artifact.lock.json'), path.join(shellResourceRoot(), 'tauri-shell', 'skin-manager-artifact.lock.json')]);
+    const lock = JSON.parse(fs.readFileSync(lockFile, 'utf8')) as {default: {artifact: string; package: string; version: string; sha256: string}};
+    const pinned = lock.default;
+    const fallback = (profile as {fallbackSkin: {id: string; version: string; digest: string}}).fallbackSkin;
+    if (!pinned || !/^[a-f0-9]{64}$/.test(pinned.sha256) || path.basename(pinned.artifact) !== pinned.artifact
+      || fallback.id !== pinned.package || fallback.version !== pinned.version || fallback.digest !== 'sha256:' + pinned.sha256) {
+      throw Object.assign(new Error('Default artifact lock and profile disagree'), {code: 'SNAPSHOT_PACKAGE_DIGEST_MISMATCH'});
+    }
+    const archivePath = firstExisting([path.join(resourceDir, pinned.artifact), path.join(shellResourceRoot(), 'tauri-shell', 'artifacts', pinned.artifact)]);
+    const archive = readArchive(archivePath);
+    if (!archive.ok) return archive;
+    const installer = new (module['PackageInstaller'] as new (options: {root: string; catalog: unknown}) => {
+      inspect(bytes: Buffer, options: Record<string, unknown>): {manifest: {metadata: {id: string; version: string}}};
+      importArchive(bytes: Buffer, options: Record<string, unknown>): Promise<unknown>;
+    })({root: path.join(stateDir, 'packages'), catalog});
+    const options = {profile, expectedArchiveSha256: pinned.sha256};
+    const inspected = installer.inspect(archive.bytes, options);
+    if (inspected.manifest.metadata.id !== pinned.package || inspected.manifest.metadata.version !== pinned.version) {
+      throw Object.assign(new Error('Default artifact coordinate mismatch'), {code: 'MANIFEST_COORDINATE_MISMATCH'});
+    }
+    await installer.importArchive(archive.bytes, options);
+  }
 
   // 6.2.5 面：能力探测通过才构造——缺真实接口时不构造、不伪装，capabilities 里就是 false。
   let journal: ManagerEnv['journal'];
@@ -744,8 +781,26 @@ async function openEnv(): Promise<{ok: true; env: ManagerEnv} | {ok: false; faul
   }
   let forceEnable: ManagerEnv['forceEnable'];
   if (capabilities.forceEnable) {
-    const ForceEnableCtor = module['DurableForceEnableController'] as new (options: {directory: string}) => NonNullable<ManagerEnv['forceEnable']>;
-    forceEnable = new ForceEnableCtor({directory: path.join(stateDir, 'force-enable')});
+    const ForceEnableCtor = module['DurableForceEnableController'] as new (options: {directory: string; schedule: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>}) => NonNullable<ManagerEnv['forceEnable']>;
+    const key = JSON.stringify([path.resolve(stateDir), path.resolve(resolvedDir), result.manager.packageRoot]);
+    forceEnable = forceControllers.get(key);
+    if (!forceEnable) {
+      const controller = new ForceEnableCtor({
+        directory: path.join(stateDir, 'force-enable'),
+        // The supplied callback launches expire without returning its Promise.
+        // Use the public awaited expire API instead, checking every due slot.
+        schedule: (_callback, delay) => setTimeout(() => {
+          void serialize(async () => {
+            for (const slot of controller.pendingSlots()) {
+              const outcome = await controller.expire(slot);
+              if (outcome === 'restore-failed') log('skin', 'force timeout restore failed: ' + slot);
+            }
+          }).catch(error => log('skin', String(error)));
+        }, delay),
+      });
+      forceEnable = controller;
+      forceControllers.set(key, forceEnable);
+    }
   }
 
   return {
@@ -903,6 +958,19 @@ function readArchive(archivePath: unknown): {ok: true; bytes: Buffer} | {ok: fal
 
 // ── 操作实现 ─────────────────────────────────────────────────────────────────
 
+// Sidecar-only ownership capability: no catalog, recovery or publisher invocation.
+export async function acquireHostOwnership(): Promise<{owns(): Promise<boolean>}> {
+  const manager = await ensureManager();
+  if (!manager.ok) throw new Error(manager.fault.message);
+  const root = resolvedRoot();
+  fs.mkdirSync(root, {recursive: true});
+  const canonical = fs.realpathSync(root);
+  const acquire = manager.manager.module['acquireFileLock'] as (file: string, options: {timeoutMs: number}) => Promise<{owns(): Promise<boolean>}>;
+  if (typeof acquire !== 'function') throw new Error('Manager ownership lock unavailable');
+  // Lifetime ownership, deliberately distinct from snapshot.json.eac-lock.
+  return acquire(path.join(canonical, '.sidecar-owner.eac-lock'), {timeoutMs: 500});
+}
+
 async function opStatus(): Promise<SkinResult> {
   const result = await ensureManager();
   const roots = stateRoot();
@@ -938,6 +1006,7 @@ async function opStatus(): Promise<SkinResult> {
     manager: {available: true, packageRoot: env.packageRoot, version: env.version, source: env.source},
     state: {stateRoot: env.stateDir, resolvedRoot: env.resolvedDir},
     capabilities: env.capabilities,
+    forceEnable: env.forceEnable ? {pendingSlots: env.forceEnable.pendingSlots()} : null,
     snapshot: snapshotView(env, snapshot) ?? null,
     slots: profileSlots(env).map((slot) => ({
       ...slot,
@@ -1108,6 +1177,7 @@ async function publish(env: ManagerEnv, selection: Array<{slot: string; packageI
       selection,
       generation: nextGeneration,
       bindings: env.bindings,
+      ...(env.journal ? {journal: {journal: env.journal, slot: 'snapshot'}} : {}),
     });
     return {ok: true, result};
   } catch (error) {
@@ -1217,14 +1287,9 @@ async function opRevert(params: Record<string, unknown>): Promise<SkinResult> {
 /**
  * 恢复执行（6.2.5 已审计面，真实接口调用，不是标注替换）。
  *
- * 调 manager 的 `recoverSlotTransactions`：它关闭中止的日志记录、丢弃暂存状态、
- * 产出 RecoveryReport（outcome / 回退链 / 动作清单 / 诊断）。manager 自己承诺：
- * 不写绑定世代、不删 resolved 树、不动 snapshot——所以本层调它也不需要再做
- * 写操作；恢复后 UI 显示的仍是「读回的真实状态」。
- *
- * `committed-state-not-written`（快照 live 的世代领先于已提交绑定状态）按
- * manager 的真实判定原样带出：snapshot 对宿主服务是权威的，树被保留，分裂被
- * 报告而不是被「修好」——本层不得把这种状态改写成 clean。
+ * 调 manager coordinator 并在 publisher 同一锁内核对 live 与 bindings。
+ * journal-less split 同样识别；验证资产后只追平 bindings，不重写 live 树。
+ * clean/outcome 保留发现时证据，reconciled/readback 明确给出修复结果。
  */
 async function opRecover(): Promise<SkinResult> {
   const envResult = await openEnv();
@@ -1257,6 +1322,12 @@ async function opRecover(): Promise<SkinResult> {
 
   const recover = env.module['recoverSlotTransactions'] as (request: Record<string, unknown>) => Promise<Record<string, unknown>>;
   try {
+    const withLock = env.module['withFileLock'] as (file: string, run: () => Promise<SkinResult>) => Promise<SkinResult>;
+    const lockPath = env.module['lockPathFor'] as (file: string) => string;
+    return await withLock(lockPath(path.join(env.resolvedDir, 'snapshot.json')), async () => {
+    // Refresh the coordinator's inputs after lock acquisition too.
+    const lockedSnapshot = await readSnapshot(env);
+    liveGeneration = lockedSnapshot ? Number(lockedSnapshot['generation']) : undefined;
     const report = await recover({
       journal: env.journal,
       bindings: env.bindings,
@@ -1265,6 +1336,39 @@ async function opRecover(): Promise<SkinResult> {
       ...(liveGeneration !== undefined ? {liveGeneration} : {}),
       ...(snapshotUnreadable ? {snapshotUnreadable: true} : {}),
     });
+    // Also detect legacy journal-less splits; all decisive reads are under the
+    // publisher lock, never inferred from journal presence alone.
+    {
+      await (async () => {
+        const live = await readSnapshot(env);
+        const committed = await env.bindings.committed();
+        report['readback'] = committed.value ?? null;
+        report['reconciled'] = false;
+        if (!live) {
+          if (committed.value?.generation) throw new Error('RECOVERY_SNAPSHOT_MISSING');
+          return;
+        }
+        if (Number(live['generation']) < (committed.value?.generation ?? 0)) throw new Error('RECOVERY_STATE_AHEAD');
+        const verify = env.module['verifyActiveSnapshot'] as (snapshot: unknown, root: string, profile: unknown) => Promise<{ok: boolean; code?: string; message?: string}>;
+        const checked = await verify(live, env.resolvedDir, env.profile);
+        if (!checked.ok) throw Object.assign(new Error(checked.message), {code: checked.code});
+        const values = live['bindings'] as Array<{slot: string}>;
+        const recovered = {generation: Number(live['generation']), bindings: Object.fromEntries(values.map(binding => [binding.slot, binding]))};
+        if (committed.value?.generation === recovered.generation) {
+          if (JSON.stringify(committed.value.bindings) !== JSON.stringify(recovered.bindings)) throw new Error('RECOVERY_BINDING_DIVERGED');
+          return;
+        }
+        report['clean'] = false;
+        report['outcome'] = 'committed-state-not-written';
+        await env.bindings.commit(recovered);
+        const readback = await env.bindings.committed();
+        if (JSON.stringify(readback.value) !== JSON.stringify(recovered)) throw new Error('RECOVERY_BINDING_READBACK_MISMATCH');
+        for (const record of report['splits'] as unknown[]) await env.journal!.close(record);
+        report['reconciled'] = true;
+        report['readback'] = readback.value;
+        report['bindings'] = readback.value;
+      })();
+    }
     const clean = report['clean'] === true;
     if (!clean) {
       // 非 clean 不是 RPC 失败：它是恢复的真实结论。记进故障环，让诊断页能看到
@@ -1272,13 +1376,15 @@ async function opRecover(): Promise<SkinResult> {
       rememberFault({
         code: 'RECOVERY_' + String(report['outcome'] ?? 'UNKNOWN').toUpperCase().replace(/-/g, '_'),
         message: '恢复执行发现上轮遗留：' + String(report['outcome'] ?? 'unknown'),
-        nextStep: '按报告里的 actions/diagnostics 逐项处理；committed-state-not-written 表示快照权威、状态未追上，需要重新 Apply 让状态追上快照',
+        nextStep: '检查 reconciled/readback：已追平则刷新；未追平先修复 diagnostics 后重跑恢复，不要直接重复 Apply',
         detail: {outcome: report['outcome']},
       });
     }
     return {
       ok: true,
       clean,
+      reconciled: report['reconciled'] === true,
+      readback: report['readback'] ?? null,
       outcome: report['outcome'] ?? null,
       report: {
         outcome: report['outcome'] ?? null,
@@ -1293,6 +1399,7 @@ async function opRecover(): Promise<SkinResult> {
       snapshot: snapshotView(env, await readSnapshot(env)) ?? null,
       reloadRequired: false,
     };
+    });
   } catch (error) {
     // 恢复执行自身失败（如日志目录不可写）：真实失败必须可定位，不得报「已恢复」。
     return {ok: false, fault: faultOf(error, 'RECOVERY_FAILED')};
@@ -1311,6 +1418,63 @@ async function opRecover(): Promise<SkinResult> {
  * 超时由 manager 的定时器驱动（恢复上一坐标）；以上每一步的真实结局
  * （kept/restored/restore-failed）原样返回，restore-failed 不得报成功。
  */
+type ForceCoordinate = {id: string; version: string; digest: string};
+interface ForcePlan {schema: 'eac-force-restore@1'; slot: string; previous: ForceCoordinate; target: ForceCoordinate}
+
+async function restoreForcePlan(env: ManagerEnv, encoded: string): Promise<void> {
+  const factory = env.module['PackageCatalog'] as {open(file: string): Promise<ManagerEnv['catalog']>};
+  env = {...env, catalog: await factory.open(path.join(env.stateDir, 'catalog.json'))};
+  const plan = JSON.parse(encoded) as ForcePlan;
+  if (plan.schema !== 'eac-force-restore@1' || !profileSlots(env).some(item => item.id === plan.slot)) throw new Error('FORCE_RESTORE_PLAN_INVALID');
+  for (const coord of [plan.previous, plan.target]) {
+    if (!coord || typeof coord.id !== 'string' || typeof coord.version !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(coord.digest)) throw new Error('FORCE_RESTORE_PLAN_INVALID');
+    const entry = env.catalog.get(coord.id, coord.version) as {digest?: string} | undefined;
+    if (entry?.digest !== coord.digest) throw new Error('FORCE_RESTORE_DIGEST_MISMATCH');
+  }
+  const snapshot = await readSnapshot(env);
+  if (!snapshot) throw new Error('FORCE_RESTORE_SNAPSHOT_MISSING');
+  const bindings = snapshot['bindings'] as Array<{slot: string; package: ForceCoordinate}>;
+  const current = bindings.find(item => item.slot === plan.slot)?.package;
+  const equal = (a: ForceCoordinate | undefined, b: ForceCoordinate): boolean => a?.id === b.id && a.version === b.version && a.digest === b.digest;
+  if (equal(current, plan.previous)) {
+    const committed = await env.bindings.committed();
+    if (committed.value?.generation !== snapshot['generation']) throw new Error('FORCE_RESTORE_BINDINGS_NOT_COMMITTED');
+    return;
+  }
+  if (!equal(current, plan.target)) throw new Error('FORCE_RESTORE_TARGET_DRIFTED');
+  const selection = bindings.map(binding => {
+    const coord = binding.slot === plan.slot ? plan.previous : binding.package;
+    return {slot: binding.slot, packageId: coord.id, packageVersion: coord.version};
+  });
+  const outcome = await publish(env, selection);
+  if (!outcome.ok) throw Object.assign(new Error(outcome.fault?.message), {code: outcome.fault?.code});
+  const readback = await readSnapshot(env);
+  const actual = (readback?.['bindings'] as typeof bindings | undefined)?.find(item => item.slot === plan.slot)?.package;
+  if (!equal(actual, plan.previous)) throw new Error('FORCE_RESTORE_READBACK_MISMATCH');
+  const draftFile = path.join(env.stateDir, SELECTION_FILE);
+  const draft = JSON.parse(fs.readFileSync(draftFile, 'utf8')) as DraftSelection;
+  draft.slots[plan.slot] = {packageId: plan.previous.id, packageVersion: plan.previous.version};
+  const Store = env.module['AtomicJsonStore'] as new (file: string) => {write(value: unknown): Promise<void>};
+  await new Store(draftFile).write(draft);
+}
+
+async function recoverForce(env: ManagerEnv, preserveLive = false): Promise<Record<string, unknown>> {
+  const controller = env.forceEnable!;
+  const result = await controller.recover();
+  if (result['directoryError'] || (result['unreadable'] as unknown[]).length) throw new Error('FORCE_ENABLE_RECORD_UNREADABLE');
+  for (const record of result['restored'] as Array<{slot: string; previous: string}>) {
+    if (controller.pending(record.slot)) {
+      if (preserveLive) continue;
+      if (await controller.abandon(record.slot) !== 'restored') throw new Error('FORCE_ENABLE_RESTORE_FAILED');
+    } else {
+      await restoreForcePlan(env, record.previous);
+      await controller.acknowledge(record.slot);
+    }
+  }
+  for (const record of result['kept'] as Array<{slot: string}>) await controller.acknowledge(record.slot);
+  return result;
+}
+
 async function opForceEnable(params: Record<string, unknown>): Promise<SkinResult> {
   const envResult = await openEnv();
   if (!envResult.ok) return {ok: false, fault: envResult.fault};
@@ -1334,6 +1498,7 @@ async function opForceEnable(params: Record<string, unknown>): Promise<SkinResul
     }
     try {
       const outcome = action === 'keep' ? await env.forceEnable.keep(slot) : await env.forceEnable.abandon(slot);
+      if (outcome === 'restore-failed') return {ok: false, action, slot, outcome, fault: faultOf(new Error('Restore failed; durable evidence retained'), 'FORCE_ENABLE_RESTORE_FAILED')};
       return {ok: true, action, slot, outcome, snapshot: snapshotView(env, await readSnapshot(env)) ?? null, reloadRequired: true};
     } catch (error) {
       return {ok: false, fault: faultOf(error, 'FORCE_ENABLE_FAILED')};
@@ -1343,7 +1508,7 @@ async function opForceEnable(params: Record<string, unknown>): Promise<SkinResul
   if (action === 'recover') {
     // 重启后恢复：哪些记录要 restore、哪些已 kept 只需清理——真实接口判定。
     try {
-      const result = await env.forceEnable.recover();
+      const result = await recoverForce(env);
       return {ok: true, action, recovery: result};
     } catch (error) {
       return {ok: false, fault: faultOf(error, 'FORCE_ENABLE_RECOVERY_FAILED')};
@@ -1384,10 +1549,22 @@ async function opForceEnable(params: Record<string, unknown>): Promise<SkinResul
       },
     };
   }
-  const previous = await env.bindings.previous();
-  const previousBinding = previous.value?.bindings?.[slot] as {package?: {id?: unknown; version?: unknown}} | undefined;
-  const previousTarget = previousBinding?.package?.id ? String(previousBinding.package.id) + '@' + String(previousBinding.package.version ?? '') : '';
+  const validate = env.module['validateSkinManifest'] as (manifest: unknown, options: {profile: unknown}) => {ok: boolean; issues: Array<{code: string}>};
+  const entry = env.catalog.get(selected.packageId, selected.packageVersion) as {manifest?: unknown; digest: string} | undefined;
+  const admission = validate(entry?.manifest, {profile: env.profile});
+  if (!admission.ok) {
+    // This pinned publisher has no audited compatibility override. Never alter the
+    // profile or trust a client errorCode to bypass its admission/safety gates.
+    return {ok: false, fault: faultOf(new Error(admission.issues.map(issue => issue.code).join(', ')), 'FORCE_ENABLE_OVERRIDE_UNSUPPORTED')};
+  }
+  const before = await readSnapshot(env);
+  const previousBinding = (before?.['bindings'] as Array<{slot: string; package: ForceCoordinate}> | undefined)?.find(item => item.slot === slot);
+  const targetEntry = env.catalog.get(selected.packageId, selected.packageVersion) as {digest: string} | undefined;
+  if (!previousBinding || !targetEntry) return {ok: false, fault: faultOf(new Error('A verified pre-candidate snapshot is required'), 'FORCE_ENABLE_PRESTATE_REQUIRED')};
+  const plan: ForcePlan = {schema: 'eac-force-restore@1', slot, previous: previousBinding.package, target: {id: selected.packageId, version: selected.packageVersion, digest: targetEntry.digest}};
+  const previousTarget = JSON.stringify(plan);
   try {
+    let activationFault: SkinFault | undefined;
     const handle = await env.forceEnable.begin({
       slot,
       target: selected.packageId,
@@ -1396,22 +1573,34 @@ async function opForceEnable(params: Record<string, unknown>): Promise<SkinResul
       activate: async () => {
         // 真实激活：发布当前草稿（含该 slot 的目标坐标）为新一代。
         const outcome = await publish(env, selectionOf(readDraft()));
-        if (!outcome.ok) throw new Error(outcome.fault ? outcome.fault.code + ': ' + outcome.fault.message : 'publish failed');
+        if (!outcome.ok) {
+          activationFault = outcome.fault ?? faultOf(new Error('publish failed'), 'FORCE_ENABLE_ACTIVATION_FAILED');
+          throw new Error(activationFault.message);
+        }
       },
       commit: async () => {
         // force keep 的提交点：状态已在 activate 落为新一代，这里只需确认草稿
         // 仍是该坐标——若已被改动，提交必须失败而不是偷偷改目标。
+        const live = await readSnapshot(env);
+        const verify = env.module['verifyActiveSnapshot'] as (snapshot: unknown, root: string, profile: unknown) => Promise<{ok: boolean}>;
+        if (!live || !(await verify(live, env.resolvedDir, env.profile)).ok) throw new Error('FORCE_ENABLE_LIVE_INVALID');
+        const binding = (live['bindings'] as Array<{slot: string; package: ForceCoordinate}>).find(item => item.slot === slot);
+        if (JSON.stringify(binding?.package) !== JSON.stringify(plan.target)) throw new Error('FORCE_ENABLE_LIVE_DRIFTED');
+        const committed = await env.bindings.committed();
+        if (committed.value?.generation !== live['generation'] || JSON.stringify(committed.value?.bindings[slot]) !== JSON.stringify(binding)) throw new Error('FORCE_ENABLE_BINDINGS_DRIFTED');
+        const factory = env.module['PackageCatalog'] as {open(file: string): Promise<ManagerEnv['catalog']>};
+        const catalog = await factory.open(path.join(env.stateDir, 'catalog.json'));
+        if ((catalog.get(plan.target.id, plan.target.version) as {digest?: string})?.digest !== plan.target.digest) throw new Error('FORCE_ENABLE_DIGEST_DRIFTED');
         const current = readDraft().slots[slot];
-        if (!current || current.packageId !== selected.packageId) {
+        if (!current || current.packageId !== selected.packageId || current.packageVersion !== selected.packageVersion) {
           throw new Error('FORCE_ENABLE_TARGET_DRIFTED: 草稿选择在确认窗内被改动，拒绝提交');
         }
       },
       restore: async () => {
-        // 超时/断开的恢复：回退到 manager 的 previous-known-good（整代回退的真实路径）。
-        const outcome = await opRevert({});
-        if (!outcome.ok) throw new Error(outcome.fault ? outcome.fault.code + ': ' + outcome.fault.message : 'revert failed');
+        await restoreForcePlan(env, previousTarget);
       },
     });
+    if (activationFault) return {ok: false, fault: activationFault};
     const record = (handle as {record?: unknown}).record ?? null;
     return {
       ok: true,
@@ -1476,8 +1665,23 @@ async function opDiagnose(): Promise<SkinResult> {
   };
 }
 
+// Host must await skin.startup before consuming user snapshots. Fail closed unless
+// ok && ready. Repeat calls preserve this instance's live confirmation windows;
+// ordinary skin.status is read-only with respect to confirmations, not a gate.
+async function opStartup(): Promise<SkinResult> {
+  const recovery = await opRecover();
+  if (!recovery.ok || (!recovery.clean && !recovery.reconciled)) return {...recovery, ok: false, ready: false};
+  const opened = await openEnv();
+  if (!opened.ok) return {ok: false, ready: false, fault: opened.fault};
+  if (!opened.env.forceEnable) return {ok: false, ready: false, fault: capabilityFault(['DurableForceEnableController'])};
+  await recoverForce(opened.env, true);
+  const verified = await opRecover();
+  return {...verified, ready: verified.ok && (verified.clean === true || verified.reconciled === true)};
+}
+
 // ── RPC 入口 ─────────────────────────────────────────────────────────────────
 const OPERATIONS: Record<string, (params: Record<string, unknown>) => Promise<SkinResult>> = {
+  'skin.startup': () => opStartup(),
   'skin.status': () => opStatus(),
   'skin.list': () => opList(),
   'skin.inspect': (params) => opInspect(params),
@@ -1507,7 +1711,7 @@ export async function invoke(method: string, params: unknown): Promise<SkinResul
   }
   const args = (params && typeof params === 'object') ? params as Record<string, unknown> : {};
   try {
-    return await operation(args);
+    return await serialize(() => operation(args));
   } catch (error) {
     // 兜底：适配层自身的意外异常也要变成可定位 fault，不能让 UI 只看到一句 message。
     return {ok: false, fault: faultOf(error, 'SKIN_ADAPTER_FAILED')};
