@@ -1,0 +1,210 @@
+name: Release from CI artifacts
+
+# 从「Minimal core CI」已经跑绿的 run 里取安装包 artifact，发布 GitHub Release。
+#
+# 为什么只允许手动触发：发布是对外、不可逆的动作。本仓库没有「push tag 即发布」
+# 的通道——tag 的创建、标题与 pre-release 标识全部由人在触发时显式给出，避免
+# 一次误推 tag 就把半套资产公开出去。
+#
+# 使用前提：
+#   1) 来源 run 四平台安装包全绿（staged-runtime-artifact.yml 的四个 Installer job）；
+#   2) artifact 未过期（retention-days: 7），所以要在 CI 通过后尽快发布；
+#   3) tag 若已存在，其提交必须与来源 run 的 head_sha 完全一致（脚本会卡这一点）。
+#
+# 安全说明：workflow_dispatch 的 inputs 只有仓库写权限者可填，且不存在
+# issue/PR/commit 这类外部可控字段——没有不可信输入源。为避免 shell 注入，
+# 所有 inputs 仍然只经由 env 传递并在 shell 中加引号，绝不内联进 `run:` 正文。
+# tag 字面量另由 resolve-release-source.mjs 按白名单校验后才用于 git 引用。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '发布 tag（如 v6.0.0；已存在则沿用，不存在则建在来源 CI 的提交上）'
+        required: true
+        type: string
+      title:
+        description: 'Release 标题（留空则使用 tag）'
+        required: false
+        type: string
+        default: ''
+      prerelease:
+        description: '标记为 pre-release'
+        required: true
+        type: boolean
+        default: true
+      source_run_id:
+        description: '来源 CI run id（Minimal core CI）。留空则按 tag 的提交反查最近一次成功 run'
+        required: false
+        type: string
+        default: ''
+
+# 默认最小权限；写权限逐个 job 显式放宽（CodeQL actions/missing-workflow-permissions）。
+permissions:
+  contents: read
+
+# 同一 tag 串行发布：并发上传会把 --clobber 变成竞态。
+concurrency:
+  group: release-from-ci-artifacts-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve release source
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      source_run_id: ${{ steps.resolve.outputs.source_run_id }}
+      source_run_url: ${{ steps.resolve.outputs.source_run_url }}
+      source_sha: ${{ steps.resolve.outputs.source_sha }}
+      source_branch: ${{ steps.resolve.outputs.source_branch }}
+      tag_exists: ${{ steps.resolve.outputs.tag_exists }}
+      release_exists: ${{ steps.resolve.outputs.release_exists }}
+      release_url: ${{ steps.resolve.outputs.release_url }}
+      title: ${{ steps.resolve.outputs.title }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Resolve and verify the source CI run
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          TITLE: ${{ inputs.title }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: node dsh-desktop/scripts/resolve-release-source.mjs
+
+      - name: Summarize
+        env:
+          SOURCE_RUN_URL: ${{ steps.resolve.outputs.source_run_url }}
+          SOURCE_SHA: ${{ steps.resolve.outputs.source_sha }}
+          TAG_EXISTS: ${{ steps.resolve.outputs.tag_exists }}
+          RELEASE_EXISTS: ${{ steps.resolve.outputs.release_exists }}
+        run: |
+          {
+            echo "### Release 来源"
+            echo ""
+            echo "- 来源 run：${SOURCE_RUN_URL}"
+            echo "- 来源提交：\`${SOURCE_SHA}\`"
+            echo "- tag 已存在：${TAG_EXISTS}"
+            echo "- Release 已存在：${RELEASE_EXISTS}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish release
+    needs: resolve
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # 逐个 artifact 下载到各自目录：merge-multiple 会让同名文件静默互相覆盖。
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dsh-eac-*-installers
+          path: artifacts
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ needs.resolve.outputs.source_run_id }}
+
+      - name: Collect and de-collide release assets
+        run: node dsh-desktop/scripts/collect-release-assets.mjs --in artifacts --out dist
+
+      - name: Write release notes
+        env:
+          TAG: ${{ inputs.tag }}
+          SOURCE_RUN_URL: ${{ needs.resolve.outputs.source_run_url }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          SOURCE_BRANCH: ${{ needs.resolve.outputs.source_branch }}
+          PRERELEASE: ${{ needs.resolve.outputs.prerelease }}
+        run: node dsh-desktop/scripts/write-release-notes.mjs --manifest dist/release-manifest.json --out dist/RELEASE-NOTES.md
+
+      # gh 只在 tag 不存在时用 --target 建 tag，且必须由脚本给出的 sha 决定；
+      # 绝不让 gh 落到默认分支（那会发布一份与验证提交无关的代码）。
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          TITLE: ${{ needs.resolve.outputs.title }}
+          PRERELEASE: ${{ needs.resolve.outputs.prerelease }}
+          RELEASE_EXISTS: ${{ needs.resolve.outputs.release_exists }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          args=(--repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file dist/RELEASE-NOTES.md)
+          if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); else args+=(--latest); fi
+          if [ "$RELEASE_EXISTS" = "true" ]; then
+            gh release edit "$TAG" "${args[@]}"
+          else
+            gh release create "$TAG" "${args[@]}" --target "$SOURCE_SHA"
+          fi
+
+      # 用显式文件列表而非 dist/*：manifest 记录了精确的资产集合，
+      # 避免把临时文件或校验和自身的重复副本一起推上去。
+      #
+      # 先落盘再用 mapfile 读：`mapfile < <(...)` 会吞掉进程替换的失败，
+      # 空列表只会在后面炸成难懂的 unbound variable；分开写才能让
+      # `--list` 的真实报错直接失败本步。
+      - name: Upload assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          node dsh-desktop/scripts/collect-release-assets.mjs --list > asset-list.txt
+          mapfile -t files < asset-list.txt
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::资产列表为空，拒绝上传空集合" >&2
+            exit 1
+          fi
+          printf '上传 %s 个资产：\n' "${#files[@]}"
+          printf '  %s\n' "${files[@]}"
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+      # 发布后回读远端，把「上传成功」变成「远端确实有这套资产、字节数一致」。
+      - name: Verify published assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          SOURCE_RUN_URL: ${{ needs.resolve.outputs.source_run_url }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          TAG_EXISTS: ${{ needs.resolve.outputs.tag_exists }}
+          RELEASE_EXISTS: ${{ needs.resolve.outputs.release_exists }}
+          RELEASE_URL: ${{ needs.resolve.outputs.release_url }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isPrerelease,isDraft,url,assets > published-release.json
+          node dsh-desktop/scripts/collect-release-assets.mjs --verify published-release.json
+          {
+            echo "### 发布结果"
+            echo ""
+            echo "- 来源 CI run：${SOURCE_RUN_URL}"
+            echo "- 来源提交：\`${SOURCE_SHA}\`（跑的是这个提交，Release 资产即由它构建）"
+            echo "- tag 是否本次新建：$([ "${TAG_EXISTS}" = "true" ] && echo 否 || echo 是)"
+            echo "- Release 是否本次新建：$([ "${RELEASE_EXISTS}" = "true" ] && echo 否 || echo 是)"
+            echo "- 发布页面：${RELEASE_URL}"
+            echo ""
+            echo '```json'
+            cat published-release.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
