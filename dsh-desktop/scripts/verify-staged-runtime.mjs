@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -57,6 +57,22 @@ const RETIRED_PATHS = [
   // 已随接回移出退役面，均改列入 REQUIRED_FILES。
 ];
 
+// Linux 发行目标是 glibc（deb/AppImage）：node-addon-system 的 musl 变体在
+// 运行时不可达（flock.ts 按 glibcVersionRuntime 选择 bin/glibc），但它是静态
+// 链接的 .node，linuxdeploy 对 AppDir 扫描时会调 ldd 并 abort，导致 AppImage
+// 打包整体失败。装配期已剔除，这里做载荷层兜底（打包前的最后一道闸门）。
+function assertNoLinuxMuslAddon(desktop) {
+  const scope = path.join(desktop, 'node_modules', '@deepseek-ai');
+  if (!existsSync(scope)) return;
+  const leaked = readdirSync(scope, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^node-addon-system-linux-/.test(entry.name))
+    .map((entry) => path.join(scope, entry.name, 'bin', 'musl'))
+    .filter((dir) => existsSync(dir));
+  if (leaked.length) {
+    throw new Error(`musl node-addon-system payload is staged: ${leaked.map((dir) => path.relative(desktop, dir)).join(', ')}`);
+  }
+}
+
 function requireRegularFile(root, relative) {
   const file = path.join(root, relative);
   if (!existsSync(file) || !statSync(file).isFile()) {
@@ -74,6 +90,7 @@ export function verifyStagedRuntime(stageRoot) {
   }
 
   const desktop = path.join(root, 'dsh-desktop');
+  if (process.platform === 'linux') assertNoLinuxMuslAddon(desktop);
   const manifestFile = path.join(desktop, 'bundle-manifest.json');
   requireRegularFile(root, 'dsh-desktop/bundle-manifest.json');
   const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));

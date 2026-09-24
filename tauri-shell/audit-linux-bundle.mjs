@@ -86,7 +86,10 @@ export function auditLinuxBundle(root, options = {}) {
   for (const file of files) {
     const rel = relativePath(scanRoot, file);
     if (/\.(?:exe|dll)$/i.test(file)) errors.push(`Windows payload in Linux bundle: ${rel}`);
-    if (/\.node$/i.test(file) && rel.split(path.sep).some((part) => /(?:^musl[_-]|linuxmusl)/i.test(part))) {
+    // musl 变体的目录名形态：`musl_x64`/`musl-<arch>`（koffi）、`linuxmusl`
+    // （sharp 包名），以及裸 `musl`（node-addon-system 的 bin/musl/）。
+    if (/\.node$/i.test(file)
+      && rel.split('/').some((part) => /linuxmusl|^musl[_-]|^musl$/i.test(part))) {
       errors.push(`musl payload in glibc bundle: ${rel}`);
     }
     const machine = elfMachine(file);
