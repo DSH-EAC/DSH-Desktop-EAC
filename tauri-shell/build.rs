@@ -23,5 +23,4 @@ fn main() {
         .expect("sidecar/bridge.js missing（先跑 dsh-desktop 的 npm run build）");
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bridge-bundle.js");
     fs::write(&out, format!("{}\n{}\n", ws, bridge)).expect("write bridge-bundle.js");
-    println!("cargo:rerun-if-changed=skin-manager-artifact.lock.json");
 }

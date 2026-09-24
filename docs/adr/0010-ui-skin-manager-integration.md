@@ -18,10 +18,10 @@ The v6 UI skin manager refactor separates the control plane (`dsh-ui-skin-manage
 | Repository | Owns | Must not own |
 | --- | --- | --- |
 | `dsh-ui-skin-manager` | package/schema contract, validation, install index, selection/binding, per-slot lifecycle, fault isolation, effect ledger, persistence, rollback, diagnostics structure | Tauri privileges, EAC business behavior, official default source |
-| `DSH-Desktop-EAC` | `HostProfile`, slot mount points, stable `data-*` anchors, Tauri/WebView/resource/capability adapters, build locks, embedded fallback | package selection, dependency solving, lifecycle policy, editable default-skin source after migration |
+| `DSH-Desktop-EAC` | `HostProfile`, slot mount points, stable `data-*` anchors, Tauri/WebView/resource/capability adapters, embedded fallback | package selection, dependency solving, lifecycle policy, editable default-skin source after migration, source/version/digest locks |
 | `dsh-desktop-eac-default-skins` | official `system.default` contribution source, package assets, conformance fixtures, license/source materials, reproducible release artifact | host slot topology, active registry, lifecycle engine, EAC staging logic |
 
-The normative cross-repository versions and owners are listed in `docs/ui-skin-cross-repo-interface-versions.md` in the manager repository. EAC pins a reviewed manager artifact and default artifact by exact version and SHA-256 digest at build time.
+The normative cross-repository versions and owners are listed in `docs/ui-skin-cross-repo-interface-versions.md` in the manager repository. EAC does not pin a skin source, artifact version, or digest; it only consumes the locally staged manager snapshot.
 
 ### 2. Host profile and slot topology
 
@@ -33,14 +33,14 @@ EAC-private slot IDs may be designed under this profile. Public dsh integration 
 
 ### 3. Host consumption contract
 
-The host consumes only manager outputs that have passed package, path, digest, compatibility, and lifecycle preparation gates:
+The host consumes only manager outputs that have passed structural, path, compatibility, and lifecycle preparation gates:
 
 - `ActiveBindingSnapshot`: committed generation and per-slot exact package/version/digest/contribution bindings;
 - `ResolvedAssetSet`: normalized, inventory-checked assets for the same digest and generation;
 - `FaultState`: structured, redacted manager faults and permitted recovery actions;
 - the host-profile version used to resolve the snapshot.
 
-EAC rejects a snapshot with an unsupported profile, unknown slot, mismatched digest, stale generation, or asset outside the resolved inventory. It does not repeat package discovery, dependency resolution, user selection, health policy, previous-known-good retention, or rollback ordering.
+EAC rejects a snapshot with an unsupported profile, unknown slot, stale generation, or asset outside the resolved inventory. It does not repeat package discovery, dependency resolution, user selection, health policy, previous-known-good retention, or rollback ordering.
 
 EAC's official `.dshpack` Feature Pack structure is a supported distribution container for a Skin only when its metadata declares exactly one UI Skin payload. The manager extracts that inner `SkinPackage` and applies its own schema, path, asset, digest, capability, trust, and lifecycle checks; a generic `.dshpack` containing plugins, presets, or skills is not a Skin input. EAC owns outer Feature Pack indexing and provenance, while the manager owns the inner package contract and activation decision.
 
@@ -50,9 +50,9 @@ The existing `/skin/` or replacement resource channel keeps canonical path resol
 
 EAC exposes only the versioned capabilities accepted by manager ADR 0003: current-window controls, current-dialog close, redacted diagnostics actions, bounded host notifications, and public dsh theme/slot adapters. Every capability is scoped to one slot and generation, declared in the contribution, revocable, and denied by default. Raw Tauri handles, arbitrary command invocation, unrestricted filesystem/process/network/RPC access, private host objects, and cross-slot authority are not Skin ABI.
 
-EAC retains an embedded recovery surface for loading/died/boot failure, essential window controls, diagnostics, and repair. It must start when manager state, the manager artifact, or `system.default` is unavailable. The embedded fallback is not a selectable Skin and contains only the minimum recovery UI.
+EAC retains an embedded recovery surface for loading/died/boot failure, essential window controls, diagnostics, and repair. It must start when manager state or its resolved assets are unavailable. The embedded fallback is not a selectable Skin and contains only the minimum recovery UI.
 
-The EAC installer includes one exact, digest-verified official default artifact so first startup and recovery are offline. `system.default` is non-forceable and cannot be removed while it is the last package recovery path. The official default source remains only in `dsh-desktop-eac-default-skins`; the bundled artifact is an immutable build input, not an editable source copy.
+The EAC installer may include a locally resolved default artifact so first startup and recovery are offline. No particular source or digest is required. The bundled payload is not an editable source copy.
 
 ### 5. Migration and cutover
 
@@ -62,7 +62,9 @@ Integration is introduced as a bypass path before replacing the static loader:
 2. Add host-profile, capability, resource, and manager startup adapters behind an explicit integration switch.
 3. Run current static and manager-driven paths against the same default visual fixtures and host behavior tests.
 4. Enable per-slot manager bindings only after package validation, fault isolation, recovery, and atomic switch tests pass.
-5. Switch canonical default source only after the default-skins release artifact is reproducible and EAC's build lock verifies its digest.
+5. Switch the canonical default path only after the locally supplied payload is
+   reproducibly assembled for the target build and the manager validates its
+   resolved payload.
 6. Remove the EAC editable default source and obsolete static registry path only with an exact deletion inventory and replacement-test map.
 
 No source is copied from task worktree `b8a54f5` or obsolete `assets/shell-skin`. The migration source is the latest protected `dev` successor architecture (`assets/ui-skin` and ADR 0009). AIO is not migrated in this work and may later be delivered as a separate alternative Skin package.
@@ -73,7 +75,7 @@ The manager owns `prepare -> preload -> activate(staged) -> health -> commit` an
 
 Only manual import, explicit per-slot selection, and explicit apply are in v6 scope. There is no background update, file watcher, or automatic switch. Incompatible non-default contributions may enter the 30-second force-enable confirmation flow, but JSON, path, asset, and digest failures are never bypassed. Timeout, crash, disconnect, or exit restores the original disabled binding.
 
-Recovery order is candidate rollback, previous slot generation, previous-known-good generation, bundled verified `system.default`, then embedded fallback. Two previous-known-good generations are retained. Structured manager logs rotate at 16 MiB and retain 30 days; EAC owns platform open/copy access while manager owns structure and redaction.
+Recovery order is candidate rollback, previous slot generation, previous-known-good generation, bundled resolved `system.default`, then embedded fallback. Two previous-known-good generations are retained. Structured manager logs rotate at 16 MiB and retain 30 days; EAC owns platform open/copy access while manager owns structure and redaction.
 
 ### 7. Licensing and release boundary
 

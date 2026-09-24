@@ -35,7 +35,7 @@ migration baseline only; ADR 0010 removes that editable source from EAC.
   regions and their separate Control and Style slots.
 - The historical `assets/ui-skin/registry.json` selected the default directory
   and explicitly listed loadable assets. It was removed by ADR 0010; current
-  staging uses the manager snapshot and pinned artifact lock.
+  staging uses the locally supplied manager snapshot and resolved asset inventory.
 
 The predefined regions are `top-sidebar`, `bottom-sidebar`, `left-sidebar`,
 `right-sidebar`, `session`, and `overlay`. Popup, dialog, and floating-window
@@ -54,8 +54,8 @@ promote CSS-module hashes into public skin APIs.
 
 The historical load order was Control layout, default Style tokens, then
 default Style state selectors. The current EAC path consumes the manager's
-verified snapshot and pinned resolved artifact; it does not read the old
-registry or source directory.
+resolved snapshot and asset inventory; it does not read the old registry or
+source directory.
 
 The old `assets/shell-skin` directories and `kind: shell-skin` extension remain
 removed. ADR 0005 and ADR 0007 remain historical records, but their package

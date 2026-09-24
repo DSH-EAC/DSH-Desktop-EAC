@@ -9,9 +9,7 @@ const eac = (...parts: string[]): string => join(repoRoot, ...parts);
 const read = (...parts: string[]): string => readFileSync(eac(...parts), 'utf8');
 const json = <T>(...parts: string[]): T => JSON.parse(read(...parts)) as T;
 
-const lockPath = ['tauri-shell', 'skin-manager-artifact.lock.json'];
 const hostProfilePath = ['tauri-shell', 'host-profile.json'];
-const snapshotPath = ['tauri-shell', 'artifacts', 'resolved', 'system.default', 'snapshot.json'];
 const defaultArtifact = ['tauri-shell', 'artifacts', 'system.default-2.0.0.dshpack.tar'];
 const managerArtifact = ['tauri-shell', 'artifacts', 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz'];
 const removedSource = [
@@ -75,24 +73,15 @@ test('manager is the default path with a one-release emergency rollback switch',
   assert.doesNotMatch(main, /manager_flag_is_disabled_by_default/);
 });
 
-test('offline staging consumes only pinned manager and default artifacts', () => {
+test('offline staging consumes the locally supplied manager payload without a source lock', () => {
   const stage = read('tauri-shell', 'stage-resources.mjs');
+  const main = read('tauri-shell', 'src', 'main.rs');
   const config = read('tauri-shell', 'tauri.conf.json');
-  const lock = json<{ manager: { artifact: string; sha256: string }; default: { artifact: string; sha256: string } }>(...lockPath);
-  const snapshot = json<{ package: string; version: string; digest: string }>(...snapshotPath);
   assert.equal(existsSync(eac(...defaultArtifact)), true);
   assert.equal(existsSync(eac(...managerArtifact)), true);
-  assert.equal(lock.default.artifact, 'system.default-2.0.0.dshpack.tar');
-  assert.equal(lock.manager.artifact, 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz');
-  assert.match(lock.default.sha256, /^[a-f0-9]{64}$/);
-  assert.match(lock.manager.sha256, /^[a-f0-9]{64}$/);
-  assert.equal(snapshot.package, 'system.default');
-  assert.equal(snapshot.version, '2.0.0');
-  assert.equal(snapshot.digest, `sha256:${lock.default.sha256}`);
-  assert.match(stage, /createHash/);
-  assert.match(stage, /lock\.manager\.artifact/);
-  assert.match(stage, /lock\.default\.artifact/);
-  assert.match(stage, /locked artifact digest mismatch/);
+  assert.match(stage, /locally supplied UI skin manager payload staged/);
+  assert.doesNotMatch(stage, /createHash|skin-manager-artifact\.lock|locked artifact digest mismatch/);
+  assert.doesNotMatch(main, /SKIN_MANAGER_LOCK|locked_default_digest|snapshot\.package == "system\.default"/);
   assert.match(config, /staged-resources\/ui-skin-manager/);
   assert.doesNotMatch(stage, /github\.com|raw\x2f|origin\x2f/);
 });
@@ -100,7 +89,7 @@ test('offline staging consumes only pinned manager and default artifacts', () =>
 test('Rust test staging preserves the manager resource directory contract', () => {
   const workflow = read('.github', 'workflows', 'ci.yml');
   assert.match(workflow, /(?:staged-resources\/ui-skin-manager|staged\+'\/ui-skin-manager')/);
-  assert.match(workflow, /skin-manager-artifact\.lock\.json/);
+  assert.doesNotMatch(workflow, /skin-manager-artifact\.lock\.json/);
 });
 
 test('legacy shell-skin and AIO v1 are not restored', () => {

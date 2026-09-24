@@ -154,13 +154,13 @@
 
 ### v6 Skin source and offline assembly
 
-The official `system.default@2.0.0` source is maintained only in
-`dsh-desktop-eac-default-skins`. EAC embeds the exact manager/default artifacts
-listed in `tauri-shell/skin-manager-artifact.lock.json`; staging verifies their
-SHA-256 digests and does not read mutable branches or network URLs. Host slots
-and capabilities are defined by `tauri-shell/host-profile.json`. The manager is
-the default path; `DSH_UI_SKIN_MANAGER_ROLLBACK=1` is a one-release emergency
-fallback switch and never restores the deleted source tree.
+EAC stages the locally supplied UI skin manager payload and consumes its snapshot;
+it does not guarantee or enforce a particular skin source, commit, version, or
+digest. Runtime still rejects manager faults and unsafe asset paths, and never
+reads mutable branches or network URLs. Host slots and capabilities are defined
+by `tauri-shell/host-profile.json`. The manager is the default path;
+`DSH_UI_SKIN_MANAGER_ROLLBACK=1` is a one-release emergency fallback switch and
+never restores the deleted source tree.
 
 ### 首次使用
 
