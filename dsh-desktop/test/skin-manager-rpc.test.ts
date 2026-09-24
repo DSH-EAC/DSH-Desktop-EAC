@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 // v6 Task 6.2.4：导入管理 UI 的 coordinator RPC 适配层测试。
@@ -14,16 +14,13 @@ import { fileURLToPath } from 'node:url';
 //      用户真实数据目录，也不伪装成功；
 //   2. 适配层（假 manager）：能力缺口要被探测出来而不是假装可用；显式动作语义
 //      （导入不启用、选择只落草稿、只有 apply 会写快照）；未审计能力要显式声明不可用；
-//   3. 集成层（真 manager）：把 work/verify/mgr 的固定提交 b7dc7d4 物化到临时目录，
-//      用真实制品跑通 导入 → 逐 slot 选择 → Apply → 读回 → Revert。
-//      缺 manager 仓库/提交时跳过并给出原因（跳过不是通过）。
+//   3. 集成层（真 manager）：使用本仓锁定 tgz 与第三方夹具，以打包态布局运行。
+//      缺失或损坏制品直接失败，不依赖相邻仓库，不允许跳过。
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.join(here, '..');
 const eacRoot = path.join(desktopRoot, '..');
-const managerRepo = process.env['DSH_SKIN_MANAGER_REPO'] || path.join(eacRoot, '..', '..', 'verify', 'mgr');
-// 6.2.5 审计通过的固定提交（恢复执行 / 持久事务日志 / 持久强制确认）。
-const PINNED_COMMIT = '3e9933c';
+
 const ADAPTER = path.join(desktopRoot, 'lib', 'desktop', 'skin-manager.js');
 const HOST_PROFILE = path.join(eacRoot, 'tauri-shell', 'host-profile.json');
 const OFFICIAL_ARCHIVE = path.join(eacRoot, 'tauri-shell', 'artifacts', 'system.default-2.0.0.dshpack.tar');
@@ -373,7 +370,12 @@ function freshPackagedAdapter(env: Record<string, string | undefined>, userDataD
 function writePackagedResourceLayout(root: string): void {
   const managerDir = path.join(root, 'ui-skin-manager');
   fs.mkdirSync(managerDir, { recursive: true });
-  // 真实钉住制品（重钉后的 b7dc7d4 本地构建，含 coordinator 接口）。
+  // 校验与生产 staging 相同的锁定制品字节。
+  const lock = JSON.parse(fs.readFileSync(path.join(eacRoot, 'tauri-shell', 'skin-manager-artifact.lock.json'), 'utf8'));
+  for (const item of [lock.manager, lock.default]) {
+    const bytes = fs.readFileSync(path.join(eacRoot, 'tauri-shell', 'artifacts', item.artifact));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), item.sha256);
+  }
   fs.copyFileSync(
     path.join(eacRoot, 'tauri-shell', 'artifacts', 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz'),
     path.join(managerDir, 'dsh-eac-ui-skin-manager-0.1.0-preview.1.tgz'),
@@ -437,10 +439,8 @@ test('打包态：安装资源目录只读时 Apply 仍成功，且安装目录�
   }, userData, resources);
 
   const status = await adapter.invoke('skin.status');
-  if (!status['ok'] || !(status['capabilities'] as Record<string, unknown> | null)?.['install']) {
-    t.skip('钉住制品不可用或缺 importArchive：' + JSON.stringify(status['fault'] ?? status['manager']));
-    return;
-  }
+  assert.equal(status['ok'], true);
+  assert.equal((status['capabilities'] as Record<string, unknown>)?.['install'], true, JSON.stringify(status));
 
   // 默认回退坐标必须在 catalog 里（未选中的 slot 由 profile fallbackSkin 解析）。
   const official = await adapter.invoke('skin.import', { archivePath: OFFICIAL_ARCHIVE });
@@ -475,59 +475,26 @@ test('打包态：安装资源目录只读时 Apply 仍成功，且安装目录�
   fs.chmodSync(path.join(resources, 'ui-skin-manager'), 0o755);
 });
 
-// ── 3. 集成层（真 manager @ b7dc7d4） ────────────────────────────────────────
-function managerSourceAtPinnedCommit(): {skipped?: string; packageRoot?: string} {
-  if (!fs.existsSync(path.join(managerRepo, '.git'))) return { skipped: '找不到 manager 仓库 ' + managerRepo };
-  try {
-    execFileSync('git', ['-C', managerRepo, 'cat-file', '-e', PINNED_COMMIT + '^{commit}'], { stdio: 'ignore' });
-  } catch {
-    return { skipped: 'manager 仓库里没有固定提交 ' + PINNED_COMMIT };
-  }
-  // 到这里为止只可能是「环境里没有」→ 跳过；再往下失败就是夹具自己坏了，必须抛错，
-  // 不能让一个坏夹具伪装成「真 manager 验证通过」。
-  const target = tempDir('skin-mgr-src-');
-  const tarFile = path.join(target, 'mgr.tar');
-  execFileSync('git', ['-C', managerRepo, 'archive', PINNED_COMMIT, '--output=' + tarFile], { stdio: 'ignore' });
-  // 相对路径 + cwd：MSYS 的 tar 会把 `C:\...` 当成远端主机（"Cannot connect to C"），
-  // 传绝对路径会直接 exit 128。
-  execFileSync('tar', ['-xf', 'mgr.tar'], { stdio: 'ignore', cwd: target });
-  if (!fs.existsSync(path.join(target, 'package.json'))) throw new Error('manager 提交解包后没有 package.json: ' + target);
-  return { packageRoot: target };
-}
-
-test('真 manager（b7dc7d4）：导入 → 逐 slot 选择 → Apply → 读回 → Revert', async (t) => {
-  const located = managerSourceAtPinnedCommit();
-  if (!located.packageRoot) {
-    t.skip(located.skipped ?? '拿不到 manager 固定提交');
-    return;
-  }
-  const packageRoot = located.packageRoot;
-  if (!fs.existsSync(OFFICIAL_ARCHIVE)) {
-    t.skip('缺随包默认制品 ' + OFFICIAL_ARCHIVE);
-    return;
-  }
-  const thirdParty = path.join(packageRoot, 'test', 'fixtures', 'dist', THIRD_PARTY_ID + '-1.0.0.dshpack.tar');
-  if (!fs.existsSync(thirdParty)) {
-    t.skip('manager 提交里没有第三方一致性包夹具 ' + thirdParty);
-    return;
-  }
-
+// ── 3. 集成层：本仓固定制品，干净 CI 不依赖相邻源码仓库 ───────────────
+test('真 manager（pinned tgz）：导入 → 逐 slot 选择 → Apply → 读回 → Revert', async () => {
+  const thirdParty = path.join(here, 'fixtures', 'skin-manager', THIRD_PARTY_ID + '-1.0.0.dshpack.tar');
+  assert.equal(createHash('sha256').update(fs.readFileSync(thirdParty)).digest('hex'),
+    'c86daf979731f5de819af72dd1819d129e8c41259f86f5bf04df8adb91d431bc');
   const state = tempDir('skin-it-');
-  const resolved = path.join(state, 'resolved');
-  const adapter = freshAdapter({
-    DSH_UI_SKIN_MANAGER_SRC: packageRoot,
-    DSH_UI_SKIN_MANAGER_STATE: path.join(state, 'state'),
-    DSH_UI_SKIN_MANAGER_RESOLVED: resolved,
-    DSH_UI_SKIN_MANAGER_PROFILE: HOST_PROFILE,
-  }, path.join(state, 'user-data'));
+  const userData = path.join(state, 'user-data');
+  const resources = path.join(state, 'resources');
+  writePackagedResourceLayout(resources);
+  const resolved = path.join(userData, 'ui-skin-manager', 'resolved');
+  const adapter = freshPackagedAdapter({}, userData, resources);
+  console.log('packaged skin integration roots: ' + JSON.stringify({ userData, resources, resolved }));
 
   const status = await adapter.invoke('skin.status');
   assert.equal(status['ok'], true, '真 manager 下 status 必须成功: ' + JSON.stringify(status['fault'] ?? {}));
   const capabilities = status['capabilities'] as Record<string, unknown>;
-  assert.equal(capabilities['install'], true, 'b7dc7d4 必须提供 importArchive');
-  assert.equal(capabilities['snapshot'], true, 'b7dc7d4 必须提供 publishActiveSnapshot');
+  assert.equal(capabilities['install'], true, '钉住制品必须提供 importArchive');
+  assert.equal(capabilities['snapshot'], true, '钉住制品必须提供 publishActiveSnapshot');
   const manager = status['manager'] as Record<string, unknown>;
-  assert.equal(manager['source'], 'override');
+  assert.equal(manager['source'], 'pinned-artifact');
 
   // 默认回退坐标必须先在 catalog 里，publish 才能解析未选中的 slot。
   const official = await adapter.invoke('skin.import', { archivePath: OFFICIAL_ARCHIVE });
@@ -560,6 +527,12 @@ test('真 manager（b7dc7d4）：导入 → 逐 slot 选择 → Apply → 读回
   assert.equal(fs.existsSync(path.join(resolved, 'snapshot.json')), true, 'apply 必须落快照');
   assert.ok(Number(appliedSnapshot['generation']) >= 1);
 
+  const reopened = freshPackagedAdapter({}, userData, resources);
+  const readback = await reopened.invoke('skin.status');
+  assert.deepEqual(readback['snapshot'], appliedSnapshot, '重新加载适配层必须读回同一快照');
+  const disk = JSON.parse(fs.readFileSync(path.join(resolved, 'snapshot.json'), 'utf8'));
+  assert.equal(disk.generation, appliedSnapshot['generation']);
+
   // 单 slot 回退：回到 profile 的默认回退坐标。
   const reverted = await adapter.invoke('skin.revert', { slot: 'session' });
   assert.equal(reverted['ok'], true, '单 slot 回退失败: ' + JSON.stringify(reverted['fault'] ?? {}));
@@ -583,20 +556,11 @@ test('真 manager（b7dc7d4）：导入 → 逐 slot 选择 → Apply → 读回
   clearSkinEnv();
 });
 
-test('真 manager 下：摘要不符时拒绝导入并给出下一步', async (t) => {
-  const located = managerSourceAtPinnedCommit();
-  if (!located.packageRoot || !fs.existsSync(OFFICIAL_ARCHIVE)) {
-    t.skip(located.skipped ?? '缺默认制品，跳过');
-    return;
-  }
-  const packageRoot = located.packageRoot;
+test('真 manager 下：摘要不符时拒绝导入并给出下一步', async () => {
   const state = tempDir('skin-it-');
-  const adapter = freshAdapter({
-    DSH_UI_SKIN_MANAGER_SRC: packageRoot,
-    DSH_UI_SKIN_MANAGER_STATE: path.join(state, 'state'),
-    DSH_UI_SKIN_MANAGER_RESOLVED: path.join(state, 'resolved'),
-    DSH_UI_SKIN_MANAGER_PROFILE: HOST_PROFILE,
-  }, path.join(state, 'user-data'));
+  const resources = path.join(state, 'resources');
+  writePackagedResourceLayout(resources);
+  const adapter = freshPackagedAdapter({}, path.join(state, 'user-data'), resources);
 
   const result = await adapter.invoke('skin.import', {
     archivePath: OFFICIAL_ARCHIVE,
