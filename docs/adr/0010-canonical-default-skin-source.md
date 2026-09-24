@@ -37,10 +37,9 @@ contains only the minimum recovery styles, not a second default package source.
 The canonical default-skins repository owns the default Skin MIT license,
 `Copyright (c) 2026 zouyuxuan122`, its empty third-party inventory, and any
 future real NOTICE obligations. EAC's top-level MIT license continues to cover
-EAC code; the staged default artifact remains accompanied by its locked source,
-provenance and digest. EAC release notes and bundle manifests must identify the
-artifact coordinate and digest rather than claiming ownership of its editable
-source.
+EAC code. Any locally supplied payload remains responsible for carrying the
+license and attribution material required by its own source; EAC does not turn
+that material into a source or digest lock.
 
 ## Rejected alternatives and replacement gates
 
@@ -50,8 +49,9 @@ source.
   because offline startup and reproducible rollback are required.
 - Restoring `assets/shell-skin` or AIO v1 is rejected; any future alternative
   Skin needs a separate reviewed package and release task.
-- Deleting the source is accepted only with pinned artifact existence/digest,
-  HostProfile validation, staged offline closure, and rollback lock checks.
+- Deleting the source is accepted only with HostProfile validation, a staged
+  offline closure, manager snapshot/resource checks, and embedded rollback
+  coverage.
 
 ## Verification
 

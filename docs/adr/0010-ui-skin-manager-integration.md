@@ -62,7 +62,9 @@ Integration is introduced as a bypass path before replacing the static loader:
 2. Add host-profile, capability, resource, and manager startup adapters behind an explicit integration switch.
 3. Run current static and manager-driven paths against the same default visual fixtures and host behavior tests.
 4. Enable per-slot manager bindings only after package validation, fault isolation, recovery, and atomic switch tests pass.
-5. Switch canonical default source only after the default-skins release artifact is reproducible and the manager validates its resolved payload.
+5. Switch the canonical default path only after the locally supplied payload is
+   reproducibly assembled for the target build and the manager validates its
+   resolved payload.
 6. Remove the EAC editable default source and obsolete static registry path only with an exact deletion inventory and replacement-test map.
 
 No source is copied from task worktree `b8a54f5` or obsolete `assets/shell-skin`. The migration source is the latest protected `dev` successor architecture (`assets/ui-skin` and ADR 0009). AIO is not migrated in this work and may later be delivered as a separate alternative Skin package.
@@ -73,7 +75,7 @@ The manager owns `prepare -> preload -> activate(staged) -> health -> commit` an
 
 Only manual import, explicit per-slot selection, and explicit apply are in v6 scope. There is no background update, file watcher, or automatic switch. Incompatible non-default contributions may enter the 30-second force-enable confirmation flow, but JSON, path, asset, and digest failures are never bypassed. Timeout, crash, disconnect, or exit restores the original disabled binding.
 
-Recovery order is candidate rollback, previous slot generation, previous-known-good generation, bundled verified `system.default`, then embedded fallback. Two previous-known-good generations are retained. Structured manager logs rotate at 16 MiB and retain 30 days; EAC owns platform open/copy access while manager owns structure and redaction.
+Recovery order is candidate rollback, previous slot generation, previous-known-good generation, bundled resolved `system.default`, then embedded fallback. Two previous-known-good generations are retained. Structured manager logs rotate at 16 MiB and retain 30 days; EAC owns platform open/copy access while manager owns structure and redaction.
 
 ### 7. Licensing and release boundary
 
