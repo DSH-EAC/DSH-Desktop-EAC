@@ -14,7 +14,6 @@ const build = read('tauri-shell', 'build.rs');
 const platform = read('dsh-desktop', 'lib', 'desktop', 'platform.ts');
 const skinAssets = [
   read('tauri-shell', 'host-profile.json'),
-  read('tauri-shell', 'skin-manager-artifact.lock.json'),
   read('tauri-shell', 'artifacts', 'resolved', 'system.default', 'skin.json'),
   read('tauri-shell', 'artifacts', 'resolved', 'system.default', 'snapshot.json'),
 ].join('\n');

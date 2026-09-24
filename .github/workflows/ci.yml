@@ -148,7 +148,7 @@ jobs:
 
       - name: Prepare Tauri resource directory for Rust tests
         working-directory: ${{ github.workspace }}
-        run: node -e "const fs=require('node:fs'); const root='tauri-shell'; const staged=root+'/staged-resources'; fs.mkdirSync(staged+'/sidecar',{recursive:true}); fs.mkdirSync(staged+'/dsh-desktop',{recursive:true}); fs.copyFileSync(root+'/sidecar/bridge.js',staged+'/sidecar/bridge.js'); fs.cpSync(root+'/artifacts',staged+'/ui-skin-manager',{recursive:true}); fs.copyFileSync(root+'/skin-manager-artifact.lock.json',staged+'/ui-skin-manager/artifact.lock.json')"
+        run: node -e "const fs=require('node:fs'); const root='tauri-shell'; const staged=root+'/staged-resources'; fs.mkdirSync(staged+'/sidecar',{recursive:true}); fs.mkdirSync(staged+'/dsh-desktop',{recursive:true}); fs.copyFileSync(root+'/sidecar/bridge.js',staged+'/sidecar/bridge.js'); fs.cpSync(root+'/artifacts',staged+'/ui-skin-manager',{recursive:true})"
 
       - name: Set up stable Rust
         uses: dtolnay/rust-toolchain@stable

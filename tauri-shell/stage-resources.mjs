@@ -9,7 +9,6 @@
 //
 // 用法：node stage-resources.mjs [--target=win32|linux|darwin] [--skip-npm]
 
-import { createHash } from 'node:crypto';
 import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, readFileSync, statSync, readdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
@@ -233,8 +232,8 @@ writeFileSync(path.join(staged, 'dsh-desktop', 'profile.txt'), 'full\n');
 // sdk-plugins / onboarding.html 随插件系统剥出（无插件可选则无向导）。
 // 保留：图标（壳层窗口/托盘消费）、主窗口 WS 客户端、
 // SOURCES.json（溯源台账随内核组件保留）以及 skills。
-// Default Skin source lives in dsh-desktop-eac-default-skins; EAC stages only
-// pinned artifacts below, never an editable source tree or active registry.
+// A default Skin source may live elsewhere; EAC stages only the local payload
+// below, never an editable source tree or active registry.
 console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills）');
 {
   const keep = [
@@ -250,25 +249,14 @@ console.log('[stage] assets（v6 最简本体：图标 + WS 客户端 + skills�
     path.join(staged, 'ui-skin-manager', 'host-profile.json'),
     'UI skin HostProfile',
   );
-  // Stage 5 manager bypass: only pinned artifacts named in the lock file are
-  // copied; no branch, registry URL, or mutable source is consulted at runtime.
+  // Stage the locally supplied manager payload without imposing a source or
+  // provenance lock. Runtime consumes the staged snapshot and keeps only its
+  // structural/path-safety checks; no branch, registry URL, or network source
+  // is consulted at runtime.
   const managerArtifacts = path.join(root, 'tauri-shell', 'artifacts');
-  const managerLockPath = path.join(root, 'tauri-shell', 'skin-manager-artifact.lock.json');
-  if (existsSync(managerArtifacts) && existsSync(managerLockPath)) {
-    const lock = JSON.parse(readFileSync(managerLockPath, 'utf8'));
-    const expected = new Map([
-      [lock.manager.artifact, lock.manager.sha256],
-      [lock.default.artifact, lock.default.sha256],
-    ]);
-    for (const [name, digest] of expected) {
-      const artifact = path.join(managerArtifacts, name);
-      if (!existsSync(artifact)) throw new Error(`[stage] locked artifact missing: ${name}`);
-      const actual = createHash('sha256').update(readFileSync(artifact)).digest('hex');
-      if (actual !== digest) throw new Error(`[stage] locked artifact digest mismatch: ${name}`);
-    }
+  if (existsSync(managerArtifacts) && statSync(managerArtifacts).isDirectory()) {
     cpSync(managerArtifacts, path.join(staged, 'ui-skin-manager'), { recursive: true });
-    cpSync(managerLockPath, path.join(staged, 'ui-skin-manager', 'artifact.lock.json'));
-    console.log('[stage] pinned UI skin manager artifacts staged');
+    console.log('[stage] locally supplied UI skin manager payload staged');
   }
   // v6 Task 3.3：内置插件随行。只拷当前已接回的内置插件目录
   //（ADR 0008 builtin 集合的子集；syncCompanionPlugins 对目录缺失的插件

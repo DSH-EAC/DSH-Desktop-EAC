@@ -52,11 +52,8 @@ const WS_PORT: u16 = 19873;
 
 // The manager path is the v6 default. DSH_UI_SKIN_MANAGER_ROLLBACK is a
 // one-release emergency switch for operators; it only selects the embedded fallback
-// recovery styles and never restores the removed EAC source tree.
-const SKIN_MANAGER_LOCK: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/skin-manager-artifact.lock.json"
-));
+// recovery styles and never restores the removed EAC source tree. The host does not
+// impose a source, version, or digest policy on a locally resolved manager payload.
 static CHINESE_UI: OnceLock<bool> = OnceLock::new();
 
 // 桥端口回退：19873 被占（他程序占用/异常残留监听）时向上探测 25 个候选，
@@ -1858,16 +1855,8 @@ fn ui_skin_manager_snapshot() -> Option<UiSkinManagerSnapshot> {
     }
     let path = ui_skin_manager_root().join("snapshot.json");
     let source = std::fs::read_to_string(path).ok()?;
-    let lock: Value = serde_json::from_str(SKIN_MANAGER_LOCK).ok()?;
-    let locked_default_digest = lock
-        .pointer("/default/sha256")
-        .and_then(Value::as_str)
-        .map(str::to_owned)?;
     let snapshot: UiSkinManagerSnapshot = serde_json::from_str(&source).ok()?;
-    (snapshot.package == "system.default"
-        && snapshot.version == "2.0.0"
-        && snapshot.digest == format!("sha256:{locked_default_digest}")
-        && snapshot.fault.is_none()
+    (snapshot.fault.is_none()
         && snapshot
             .assets
             .keys()

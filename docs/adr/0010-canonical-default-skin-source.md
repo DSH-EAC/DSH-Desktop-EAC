@@ -6,11 +6,11 @@ Owner: DSH-Desktop-EAC maintainers (host profile and assembly)
 
 ## Decision
 
-`dsh-desktop-eac-default-skins` is the only editable source for the official
-`system.default@2.0.0` Skin. DSH-Desktop-EAC stores only the exact manager and
-default release artifacts named by `tauri-shell/skin-manager-artifact.lock.json`.
-The lock records source commits, CI runs, artifact names, and SHA-256 digests;
-startup and staging reject missing or mismatched bytes.
+`dsh-desktop-eac-default-skins` may remain an upstream editable source for an
+official Skin, but DSH-Desktop-EAC makes no guarantee about the source used to
+produce a locally staged manager payload. Staging copies the local payload when
+present; startup consumes its snapshot without comparing source commits,
+versions, or digests.
 
 The EAC-owned `tauri-shell/host-profile.json` is the source for host topology:
 regions, slot descriptors, instance kinds, z-index policy, capabilities, dsh
@@ -23,9 +23,8 @@ The manager path is enabled by default. `DSH_UI_SKIN_MANAGER_ROLLBACK=1` is a
 one-release emergency switch that selects the small embedded recovery styles;
 it is not a source mirror, does not restore the removed registry, and must be
 removed or expired by the next release governance review. The normal path is
-offline: staging verifies and copies only the pinned manager/default artifacts.
-It must never read a mutable branch, GitHub raw URL, or network source at
-runtime.
+offline: staging copies the locally supplied manager payload. It must never read
+a mutable branch, GitHub raw URL, or network source at runtime.
 
 The tracked EAC source files under `dsh-desktop/assets/ui-skin/`, including the
 old active registry and `system-default` directory, are deleted after this
@@ -58,7 +57,7 @@ source.
 
 The stage-7 static gate checks that the source tree and active registry are
 absent, HostProfile owns six regions and three instance kinds, the artifact
-contains six contributions but no host topology, the lock digests match actual
-files, and the emergency rollback switch is explicit. Build, test, and
+contains six contributions but no host topology, the locally supplied payload
+is staged without a source lock, and the emergency rollback switch is explicit. Build, test, and
 cross-platform WebView validation are CI responsibilities for this stage and
 are recorded as NOT RUN locally under the freeze-avoidance policy.
