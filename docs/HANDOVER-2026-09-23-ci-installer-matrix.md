@@ -186,7 +186,7 @@ find section '.dynamic'` 属于**前一条 ripgrep 的告警**（linuxdeploy 已
 
 **为什么删 musl 那份是安全的**：`node-addon-system` 运行时按
 `process.report.header.glibcVersionRuntime` 二选一加载（内核
-`native/system/packages/entry/src/flock.ts`）。发行目标是 glibc 的 deb/AppImage，
+`native/system/packages/entry/src/flock.ts`）。发行目标是 glibc 的 deb/AppImage/RPM，
 `glibcVersionRuntime` 必然存在，只会加载 `bin/glibc/system.node`，musl 那份
 永远不可达。官方 npm tarball 已核对：`bin/` 下是 `landlock-run`（静态 launcher）、
 `glibc/system.node`、`musl/system.node` 三件，删 `musl/` 不影响前两者。

@@ -76,7 +76,7 @@ jobs:
 
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 rpm
 
       - name: Fetch Cargo dependencies
         working-directory: ${{ github.workspace }}/tauri-shell
@@ -89,6 +89,10 @@ jobs:
       - name: Verify staged closure and bundle integrity
         working-directory: ${{ github.workspace }}
         run: node dsh-desktop/scripts/verify-staged-runtime.mjs
+
+      - name: Check RPM toolchain
+        if: runner.os == 'Linux'
+        run: rpm --version && rpmbuild --version
 
       - name: Build Tauri installers
         working-directory: ${{ github.workspace }}/tauri-shell
@@ -113,6 +117,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Audit RPM package
+        if: runner.os == 'Linux'
+        working-directory: ${{ github.workspace }}
+        run: node dsh-desktop/scripts/audit-rpm-package.mjs "$(find tauri-shell/target/release/bundle/rpm -maxdepth 1 -type f -name '*.rpm' -print -quit)" --arch=${{ matrix.arch }}
+
       - name: Upload Linux installer packages
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
@@ -121,5 +130,6 @@ jobs:
           path: |
             tauri-shell/target/release/bundle/deb/*.deb
             tauri-shell/target/release/bundle/appimage/*.AppImage
+            tauri-shell/target/release/bundle/rpm/*.rpm
           if-no-files-found: error
           retention-days: 7

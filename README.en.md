@@ -122,15 +122,15 @@ See the [Releases page](https://github.com/zouyuxuan122/DSH-Desktop-EAC/releases
 - Unsigned and not notarized (personal use): if Gatekeeper blocks the first launch, right-click → Open.
 - Client self-update is disabled in the macOS v1 build (no macOS assets upstream yet); dsh agent (kernel) updates are fully retained.
 
-### Linux (x64)
+### Linux (x64 / arm64)
 
-> The Linux desktop build is continuously built and verified by our CI (Ubuntu 22.04). Since v5.3.6, the AppImage and .deb assets ship on the unified release line (currently v5.3.6); .rpm/.pacman remain on the separate line (latest maintained release: v4.4.0).
+> The Linux desktop build is continuously built and verified by CI (Ubuntu 22.04). The v6 Linux build now produces AppImage, .deb, and .rpm together; after a formal Release is published, use that version's Release assets for downloads.
 
 | File                                                                                                                                                | Description                             |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | [.deb (Debian/Ubuntu, v5.3.6)](https://github.com/zouyuxuan122/DSH-Desktop-EAC/releases/download/v5.3.6/Deepseek.Harness.EAC_5.3.6_amd64.deb)       | Installs and launches from the app menu |
 | [AppImage (v5.3.6)](https://github.com/zouyuxuan122/DSH-Desktop-EAC/releases/download/v5.3.6/Deepseek.Harness.EAC_5.3.6_amd64.AppImage)             | No installation: `chmod +x` and run     |
-| [.rpm (Fedora/openSUSE)](https://github.com/zouyuxuan122/Deepseek-Harness-EAC/releases/download/v4.4.0-linux/Deepseek-Harness-EAC-4.4.0.x86_64.rpm) | —                                       |
+| `.rpm` (Fedora/openSUSE) | CI artifact `dsh-eac-linux-x64-installers` / `dsh-eac-linux-arm64-installers` or the matching Release asset |
 | [.pacman (Arch)](https://github.com/zouyuxuan122/Deepseek-Harness-EAC/releases/download/v4.4.0-linux/Deepseek-Harness-EAC-4.4.0-x64.pacman)         | —                                       |
 
 - Dependencies: Tauri 2 with webkit2gtk-4.1 (Debian-family build deps such as `libwebkit2gtk-4.1-dev` mirror the repo CI); the AppImage bundles its own runtime, built against an Ubuntu 22.04 baseline.

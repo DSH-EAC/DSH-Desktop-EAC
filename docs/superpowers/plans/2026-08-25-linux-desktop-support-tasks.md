@@ -94,7 +94,7 @@ terminal 的 Linux PTY payload 已自动审计；OCR/dafeiyu 外部 helper 与�
 
 - [x] Linux CI 安装 WebKitGTK/AppIndicator/patchelf 依赖。
 - [x] Linux job 定义 Node 24、Rust、全量测试、native 构建和 Tauri check。
-- [ ] GitHub-hosted Ubuntu job 实际通过并上传 deb/AppImage；Windows job 保持原步骤。
+- [ ] GitHub-hosted Ubuntu job 实际通过并上传 deb/AppImage/RPM；Windows job 保持原步骤。
 - [x] Release 中平台资产命名不冲突，SHA-256 清单已配置。
 
 本机 deb 可构建，但最终安装树审计正确拒绝其 Rust 壳依赖的 GLIBC 2.39；AppImage

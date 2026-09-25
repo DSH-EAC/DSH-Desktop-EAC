@@ -3,7 +3,8 @@
   "bundle": {
     "targets": [
       "deb",
-      "appimage"
+      "appimage",
+      "rpm"
     ],
     "icon": [
       "icons/icon.png"
