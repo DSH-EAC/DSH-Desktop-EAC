@@ -8,15 +8,16 @@ EAC 增加原生 Linux 桌面发行版。迁移沿用 L1 Tauri、L2 Node sidecar
 
 ## 支持基线
 
-- Linux：Ubuntu 22.04 x86_64 或更高，glibc 2.35 基线。
+- Linux：Ubuntu 22.04 x86_64/arm64 或更高，glibc 2.35 基线。
 - 显示系统：X11 和 Wayland；Wayland 受 portal 权限模型约束。
 - 桌面环境：GNOME 和 KDE 为验收目标。
-- 分发：deb 和 AppImage。
+- 分发：deb、AppImage 和 RPM。RPM 面向 Fedora/openSUSE 等 RPM 系发行版，使用同一套
+  glibc staged runtime，不承诺发行版仓库托管或软件源自动更新。
 - Node：随包 Node 24，文件名在 Windows 为 `node.exe`，在 Linux 为 `node`。
 - Windows：继续构建 x64 NSIS 和便携 zip，现有命令、路径和更新行为不变。
 
-ARM64、rpm、Flatpak 和 Linux 应用内整树替换不属于首发范围。它们必须在独立
-规格中增加构建、native payload 和更新所有权设计后才能启用。
+Flatpak 和 Linux 应用内整树替换仍不属于支持范围。ARM64 与 RPM 通过 Issue #414
+接入现有 Linux 构建链，沿用相同的 native payload、staging 和包审计边界。
 
 ## 项目盘点
 
@@ -54,7 +55,7 @@ ARM64、rpm、Flatpak 和 Linux 应用内整树替换不属于首发范围。它
 | `computer-user` | Linux 上没有完全等价实现 | WinForms/SendInput | unavailable | Linux staging、推荐与自动启用均排除 |
 | OCR/文档转换 | 需要替换第三方库 | Windows OCR/现有 helper | Paddle/Rapid/Tesseract、Python/LibreOffice | 只声明外部依赖，真实 helper smoke 未完成 |
 | `dsh-dafeiyu` | 需要替换第三方库 | 保留 | 首发 staging 排除 | Linux helper 未验，不宣称可用 |
-| 安装包 | 需要平台适配层 | NSIS + portable zip | deb + AppImage | staging 通过；本机 deb 因 GLIBC 2.39 被最终审计拒绝，等 Ubuntu CI |
+| 安装包 | 需要平台适配层 | NSIS + portable zip | deb + AppImage + RPM | staging、RPM 元数据和最终包内容由 Ubuntu CI 审计；真实安装仍需实机验收 |
 
 ## 不变量
 
@@ -124,8 +125,8 @@ Rust 平台条件不进入业务分流。
 ## 更新和分发
 
 Windows 继续执行现有 NSIS/便携应用内更新。Linux 只检查新版本并打开 Release
-页面，由包管理器或用户替换程序包；不得下载 Windows `.exe` 或调用 Windows
-apply helper。
+页面，由包管理器或用户替换 deb、AppImage 或 RPM 程序包；不得下载 Windows `.exe`
+或调用 Windows apply helper。
 
 Tauri Linux 配置独立于 Windows 配置。资源装配必须在目标平台执行 npm 安装和
 Rust N-API 构建。Linux 可达运行树不得包含 Windows `.node`、`.dll` 或 helper；
@@ -135,10 +136,12 @@ Windows-only 插件的源资产可以留在仓库，但必须从 Linux staging �
 ## 验收
 
 - Windows CI：原全量测试、native clippy/test/build、NSIS/便携构建继续通过。
-- Linux CI：typecheck、全量测试、native clippy/test/build、Tauri check、deb 和
-  AppImage 构建通过。
+- Linux CI：typecheck、全量测试、native clippy/test/build、Tauri check、deb、
+  AppImage 和 RPM 构建通过。
+- RPM 自动审计检查包名、版本、x86_64/aarch64 架构、sidecar、Node runtime、skin
+  manager 资源以及错误平台载荷。
 - bridge/sidecar 契约、主窗启动、单实例、托盘、退出零孤儿在两平台验证。
-- staging 和解包后的最终 deb/AppImage 都必须审计；拒绝错误平台二进制、缺执行位、
+- staging 和解包后的最终 deb/AppImage/RPM 都必须审计；拒绝错误平台二进制、缺执行位、
   绝对本机路径和 GLIBC 超基线依赖。
 - 无法自动化的 Wayland portal、真实安装升级和桌面环境行为记录为未验证，不能
   由编译成功替代。

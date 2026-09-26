@@ -137,15 +137,15 @@
 - 未签名、未公证（个人自用定位）：首次打开若被 Gatekeeper 拦截，右键 →「打开」。
 - 客户端自更新在 macOS v1 暂不提供（上游 Release 暂无 macOS 资产）；dsh agent（内核）更新完整保留。
 
-### Linux（x64）
+### Linux（x64 / arm64）
 
-> Linux 桌面端由 CI（Ubuntu 22.04）持续构建与验证；自 v5.3.6 起 AppImage 与 .deb 已并入统一版本线（当前 v5.3.6），.rpm/.pacman 仍由独立版本线提供（最近维护版 v4.4.0）。
+> Linux 桌面端由 CI（Ubuntu 22.04）持续构建与验证。当前 v6 Linux 构建链同时产出 AppImage、.deb 和 .rpm；正式 Release 发布后，下载地址以对应版本的 Release 资产为准。
 
 | 文件                                                                                                                                                 | 说明                          |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | [.deb（Debian/Ubuntu，v5.3.6）](https://github.com/zouyuxuan122/DSH-Desktop-EAC/releases/download/v5.3.6/Deepseek.Harness.EAC_5.3.6_amd64.deb)       | 安装后可从应用菜单启动        |
 | [AppImage（v5.3.6）](https://github.com/zouyuxuan122/DSH-Desktop-EAC/releases/download/v5.3.6/Deepseek.Harness.EAC_5.3.6_amd64.AppImage)             | 免安装：`chmod +x` 后直接运行 |
-| [.rpm（Fedora/openSUSE）](https://github.com/zouyuxuan122/Deepseek-Harness-EAC/releases/download/v4.4.0-linux/Deepseek-Harness-EAC-4.4.0.x86_64.rpm) | —                             |
+| `.rpm`（Fedora/openSUSE） | CI artifact `dsh-eac-linux-x64-installers` / `dsh-eac-linux-arm64-installers` 或对应 Release 资产 |
 | [.pacman（Arch）](https://github.com/zouyuxuan122/Deepseek-Harness-EAC/releases/download/v4.4.0-linux/Deepseek-Harness-EAC-4.4.0-x64.pacman)         | —                             |
 
 - 依赖：Tauri 2 + webkit2gtk-4.1（debian 系安装 `libwebkit2gtk-4.1-dev` 等构建依赖见仓库 CI）；AppImage 自带运行时，构建基线 Ubuntu 22.04。
