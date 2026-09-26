@@ -50,7 +50,7 @@ export function apply(ctx) {
     apiVersion: "dsh.ecosystem.ui-skin-loader/v1",
     id: "dsh-eac.skin.inkwash",          // 公约 §3：小写反域名
     name: "水墨青烟",
-    version: "1.0.0",
+    version: "1.1.0",
     preview: "<svg …></svg>",
     activate(skinCtx)  { /* 自此才允许可见副作用；全部登记进 disposers */ },
     deactivate()       { /* 幂等 teardown：退出后不可观测 */ },

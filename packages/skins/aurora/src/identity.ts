@@ -34,7 +34,7 @@ export const SKIN_META = {
   apiVersion: CONVENTION_ID,
   id: SKIN_ID,
   name: "极光之夜",
-  version: "1.0.0",
+  version: "1.1.0",
   author: "DSH-EAC",
   description: "深色玻璃拟态 + 极光渐变背景的内置示例皮肤（公约参考实现）。",
   tags: ["dark", "glassmorphism", "example"],

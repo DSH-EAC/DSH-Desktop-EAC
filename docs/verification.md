@@ -340,3 +340,69 @@ diff（起点 vs 终点）：空 —— 零新增、零删除、零 mtime/大小
 （另有修复前泄漏证据 `35-trading-fault-error-prefix.png` / `36-post-fault-recovery-aurora-prefix.png`，与 F11.1 记录对照留存。）
 
 证据脚本：`.verify/pw/t11-{lib,boot-baseline,serve,wall,switch,mixed,fault}.mjs`；boot 日志 `.verify/boot-t11-{v1,panorama,fault,fixed,fault2,clean}.log`；路径审计 `.verify/audit-t11/`。
+
+# M1 皮肤迁移版本（v1.1.0）发布验证（2026-09-26）
+
+范围：皮肤包从 5 款扩到 13 款（新增 blue-fantasy / maid-atelier / miku / minecraft / qq98 / ths / xp / deep-whale-day-night），发布 14 个 tarball。本节记录**本次实跑**的验证；v1.0.0 的实机矩阵（V1-V11）与 Phase 3 五皮肤实机验收仍是 0.1.7-rc.2 上的实机证据，本版新增七款皮肤的实机验收**未执行**（见 M1.6）。
+
+## M1.0 环境
+
+- 工作区：`D:\丰富履历专用文件夹\皮肤管理插件\loader`（本地 clone），既有未提交改动保留。
+- Node `v24.11.1`、pnpm `11.7.0`、Windows 10.0.22000。
+- 本机**无 `dsh` CLI**，因此本轮不含实机安装/boot 验证；tarball 链路以「打包 + 内容冒烟 + 产物加载冒烟」替代，实机部分明确标注为未执行。
+
+## M1.1 全仓命令实跑
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm install` | lockfile 与 workspace 一致，通过供应链策略校验（删除半成品包后 importer 已刷新） |
+| `pnpm typecheck` | 14/14 包 `Done`，零错误（退出码 0） |
+| `pnpm lint` | 14/14 包 `Done`，零 error/warning（退出码 0） |
+| `pnpm test` | **204 tests / 204 pass / 0 fail**，14 包（loader 112 + aurora 21 + dragon-heir 13 + whale-song 13 + trading 12 + inkwash 9 + 其余 7 包各 3） |
+| `pnpm build` | 14/14 包 `built lib/index.js + lib/client.js`（退出码 0） |
+
+## M1.2 跨包发布契约测试（failing-first）
+
+新增 `packages/loader/src/manifest.test.ts`（9 条断言，随 `pnpm test` 常驻守门）：包名 / 皮肤 id / body marker 全局唯一、`files` 必须显式含 `LICENSE`/`NOTICE`/`THIRD-PARTY-NOTICES.md`、`license` 必须形如合法 SPDX 表达式、行 id 与 `cordis.patch.yml` 插入行及 `src/identity.ts` 常量三处一致、加载器包必须声明许可并随包附许可文本。
+
+**先失败后修复**（修复前实跑，6 条失败）：
+
+```text
+✖ skin package names are globally unique — duplicate package names: [["@dsh-eac/skin-maid-atelier",["deep-whale-day-night","maid-atelier"]]]
+✖ covenant skin ids are globally unique — duplicate skin ids: [["dsh-eac.skin.maid-atelier",["deep-whale-day-night","maid-atelier"]]]
+✖ every license field is a well-formed SPDX expression — deep-whale-day-night: "CC BY-NC-SA-4.0" is not a well-formed SPDX expression
+✖ skin body markers are unique — body markers collide across skins: [["data-dsh-maid-atelier",["deep-whale-day-night","maid-atelier"]]]
+✖ settings row id matches cordis.patch.yml — deep-whale-day-night: cordis.patch.yml must insert row id dsh-eac-skin-deep-whale-day-night
+✖ the loader package declares a license and ships its text — packages/loader/package.json must declare a license
+```
+
+修复后 9/9 通过。SPDX 判定另用真实解析器复核：`spdx-expression-parse@4.0.0` — `CC BY-NC-SA-4.0` INVALID（offset 0），`MIT AND CC-BY-NC-SA-4.0` VALID；`CC-BY-NC-SA-4.0` 在 `spdx-license-ids@3.0.22` 清单内。
+
+## M1.3 溯源核验（逐 blob 比对上游对象）
+
+取材快照（`.verify/legacy-skins/dsh-desktop/assets/skins/**`，73 个文件）逐个按 Git blob（`sha1("blob <len>\0" + bytes)`）与 DSH-EAC/DSH-Desktop-EAC 提交 `26841f5ee83c154a9768cc0a9cec1d70078f0ddf` 的树对象比对：
+
+- **71/73 逐字节命中**；差异 2 个为 `maid-atelier/LICENSE`、`maid-atelier/NOTICE`，仅 CRLF 行尾差异（21288 vs 20850、1350 vs 1325 = 行数差）。
+- 十款迁移皮肤的 `lib/client.js` blob **全部命中**（含 v1.0.0 三款）。
+- 许可文本保真：六款 dsh-web-ui 皮肤的 `NOTICE` 与上游 `dsh-desktop/assets/skins/dsh-skins-LICENSE.txt`（blob `fd674136…`）逐字一致，且该全文内嵌于各包 `THIRD-PARTY-NOTICES.md`；maid-atelier 的 `NOTICE` 与上游 `NOTICE`（blob `c127b9dc…`）逐字一致，CC BY-NC-SA 4.0 全文与上游 `LICENSE`（blob `7cdbe0b4…`）逐字一致。
+- **更正**：七款新迁移皮肤 `THIRD-PARTY-NOTICES.md` 此前把 `df8afc65ee64333abb9a26942f386ed820df7f92` 标为「Source tree」。该值实为同仓后续提交（`feat(v6/task-3.1)`，2026-09-14T11:57:56Z）；其 `dsh-desktop/assets/skins` tree 与取材 commit 同为 `2a243cf86e541a8b635191a1f5df017a47ab81d2`。现已改为逐包 subtree/blob SHA + 不可变取件 URL，内容结论不变。
+- 上游包许可声明核对：`@linxin666/dsh-client-ui-skin-*` 0.1.11 的 `package.json` 声明 `BSD-3-Clause`；`@dsh-external/dsh-client-ui-skin-maid-atelier` 0.0.1 声明 `CC-BY-NC-SA-4.0` 且 `private: true`。七款新皮肤 TPN 已按上游实际声明更正措辞。
+
+## M1.4 打包与产物冒烟
+
+- `npm pack` × 14 → `dist/*.tgz` + `dist/SHA256SUMS.txt` + `dist/release-manifest.json` + `dist/RELEASE-MANIFEST.md`（含 URL / 取材 commit / subtree / blob / SHA-256）。
+- **必含文件冒烟 14/14 通过**：每个 tarball 必须含 `package.json`、`lib/index.js`、`lib/client.js`、`cordis.patch.yml`、`README.md`、`THIRD-PARTY-NOTICES.md`、`LICENSE`、`NOTICE`；声明了 `preview` 的包必须含预览图（7 包各 2 张）。
+- **产物加载冒烟 14/14 通过**（`ModuleLoader` 桩 + 宿主 baseline 模块表桩）：每个 host 半 `lib/index.js` 可在 Node 直接 import 且导出 `apply`（loader 另导出 `Config` schema，aurora 导出 `Config`）；每个 client 半 `lib/client.js` 的 graph 行 id == 包名，工厂返回 `apply`/`inject`，`apply(stubCtx)` 在**无 DOM** 环境下为 13 款皮肤各登记且仅登记一个 `apiVersion == dsh.ecosystem.ui-skin-loader/v1` 的皮肤，并带 `activate`/`deactivate`。
+- 冒烟同时记录 client bundle 请求的宿主 baseline 模块：仅 `react`、`react/jsx-runtime`（与 `CLIENT_EXTERNAL` 声明一致，无越界依赖）。
+
+## M1.5 deferred（未纳入本发布）
+
+- **dsh-theme-endfield**（`ymh0000123/dsh-theme-endfield@82655a04f6b3249daa7d8a86ab956dd62a6c17cc`）：完整 host/client 插件（host 半常驻音频通知运行时 + 诊断落盘；client 半自带设置分区 UI 与等高线渲染器），设置命名空间绑定自身 profile 行 id `theme-endfield`。需要独立功能插件/设置命名空间方案，未创建文件。
+
+`deep-whale-day-night` 已在最终状态完成迁移，使用唯一 id `dsh-eac.skin.deep-whale-day-night` 与 `data-dsh-deep-whale-day-night` namespace；原始 CC BY-NC-SA 4.0 LICENSE/NOTICE 随包保留。
+
+## M1.6 Known limitations（本版）
+
+- 新增七款皮肤**未做实机验收**（本机无 `dsh` CLI；实机矩阵需 0.1.7-rc.2 隔离环境）。其证据等级为：typecheck / lint / 单元测试 / 构建 / 打包 / 产物加载冒烟。
+- dsh-theme-endfield 未纳入，理由见 M1.5；deep-whale-day-night 已完成固定来源迁移。
+- 迁移皮肤的 vendored 产物为上游逐字节内容（除文件头、`export` 形态与 CSS 注入点搬迁），其行为等价性由各包内容锁测试与加载冒烟保证，尚未由实机视觉比对确认。

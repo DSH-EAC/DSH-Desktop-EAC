@@ -42,13 +42,29 @@ importers:
         specifier: ~3.18.4
         version: 3.18.4
 
+  packages/skins/blue-fantasy: {}
+
+  packages/skins/deep-whale-day-night: {}
+
   packages/skins/dragon-heir: {}
 
   packages/skins/inkwash: {}
 
+  packages/skins/maid-atelier: {}
+
+  packages/skins/miku: {}
+
+  packages/skins/minecraft: {}
+
+  packages/skins/qq98: {}
+
+  packages/skins/ths: {}
+
   packages/skins/trading: {}
 
   packages/skins/whale-song: {}
+
+  packages/skins/xp: {}
 
 packages:
 

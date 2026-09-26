@@ -1,0 +1,67 @@
+{
+  "name": "@dsh-eac/skin-minecraft",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "description": "Procedural voxel panorama and signboard controls migrated from DSH-Desktop-EAC; covenant-converted lifecycle.",
+  "license": "MIT AND BSD-3-Clause",
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.1.7-rc.2",
+    "@deepseek-ai/cordis": "~4.0.4"
+  },
+  "engines": {
+    "dsh": "0.1.7-rc.2",
+    "node": ">=24"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "skin": {
+      "apiVersion": "dsh.ecosystem.ui-skin-loader/v1",
+      "id": "dsh-eac.skin.minecraft",
+      "name": "Minecraft 方块世界",
+      "version": "1.1.0",
+      "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC",
+      "description": "Procedural voxel panorama and signboard controls migrated from DSH-Desktop-EAC; covenant-converted lifecycle.",
+      "tags": [
+        "minecraft",
+        "voxel",
+        "pixel",
+        "game",
+        "panorama",
+        "skybox",
+        "migrated"
+      ],
+      "preview": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 180\" role=\"img\" aria-label=\"Minecraft 方块世界\"><defs><linearGradient id=\"skn-minecraft-bg\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#7cbd4b\"/><stop offset=\"1\" stop-color=\"#111827\"/></linearGradient></defs><rect width=\"320\" height=\"180\" fill=\"url(#skn-minecraft-bg)\"/><circle cx=\"250\" cy=\"70\" r=\"48\" fill=\"#fff\" opacity=\".12\"/><path d=\"M0 142 C80 104 150 166 320 96 L320 180 L0 180Z\" fill=\"#fff\" opacity=\".12\"/><text x=\"160\" y=\"44\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"18\" font-weight=\"600\" fill=\"#fff\">Minecraft 方块世界</text><text x=\"160\" y=\"160\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"10\" letter-spacing=\".18em\" fill=\"#fff\" opacity=\".75\">MINECRAFT VOXEL</text></svg>"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [],
+      "external": [],
+      "immediately": false
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit && node scripts/build-artifact.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "node --test \"src/**/*.test.ts\""
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "THIRD-PARTY-NOTICES.md",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "preview"
+  ]
+}

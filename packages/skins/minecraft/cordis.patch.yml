@@ -1,0 +1,4 @@
+# Covenant skin entry; activation is controlled exclusively by ui-skin-loader.
+- insert:
+    - id: dsh-eac-skin-minecraft
+      name: "@dsh-eac/skin-minecraft"

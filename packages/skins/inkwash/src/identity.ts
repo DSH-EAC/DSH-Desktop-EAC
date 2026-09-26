@@ -32,7 +32,7 @@ export const SKIN_META = {
   apiVersion: CONVENTION_ID,
   id: SKIN_ID,
   name: "水墨青烟",
-  version: "1.0.0",
+  version: "1.1.0",
   author: "DSH-EAC",
   description: "浅色纸质感 + 水墨氛围背景的内置示例皮肤（公约参考实现；不提供自定义设置）。",
   tags: ["light", "paper", "example"],
