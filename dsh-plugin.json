@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.dsh-eac.pack-installer",
+  "name": "@dsh-eac/pack-installer",
+  "version": "1.0.0",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
+    }
+  },
+  "requires": { "contracts": [] },
+  "permissions": [],
+  "contributes": { "commands": [] },
+  "subscriptions": [],
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/DSH-EAC/dsh-eac-pack-installer"
+  },
+  "overrides": [],
+  "x-eac": {
+    "role": "ecosystem-pack-installer",
+    "adapterIsolation": "upstream imports are confined to src/adapter and src/client/adapter",
+    "officialUi": "reuses official settings/plugin/account surfaces through versioned adapter contracts",
+    "credentials": "official account surface owns credentials; installer never stores API keys",
+    "offlineSnapshot": "embedded Mojobox-derived snapshot is the offline floor"
+  }
+}

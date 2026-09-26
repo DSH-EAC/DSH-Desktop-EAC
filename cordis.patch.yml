@@ -1,0 +1,5 @@
+# EAC pack installer: the Host entry owns the Remote service and the client
+# entry mounts the page into the official settings shell.
+- insert:
+    - id: dsh-eac-pack-installer
+      name: "@dsh-eac/pack-installer"
