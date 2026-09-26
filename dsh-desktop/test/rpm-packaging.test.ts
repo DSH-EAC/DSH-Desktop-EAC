@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRpmPackage } from '../scripts/audit-rpm-package.mjs';
@@ -58,4 +60,41 @@ test('RPM audit validator accepts the staged runtime closure and rejects bad pay
   });
   assert.throws(() => validateRpmPackage(info, [...files, '/usr/lib/deepseek-harness-eac/dsh-desktop/node_modules/foo/bin/musl/system.node'], { arch: 'x64' }), /不可达平台载荷/);
   assert.throws(() => validateRpmPackage({ ...info, arch: 'aarch64' }, files, { arch: 'x64' }), /架构错误/);
+});
+
+test('RPM audit reads large query output completely', { skip: process.platform === 'win32' }, (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'rpm-audit-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const version = JSON.parse(readFileSync(join(repositoryRoot, 'dsh-desktop/package.json'), 'utf8')).version;
+  const required = [
+    'sidecar/server.js',
+    'sidecar/bridge.js',
+    'dsh-desktop/package.json',
+    'dsh-desktop/vendor/node/node',
+    'ui-skin-manager/resolved/system.default/snapshot.json',
+  ].map((entry) => `/usr/lib/deepseek-harness-eac/${entry}`);
+  const files = Array.from({ length: 35000 }, (_, index) =>
+    `/usr/lib/deepseek-harness-eac/dsh-desktop/node_modules/package-${index}/dist/index.js`);
+  // Keep mandatory files and forbidden payloads at the end to catch truncated reads.
+  files.push(...required);
+  const listing = `${files.join('\n')}\n`;
+  assert.ok(Buffer.byteLength(listing) > 1024 * 1024);
+  const rpmFile = join(root, 'fixture package.rpm');
+  writeFileSync(rpmFile, listing);
+  writeFileSync(join(root, 'rpm'), `#!/usr/bin/env node
+const fs = require('node:fs');
+if (process.argv[2] === '-qip') {
+  process.stdout.write(${JSON.stringify(`name=deepseek-harness-eac\nversion=${version}\nrelease=1\narch=x86_64\n`)});
+} else if (process.argv[2] === '-qlp') {
+  process.stdout.write(fs.readFileSync(process.argv.at(-1)));
+} else {
+  process.exitCode = 2;
+}
+`, { mode: 0o755 });
+  const audit = () => execFileSync(process.execPath, [
+    join(repositoryRoot, 'dsh-desktop/scripts/audit-rpm-package.mjs'), rpmFile, '--arch=x64',
+  ], { encoding: 'utf8', env: { ...process.env, PATH: `${root}:${process.env.PATH}` }, stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.match(audit(), new RegExp(`files=${files.length}\\b`));
+  writeFileSync(rpmFile, `${listing}/usr/lib/deepseek-harness-eac/unexpected.exe\n`);
+  assert.throws(audit, /不可达平台载荷/);
 });

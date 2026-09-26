@@ -19,7 +19,11 @@ const REQUIRED_PATHS = [
 
 function runRpm(args, rpmFile) {
   try {
-    return execFileSync('rpm', args.concat(rpmFile), { encoding: 'utf8' });
+    return execFileSync('rpm', args.concat(rpmFile), {
+      encoding: 'utf8',
+      // The staged runtime lists tens of thousands of paths, exceeding Node's 1 MiB default.
+      maxBuffer: 32 * 1024 * 1024,
+    });
   } catch (error) {
     const detail = error && typeof error === 'object' && 'stderr' in error ? error.stderr : '';
     throw new Error(`rpm ${args.join(' ')} 失败: ${String(detail || error).trim()}`);
