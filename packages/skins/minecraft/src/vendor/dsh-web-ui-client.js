@@ -17,7 +17,7 @@
 		/** The product title the skin pins (captured by the shell's DocumentTitle after settle). */
 		const SKIN_TITLE = "Minecraft · DeepSeek 在线";
 		/** Resolve one module class name (fallback only satisfies the indexed-access type). */
-		const cls = (name) => minecraft_module_css_default[name] ?? "";
+		const cls = (name) => minecraft_skin_css_map[name] ?? "";
 		const PX = 8;
 		const GROUND = 400;
 		const W = 640;
@@ -431,6 +431,20 @@
 		* effect disposer on dispose.
 		* @param ctx - owning context (the effect lifecycle owns retraction).
 		*/
+		var minecraft_skin_css_map = {
+			"mc-pan": "IGNzMG_mc-pan",
+			"mcFace": "IGNzMG_mcFace",
+			"mcFace1": "IGNzMG_mcFace1",
+			"mcFace2": "IGNzMG_mcFace2",
+			"mcFace3": "IGNzMG_mcFace3",
+			"mcFace4": "IGNzMG_mcFace4",
+			"mcFaceBottom": "IGNzMG_mcFaceBottom",
+			"mcFaceTop": "IGNzMG_mcFaceTop",
+			"mcScrim": "IGNzMG_mcScrim",
+			"mcSkybox": "IGNzMG_mcSkybox",
+			"mcStage": "IGNzMG_mcStage"
+		};
+
 		function apply(ctx) {
 			const tagId = "@linxin666/dsh-client-ui-skin-minecraft/minecraft.module.css";
 			if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
@@ -440,19 +454,6 @@
 				tag.textContent = css;
 				document.head.appendChild(tag);
 			}
-			var minecraft_module_css_default = {
-				"mc-pan": "IGNzMG_mc-pan",
-				"mcFace": "IGNzMG_mcFace",
-				"mcFace1": "IGNzMG_mcFace1",
-				"mcFace2": "IGNzMG_mcFace2",
-				"mcFace3": "IGNzMG_mcFace3",
-				"mcFace4": "IGNzMG_mcFace4",
-				"mcFaceBottom": "IGNzMG_mcFaceBottom",
-				"mcFaceTop": "IGNzMG_mcFaceTop",
-				"mcScrim": "IGNzMG_mcScrim",
-				"mcSkybox": "IGNzMG_mcSkybox",
-				"mcStage": "IGNzMG_mcStage"
-			};
 			//#endregion
 			const body = document.body;
 			const originalTitle = document.title;

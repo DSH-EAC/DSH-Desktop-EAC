@@ -50,7 +50,7 @@
 		* is a literal name in this package's own stylesheet, so the fallback is
 		* unreachable in practice and only satisfies the indexed-access type.
 		*/
-		const cls = (name) => miku_module_css_default[name] ?? "";
+		const cls = (name) => miku_skin_css_map[name] ?? "";
 		/** Miku note mark (a single eighth note), inline so the skin carries no static assets. */
 		const NOTE_SVG = [
 			"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 48 48\" aria-hidden=\"true\">",
@@ -95,6 +95,18 @@
 		* prior value round-trips verbatim on restore.
 		* @param ctx - owning context (the effect lifecycle owns retraction).
 		*/
+		var miku_skin_css_map = {
+			"mikuStatusbar": "tegq7G_mikuStatusbar",
+			"mikuStatusbarCell": "tegq7G_mikuStatusbarCell",
+			"mikuStatusbarSpacer": "tegq7G_mikuStatusbarSpacer",
+			"mikuStatusbarWave": "tegq7G_mikuStatusbarWave",
+			"mikuTitlebar": "tegq7G_mikuTitlebar",
+			"mikuTitlebarBadge": "tegq7G_mikuTitlebarBadge",
+			"mikuTitlebarBtn": "tegq7G_mikuTitlebarBtn",
+			"mikuTitlebarIcon": "tegq7G_mikuTitlebarIcon",
+			"mikuTitlebarTitle": "tegq7G_mikuTitlebarTitle"
+		};
+
 		function apply(ctx) {
 			const tagId = "@linxin666/dsh-client-ui-skin-miku/miku.module.css";
 			if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
@@ -104,17 +116,6 @@
 				tag.textContent = css;
 				document.head.appendChild(tag);
 			}
-			var miku_module_css_default = {
-				"mikuStatusbar": "tegq7G_mikuStatusbar",
-				"mikuStatusbarCell": "tegq7G_mikuStatusbarCell",
-				"mikuStatusbarSpacer": "tegq7G_mikuStatusbarSpacer",
-				"mikuStatusbarWave": "tegq7G_mikuStatusbarWave",
-				"mikuTitlebar": "tegq7G_mikuTitlebar",
-				"mikuTitlebarBadge": "tegq7G_mikuTitlebarBadge",
-				"mikuTitlebarBtn": "tegq7G_mikuTitlebarBtn",
-				"mikuTitlebarIcon": "tegq7G_mikuTitlebarIcon",
-				"mikuTitlebarTitle": "tegq7G_mikuTitlebarTitle"
-			};
 			//#endregion
 			const body = document.body;
 			const originalTitle = document.title;

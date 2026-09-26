@@ -68,7 +68,7 @@
 		* is a literal name in this package's own stylesheet, so the fallback is
 		* unreachable in practice and only satisfies the indexed-access type.
 		*/
-		const cls = (name) => ths_module_css_default[name] ?? "";
+		const cls = (name) => ths_skin_css_map[name] ?? "";
 		/** White candlestick mark, inline so the skin carries no static assets. */
 		const CANDLE_SVG = [
 			"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 48 48\" aria-hidden=\"true\">",
@@ -92,6 +92,20 @@
 		* All writes are retracted by the effect disposer on dispose.
 		* @param ctx - owning context (the effect lifecycle owns retraction).
 		*/
+		var ths_skin_css_map = {
+			"aionPreviewIn": "ipHsWW_aionPreviewIn",
+			"thsStatusbar": "ipHsWW_thsStatusbar",
+			"thsStatusbarCell": "ipHsWW_thsStatusbarCell",
+			"thsStatusbarSpacer": "ipHsWW_thsStatusbarSpacer",
+			"thsTitlebar": "ipHsWW_thsTitlebar",
+			"thsTitlebarBtn": "ipHsWW_thsTitlebarBtn",
+			"thsTitlebarIcon": "ipHsWW_thsTitlebarIcon",
+			"thsTitlebarTicker": "ipHsWW_thsTitlebarTicker",
+			"thsTitlebarTickerChg": "ipHsWW_thsTitlebarTickerChg",
+			"thsTitlebarTickerVal": "ipHsWW_thsTitlebarTickerVal",
+			"thsTitlebarTitle": "ipHsWW_thsTitlebarTitle"
+		};
+
 		function apply(ctx) {
 			const tagId = "@linxin666/dsh-client-ui-skin-ths/ths.module.css";
 			if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
@@ -101,19 +115,6 @@
 				tag.textContent = css;
 				document.head.appendChild(tag);
 			}
-			var ths_module_css_default = {
-				"aionPreviewIn": "ipHsWW_aionPreviewIn",
-				"thsStatusbar": "ipHsWW_thsStatusbar",
-				"thsStatusbarCell": "ipHsWW_thsStatusbarCell",
-				"thsStatusbarSpacer": "ipHsWW_thsStatusbarSpacer",
-				"thsTitlebar": "ipHsWW_thsTitlebar",
-				"thsTitlebarBtn": "ipHsWW_thsTitlebarBtn",
-				"thsTitlebarIcon": "ipHsWW_thsTitlebarIcon",
-				"thsTitlebarTicker": "ipHsWW_thsTitlebarTicker",
-				"thsTitlebarTickerChg": "ipHsWW_thsTitlebarTickerChg",
-				"thsTitlebarTickerVal": "ipHsWW_thsTitlebarTickerVal",
-				"thsTitlebarTitle": "ipHsWW_thsTitlebarTitle"
-			};
 			//#endregion
 			const body = document.body;
 			const originalTitle = document.title;

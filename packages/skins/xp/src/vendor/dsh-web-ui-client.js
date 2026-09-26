@@ -51,7 +51,7 @@
 		* is a literal name in this package's own stylesheet, so the fallback is
 		* unreachable in practice and only satisfies the indexed-access type.
 		*/
-		const cls = (name) => xp_module_css_default[name] ?? "";
+		const cls = (name) => xp_skin_css_map[name] ?? "";
 		/** The classic four-color Windows flag, inline so the skin carries no static assets. */
 		const FLAG_SVG = [
 			"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" aria-hidden=\"true\">",
@@ -80,6 +80,21 @@
 		* dispose.
 		* @param ctx - owning context (the effect lifecycle owns retraction).
 		*/
+		var xp_skin_css_map = {
+			"xpStart": "c6ckXW_xpStart",
+			"xpStartIcon": "c6ckXW_xpStartIcon",
+			"xpStatusbar": "c6ckXW_xpStatusbar",
+			"xpStatusbarCell": "c6ckXW_xpStatusbarCell",
+			"xpStatusbarKey": "c6ckXW_xpStatusbarKey",
+			"xpStatusbarSpacer": "c6ckXW_xpStatusbarSpacer",
+			"xpTaskbar": "c6ckXW_xpTaskbar",
+			"xpTitlebar": "c6ckXW_xpTitlebar",
+			"xpTitlebarBtn": "c6ckXW_xpTitlebarBtn",
+			"xpTitlebarBtnClose": "c6ckXW_xpTitlebarBtnClose",
+			"xpTitlebarIcon": "c6ckXW_xpTitlebarIcon",
+			"xpTitlebarTitle": "c6ckXW_xpTitlebarTitle"
+		};
+
 		function apply(ctx) {
 			const tagId = "@linxin666/dsh-client-ui-skin-xp/xp.module.css";
 			if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
@@ -89,20 +104,6 @@
 				tag.textContent = css;
 				document.head.appendChild(tag);
 			}
-			var xp_module_css_default = {
-				"xpStart": "c6ckXW_xpStart",
-				"xpStartIcon": "c6ckXW_xpStartIcon",
-				"xpStatusbar": "c6ckXW_xpStatusbar",
-				"xpStatusbarCell": "c6ckXW_xpStatusbarCell",
-				"xpStatusbarKey": "c6ckXW_xpStatusbarKey",
-				"xpStatusbarSpacer": "c6ckXW_xpStatusbarSpacer",
-				"xpTaskbar": "c6ckXW_xpTaskbar",
-				"xpTitlebar": "c6ckXW_xpTitlebar",
-				"xpTitlebarBtn": "c6ckXW_xpTitlebarBtn",
-				"xpTitlebarBtnClose": "c6ckXW_xpTitlebarBtnClose",
-				"xpTitlebarIcon": "c6ckXW_xpTitlebarIcon",
-				"xpTitlebarTitle": "c6ckXW_xpTitlebarTitle"
-			};
 			//#endregion
 			const body = document.body;
 			const originalTitle = document.title;

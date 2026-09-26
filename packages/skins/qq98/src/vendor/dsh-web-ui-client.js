@@ -36,7 +36,7 @@
 		* is a literal name in this package's own stylesheet, so the fallback is
 		* unreachable in practice and only satisfies the indexed-access type.
 		*/
-		const cls = (name) => qq98_module_css_default[name] ?? "";
+		const cls = (name) => qq98_skin_css_map[name] ?? "";
 		/** QQ2008-era penguin mark (scarfed, rounded), inline so the skin carries no static assets. */
 		const PENGUIN_SVG = [
 			"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 48 48\" aria-hidden=\"true\">",
@@ -60,6 +60,16 @@
 		* favicon. All writes are retracted by the effect disposer on dispose.
 		* @param ctx - owning context (the effect lifecycle owns retraction).
 		*/
+		var qq98_skin_css_map = {
+			"retroStatusbar": "J6zPFW_retroStatusbar",
+			"retroStatusbarCell": "J6zPFW_retroStatusbarCell",
+			"retroStatusbarSpacer": "J6zPFW_retroStatusbarSpacer",
+			"retroTitlebar": "J6zPFW_retroTitlebar",
+			"retroTitlebarBtn": "J6zPFW_retroTitlebarBtn",
+			"retroTitlebarIcon": "J6zPFW_retroTitlebarIcon",
+			"retroTitlebarTitle": "J6zPFW_retroTitlebarTitle"
+		};
+
 		function apply(ctx) {
 			const tagId = "@linxin666/dsh-client-ui-skin-qq98/qq98.module.css";
 			if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
@@ -69,15 +79,6 @@
 				tag.textContent = css;
 				document.head.appendChild(tag);
 			}
-			var qq98_module_css_default = {
-				"retroStatusbar": "J6zPFW_retroStatusbar",
-				"retroStatusbarCell": "J6zPFW_retroStatusbarCell",
-				"retroStatusbarSpacer": "J6zPFW_retroStatusbarSpacer",
-				"retroTitlebar": "J6zPFW_retroTitlebar",
-				"retroTitlebarBtn": "J6zPFW_retroTitlebarBtn",
-				"retroTitlebarIcon": "J6zPFW_retroTitlebarIcon",
-				"retroTitlebarTitle": "J6zPFW_retroTitlebarTitle"
-			};
 			//#endregion
 			const body = document.body;
 			const originalTitle = document.title;
