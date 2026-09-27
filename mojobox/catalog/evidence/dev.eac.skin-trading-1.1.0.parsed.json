@@ -1,0 +1,35 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "dev.eac.skin-trading",
+    "version": "1.1.0",
+    "artifactDigest": "sha256:f77b0a06dccf595d02208e290875381a97705cea434eb05936aab6fe0120fb0e"
+  },
+  "manifestDigest": "sha256:cac22279f080c08d3d52b47ebab4746cab516a6d246a04dbf5fe64727e384c59",
+  "specifications": {
+    "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100"
+  },
+  "suite": {
+    "id": "mojobox-stage0-schema",
+    "version": "0.1.0",
+    "digest": "sha256:d087107e062528eed0d0bfa5f8d2c26b4897e090a1ea60a445a945b195e4428d"
+  },
+  "issuer": "Mojobox catalog",
+  "evidenceLevel": "Parsed",
+  "result": "pass",
+  "checks": [
+    {
+      "id": "manifest-schema",
+      "result": "pass"
+    },
+    {
+      "id": "artifact-sha256",
+      "result": "pass"
+    }
+  ],
+  "testedAt": "2026-09-26T00:00:00Z",
+  "expiresAt": "2026-12-26T00:00:00Z",
+  "revoked": false
+}

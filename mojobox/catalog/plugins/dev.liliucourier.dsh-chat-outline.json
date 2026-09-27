@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.liliucourier.dsh-chat-outline",
+  "name": "dsh-chat-outline",
+  "version": "0.1.10",
+  "facets": {
+    "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/liliuCourier/dsh-chat-outline",
+    "revision": "0.1.10"
+  },
+  "artifact": {
+    "digest": "sha256:645d7cb30a84130019dc50f922d254aebf5f85002c1942a5d2174c0f8e0fe20a",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/dsh-chat-outline/-/dsh-chat-outline-0.1.10.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Upstream package does not publish dsh-plugin.json"
+  }
+}

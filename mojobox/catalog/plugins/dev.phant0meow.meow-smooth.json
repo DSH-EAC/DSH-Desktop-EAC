@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.phant0meow.meow-smooth",
+  "name": "meow-smooth",
+  "version": "0.5.0",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
+    }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/Phant0Meow/dsh-meow-smooth",
+    "revision": "c7bbe6f0419a5a2ca9f3e9eb62003d693735cdd6"
+  },
+  "artifact": {
+    "digest": "sha256:52fda95a198e84639a821031de69d1137acb5b4d3db53cc84fdb72223e9dea55",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/meow-smooth/-/meow-smooth-0.5.0.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained"
+  }
+}

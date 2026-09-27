@@ -1,0 +1,27 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "org.example.file-preview",
+    "version": "1.2.3",
+    "artifactDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "manifestDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "specifications": {
+    "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100"
+  },
+  "suite": {
+    "id": "mojobox-schema",
+    "version": "0.1.0",
+    "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "issuer": "fixture",
+  "evidenceLevel": "Parsed",
+  "result": "pass",
+  "checks": [
+    { "id": "manifest-schema", "result": "pass" }
+  ],
+  "testedAt": "2026-08-30T00:00:00Z",
+  "revoked": false
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.scorp1o117.dsh-soul-md",
+  "name": "dsh-soul-md",
+  "version": "0.2.8",
+  "facets": {
+    "host": { "entry": "index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/Scorp1o117/dsh-soul-md",
+    "revision": "0.2.8"
+  },
+  "artifact": {
+    "digest": "sha256:a3117a55e31c3594542f3c7c113b0620ab50de3867cef7ede36a59158cbc3dbd",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/dsh-soul-md/-/dsh-soul-md-0.2.8.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Upstream package does not publish dsh-plugin.json"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "org.example.invalid-pack",
+    "version": "latest",
+    "name": "Invalid Pack",
+    "description": "Floating versions are not reproducible."
+  },
+  "components": [
+    { "id": "org.example.plugin", "version": "1.0.0", "required": true }
+  ]
+}

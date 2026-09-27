@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mojobox.dev/schemas/official-package-metadata-v1.json",
+  "title": "Official DSH Package Manifest projection",
+  "type": "object",
+  "additionalProperties": false,
+  "minProperties": 1,
+  "properties": {
+    "dependencies": { "$ref": "#/$defs/dependencies" },
+    "peerDependencies": { "$ref": "#/$defs/dependencies" },
+    "engines": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "dsh": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "manifestVersion": { "const": 1 },
+        "bundle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patch"],
+          "properties": { "patch": { "type": "string" } }
+        },
+        "profile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bundles": { "type": "array", "items": { "type": "string" } },
+            "patchReload": { "enum": ["live", "startup"] }
+          }
+        },
+        "client": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["platform"],
+          "properties": {
+            "platform": { "type": "string" },
+            "inject": { "type": "array", "items": { "type": "string" } },
+            "immediately": { "type": "boolean" },
+            "external": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

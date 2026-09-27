@@ -1,0 +1,18 @@
+node_modules/
+dist/
+*.log
+*.tgz
+.DS_Store
+Thumbs.db
+
+# Local verification scratch: isolated DSH_HOME, app output, profile backups.
+.verify/
+.aio-backup/
+.probe-*
+
+# Editor
+.idea/
+.vscode/
+*.swp
+cookies3099.txt
+c3099.txt

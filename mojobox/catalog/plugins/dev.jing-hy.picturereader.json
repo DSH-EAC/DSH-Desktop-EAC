@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.jing-hy.picturereader",
+  "name": "picturereader",
+  "version": "3.3.1",
+  "facets": {
+    "host": { "entry": "src/index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/jing-hy/picturereader",
+    "revision": "3.3.1"
+  },
+  "artifact": {
+    "digest": "sha256:0a04a1cfbb1f630bbedb867f876636b16637697f4107fe6356ce38b5ce8d9728",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/picturereader/-/picturereader-3.3.1.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Upstream package does not publish dsh-plugin.json"
+  }
+}

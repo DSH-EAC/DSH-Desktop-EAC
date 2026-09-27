@@ -1,0 +1,13 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "PackLock",
+  "pack": "dev.aio.function@0.1.0",
+  "components": [
+    { "id": "dev.aio.dsh-drag-and-drop", "version": "0.1.6", "source": "npm:dsh-drag-and-drop@0.1.6", "manifest": "catalog/plugins/dev.aio.dsh-drag-and-drop.json", "manifestDigest": "sha256:c1c2e28880034d81e7744a7015f373d547b4f5c398fc6577d6c319904124be64", "artifactDigest": "sha256:d50d050373555a73d43bd0ff400028b4012b7375ec5b1134f76adaa48859b8f0" },
+    { "id": "dev.aio.dsh-find-plugin", "version": "0.3.7", "source": "npm:dsh-find-plugin@0.3.7", "manifest": "catalog/plugins/dev.aio.dsh-find-plugin.json", "manifestDigest": "sha256:b2506d0a66aacbd0f97566b140989254fd5e8b866f65590fd2782f5732ee39cc", "artifactDigest": "sha256:46c408fc9f649b90ec25b30fa02dcc0f1e783c4a269e82468b7095ce1cffa992" },
+    { "id": "dev.aio.dsh-meme", "version": "0.1.40", "source": "npm:dsh-meme@0.1.40", "manifest": "catalog/plugins/dev.aio.dsh-meme.json", "manifestDigest": "sha256:675fde5094ef329747dbc5f2c24d89fa85e40310399ad67024a40b2aa88d497a", "artifactDigest": "sha256:aa472d113bd269f9807863fdea033293b158f3b2bb72cd07797eb55ed9d9bb55" },
+    { "id": "dev.aio.dsh-smooth-stream", "version": "0.4.3", "source": "npm:dsh-smooth-stream@0.4.3", "manifest": "catalog/plugins/dev.aio.dsh-smooth-stream.json", "manifestDigest": "sha256:e812ca7dd7636858adb13834293349713c8baaf539c8b734912a84bd4ba75221", "artifactDigest": "sha256:8e1746b755d3d606d91641da9905e91647fe2a78a41d9a85f7a8b3a0b1a31038" },
+    { "id": "dev.aio.dsh-status-rotator", "version": "0.9.1", "source": "npm:dsh-status-rotator@0.9.1", "manifest": "catalog/plugins/dev.aio.dsh-status-rotator.json", "manifestDigest": "sha256:8254ed4a8cab46d1dd39502c5ef6a3d4732619a70f3758bb05ebefeae0cc8848", "artifactDigest": "sha256:632723d46aae2d34fda28e588f21c628993c6f34afb4b354319661e3b13165a7" }
+  ]
+}

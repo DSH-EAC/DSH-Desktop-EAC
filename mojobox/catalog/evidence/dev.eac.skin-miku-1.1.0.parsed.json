@@ -1,0 +1,35 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "dev.eac.skin-miku",
+    "version": "1.1.0",
+    "artifactDigest": "sha256:699c4ebbaefbb29b6012ea14ccdd6357934a2f5e582f157dacc1ee783601143f"
+  },
+  "manifestDigest": "sha256:6eaff4582c9a88ae43972d819b29819ee692f087326a57b7b039e09b2f9c8819",
+  "specifications": {
+    "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100"
+  },
+  "suite": {
+    "id": "mojobox-stage0-schema",
+    "version": "0.1.0",
+    "digest": "sha256:d087107e062528eed0d0bfa5f8d2c26b4897e090a1ea60a445a945b195e4428d"
+  },
+  "issuer": "Mojobox catalog",
+  "evidenceLevel": "Parsed",
+  "result": "pass",
+  "checks": [
+    {
+      "id": "manifest-schema",
+      "result": "pass"
+    },
+    {
+      "id": "artifact-sha256",
+      "result": "pass"
+    }
+  ],
+  "testedAt": "2026-09-26T00:00:00Z",
+  "expiresAt": "2026-12-26T00:00:00Z",
+  "revoked": false
+}

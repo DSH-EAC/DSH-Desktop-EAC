@@ -1,0 +1,15 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "org.example.invalid-category",
+    "version": "1.0.0",
+    "name": "Invalid category",
+    "description": "Unknown Pack categories must be rejected.",
+    "category": "full-environment"
+  },
+  "components": [
+    { "id": "org.example.plugin", "version": "1.0.0", "required": true }
+  ]
+}

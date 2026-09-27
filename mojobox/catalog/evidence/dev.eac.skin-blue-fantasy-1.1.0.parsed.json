@@ -1,0 +1,35 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "dev.eac.skin-blue-fantasy",
+    "version": "1.1.0",
+    "artifactDigest": "sha256:b89297f957c93ce76cc9984ebfdf73d49889c89d568200ac4e06a8b90dc94a44"
+  },
+  "manifestDigest": "sha256:62e9506a1ee6b7d8154ada24ab1540f100582babb24aacbf4a9c99b44b29358f",
+  "specifications": {
+    "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100"
+  },
+  "suite": {
+    "id": "mojobox-stage0-schema",
+    "version": "0.1.0",
+    "digest": "sha256:d087107e062528eed0d0bfa5f8d2c26b4897e090a1ea60a445a945b195e4428d"
+  },
+  "issuer": "Mojobox catalog",
+  "evidenceLevel": "Parsed",
+  "result": "pass",
+  "checks": [
+    {
+      "id": "manifest-schema",
+      "result": "pass"
+    },
+    {
+      "id": "artifact-sha256",
+      "result": "pass"
+    }
+  ],
+  "testedAt": "2026-09-26T00:00:00Z",
+  "expiresAt": "2026-12-26T00:00:00Z",
+  "revoked": false
+}

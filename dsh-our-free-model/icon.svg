@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Our Free Model">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3E6BFF"/>
+      <stop offset="1" stop-color="#2ECFA6"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
+  <g fill="#FFFFFF" opacity="0.94">
+    <rect x="15" y="34" width="7" height="14" rx="3"/>
+    <rect x="26.5" y="26" width="7" height="22" rx="3"/>
+    <rect x="38" y="18" width="7" height="30" rx="3"/>
+  </g>
+  <path d="M13.5 27.5 L22 20 L30 25.5 L40 12.5" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="40" cy="12.5" r="3.4" fill="#FFFFFF"/>
+</svg>

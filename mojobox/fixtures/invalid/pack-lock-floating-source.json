@@ -1,0 +1,16 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "PackLock",
+  "pack": "org.example.invalid-pack@1.0.0",
+  "components": [
+    {
+      "id": "org.example.plugin",
+      "version": "1.0.0",
+      "source": "npm:org.example.plugin@latest",
+      "manifest": "catalog/plugins/org.example.plugin.json",
+      "manifestDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "artifactDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

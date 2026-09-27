@@ -1,0 +1,35 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "dev.eac.skin-dragon-heir",
+    "version": "1.1.0",
+    "artifactDigest": "sha256:c315837b67597107612a0c663ec8e8168e6f90622017bb6735614b4a3a322ba3"
+  },
+  "manifestDigest": "sha256:3edad8cae2cef33b522ff2206b9286dfa4fa7fa71af4f7b78c93ab0531e4559d",
+  "specifications": {
+    "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100"
+  },
+  "suite": {
+    "id": "mojobox-stage0-schema",
+    "version": "0.1.0",
+    "digest": "sha256:d087107e062528eed0d0bfa5f8d2c26b4897e090a1ea60a445a945b195e4428d"
+  },
+  "issuer": "Mojobox catalog",
+  "evidenceLevel": "Parsed",
+  "result": "pass",
+  "checks": [
+    {
+      "id": "manifest-schema",
+      "result": "pass"
+    },
+    {
+      "id": "artifact-sha256",
+      "result": "pass"
+    }
+  ],
+  "testedAt": "2026-09-26T00:00:00Z",
+  "expiresAt": "2026-12-26T00:00:00Z",
+  "revoked": false
+}

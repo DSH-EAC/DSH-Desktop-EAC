@@ -1,0 +1,24 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "PackLock",
+  "pack": "dev.dsh-eac.recommended.v1@0.1.0",
+  "components": [
+    {
+      "id": "dev.tt-a1i.archify-dsh",
+      "version": "0.1.0",
+      "source": "npm:@tt-a1i/archify-dsh@0.1.0",
+      "manifest": "catalog/plugins/dev.tt-a1i.archify-dsh.json",
+      "manifestDigest": "sha256:b5547bd6bdc011b8780a33c0b6b379ab5ae53775a145e905155791a5256c29c8",
+      "artifactDigest": "sha256:3192afe54949da6494acea3bd2bf5113a58ea78651113b1289bcc7212130df38"
+    },
+    {
+      "id": "dev.phant0meow.meow-smooth",
+      "version": "0.5.0",
+      "source": "npm:meow-smooth@0.5.0",
+      "manifest": "catalog/plugins/dev.phant0meow.meow-smooth.json",
+      "manifestDigest": "sha256:7ae275865630aae9cd3992684e039b9c86c3adf4e79c47004a2d4e6b632b2f83",
+      "artifactDigest": "sha256:52fda95a198e84639a821031de69d1137acb5b4d3db53cc84fdb72223e9dea55"
+    }
+  ]
+}

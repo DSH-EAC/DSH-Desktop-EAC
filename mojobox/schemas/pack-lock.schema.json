@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json",
+  "title": "Mojobox Pack Lock v1alpha1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "apiVersion", "kind", "pack", "components"],
+  "properties": {
+    "$schema": { "const": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json" },
+    "apiVersion": { "const": "packs.mojobox.dev/v1alpha1" },
+    "kind": { "const": "PackLock" },
+    "pack": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9][a-z0-9-]*)+@[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "version", "source", "manifest", "manifestDigest", "artifactDigest"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9][a-z0-9-]*)+$" },
+          "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
+          "source": { "type": "string", "pattern": "^npm:[a-z0-9@/_.-]+@[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
+          "manifest": { "type": "string", "pattern": "^catalog/plugins/[a-z0-9.-]+\\.json$" },
+          "manifestDigest": { "$ref": "#/$defs/digest" },
+          "artifactDigest": { "$ref": "#/$defs/digest" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  }
+}

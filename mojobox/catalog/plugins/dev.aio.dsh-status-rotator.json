@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-status-rotator", "name": "dsh-status-rotator", "version": "0.9.1",
+  "facets": { "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" } }, "license": "MIT",
+  "source": { "repository": "https://github.com/01Virex/dsh-status-rotator", "revision": "0.9.1" },
+  "artifact": { "digest": "sha256:632723d46aae2d34fda28e588f21c628993c6f34afb4b354319661e3b13165a7", "algorithm": "sha256", "path": "https://registry.npmjs.org/dsh-status-rotator/-/dsh-status-rotator-0.9.1.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh-plugin.json" }
+}

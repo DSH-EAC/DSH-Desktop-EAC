@@ -1,0 +1,18 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "dev.mojobox.focus-kit",
+    "version": "0.1.0",
+    "name": "专注工作包",
+    "description": "提供会话侧栏与 Markdown 人设能力的固定组合。"
+  },
+  "components": [
+    { "id": "dev.omdsh.dsh-better-sidebar", "version": "0.12.2", "required": true },
+    { "id": "dev.scorp1o117.dsh-soul-md", "version": "0.2.8", "required": false }
+  ],
+  "requires": {
+    "hostCapabilities": ["host.snapshot", "host.trial-boot"]
+  }
+}

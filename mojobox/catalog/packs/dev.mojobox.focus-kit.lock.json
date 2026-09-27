@@ -1,0 +1,24 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "PackLock",
+  "pack": "dev.mojobox.focus-kit@0.1.0",
+  "components": [
+    {
+      "id": "dev.omdsh.dsh-better-sidebar",
+      "version": "0.12.2",
+      "source": "npm:dsh-better-sidebar@0.12.2",
+      "manifest": "catalog/plugins/dev.omdsh.dsh-better-sidebar.json",
+      "manifestDigest": "sha256:b2faa1e6a274e342dbbf23ce6e893677a14747a372a1912cd3f7b97f19c3680b",
+      "artifactDigest": "sha256:5f80d9cfd7f250a675cf9bc7f951ca246c047f09607200831733f845c8255d0f"
+    },
+    {
+      "id": "dev.scorp1o117.dsh-soul-md",
+      "version": "0.2.8",
+      "source": "npm:dsh-soul-md@0.2.8",
+      "manifest": "catalog/plugins/dev.scorp1o117.dsh-soul-md.json",
+      "manifestDigest": "sha256:84523258a280586872aab9571fc1edb5c53f63f94d01c8c620d80aa0a50f2a93",
+      "artifactDigest": "sha256:a3117a55e31c3594542f3c7c113b0620ab50de3867cef7ede36a59158cbc3dbd"
+    }
+  ]
+}

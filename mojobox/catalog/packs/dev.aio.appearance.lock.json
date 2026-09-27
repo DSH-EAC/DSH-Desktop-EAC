@@ -1,0 +1,11 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "PackLock",
+  "pack": "dev.aio.appearance@0.1.0",
+  "components": [
+    { "id": "dev.aio.dsh-navbar", "version": "0.4.0", "source": "npm:@vlln/dsh-navbar@0.4.0", "manifest": "catalog/plugins/dev.aio.dsh-navbar.json", "manifestDigest": "sha256:a56f9272bb05658d9a76ae3d7cb2a444996fd803d5cdae526dc5ca26091fdff3", "artifactDigest": "sha256:72886a2376c09e202a830029beb5503ce4710a9b208bacca8759c2d41a61c908" },
+    { "id": "dev.aio.dsh-wallpaper-engine", "version": "0.6.8", "source": "npm:dsh-plugin-wallpaper-engine@0.6.8", "manifest": "catalog/plugins/dev.aio.dsh-wallpaper-engine.json", "manifestDigest": "sha256:0fb6106192f9c0a582984d1b2e5b483d6fd7ff88c0bb37918b728a15b2868fa9", "artifactDigest": "sha256:2ff76ed3b82937efe87ca829c7a4fca00b21ca521a208ffd501124f6b6f17006" },
+    { "id": "dev.aio.dsh-whale-widget", "version": "0.2.10", "source": "npm:dsh-whale-widget@0.2.10", "manifest": "catalog/plugins/dev.aio.dsh-whale-widget.json", "manifestDigest": "sha256:f2325d8a50d17161fa931a66934eedfe0f9c0e4f563f7935b22f6e1a7835db78", "artifactDigest": "sha256:c53074c8e792a7f42c8341a45063276fa194307fc3752a594848cc64aa833bc2" }
+  ]
+}

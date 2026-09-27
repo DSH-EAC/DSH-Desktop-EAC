@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.omdsh.dsh-better-sidebar",
+  "name": "dsh-better-sidebar",
+  "version": "0.12.2",
+  "facets": {
+    "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/omdsh-dev/DSH-better-sidebar",
+    "revision": "0.12.2"
+  },
+  "artifact": {
+    "digest": "sha256:5f80d9cfd7f250a675cf9bc7f951ca246c047f09607200831733f845c8255d0f",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/dsh-better-sidebar/-/dsh-better-sidebar-0.12.2.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Upstream package does not publish dsh-plugin.json"
+  }
+}

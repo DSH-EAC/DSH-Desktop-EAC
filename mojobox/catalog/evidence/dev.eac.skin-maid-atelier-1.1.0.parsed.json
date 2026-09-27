@@ -1,0 +1,35 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "dev.eac.skin-maid-atelier",
+    "version": "1.1.0",
+    "artifactDigest": "sha256:e1cc9c348d6f3d2ab34f7d31ca5cb89f3c9820d92086b136d2b64137a8376971"
+  },
+  "manifestDigest": "sha256:72630637508976daac7016c925f4a5785ce33de0043b6f2c93069f20aafdd25f",
+  "specifications": {
+    "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100"
+  },
+  "suite": {
+    "id": "mojobox-stage0-schema",
+    "version": "0.1.0",
+    "digest": "sha256:d087107e062528eed0d0bfa5f8d2c26b4897e090a1ea60a445a945b195e4428d"
+  },
+  "issuer": "Mojobox catalog",
+  "evidenceLevel": "Parsed",
+  "result": "pass",
+  "checks": [
+    {
+      "id": "manifest-schema",
+      "result": "pass"
+    },
+    {
+      "id": "artifact-sha256",
+      "result": "pass"
+    }
+  ],
+  "testedAt": "2026-09-26T00:00:00Z",
+  "expiresAt": "2026-12-26T00:00:00Z",
+  "revoked": false
+}

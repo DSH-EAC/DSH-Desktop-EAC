@@ -1,0 +1,38 @@
+name: test
+
+# The repository *is* the release channel: `feed/manifest.json` publishes byte
+# counts and SHA-256 digests that the in-app upgrader verifies against files
+# fetched from this repository. A pushed commit whose manifest disagrees with its
+# own tree breaks the one-click upgrade for every installed user at once, and
+# nothing else fails — which is exactly what shipped in 1.2.1 (issue #1), and what
+# recurred on `main` afterwards. This workflow is the gate that would have caught
+# both: every offline suite, plus the manifest drift check.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No install step and no dependencies: the suites are plain Node scripts and
+      # none of them touch the network, so this cannot spend free-lane quota.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  # The adapter seam (and only it) is kept under strict TypeScript checking. This
+  # job installs the one devDependency; the offline job above stays install-free.
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run typecheck

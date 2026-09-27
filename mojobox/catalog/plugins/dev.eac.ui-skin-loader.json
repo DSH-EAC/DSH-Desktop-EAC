@@ -1,0 +1,41 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.eac.ui-skin-loader",
+  "name": "@dsh-eac/ui-skin-loader",
+  "version": "1.1.0",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
+    }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/DSH-EAC/dsh-ui-skin-loader",
+    "revision": "e3ac8675c51da74c5084c7bf99fc78ce6ee129ac"
+  },
+  "artifact": {
+    "digest": "sha256:b926aad7d312c9573226414867049a48b6825e2bb15d8ba76a3d707095ef1ba6",
+    "algorithm": "sha256",
+    "path": "https://github.com/DSH-EAC/dsh-ui-skin-loader/releases/download/v1.1.0/dsh-eac-ui-skin-loader-1.1.0.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Maintained in DSH-EAC/dsh-ui-skin-loader (loader release v1.1.0). Artifact is the GitHub release tgz; digest measured from the locally verified v1.1.0 release bundle (14 tgz + SHA256SUMS.txt); GitHub Release v1.1.0 asset publication and npm publication both pending (Pack Lock source requires npm:)."
+  },
+  "x-mojobox-package": {
+    "dsh": {
+      "manifestVersion": 1,
+      "bundle": {
+        "patch": "./cordis.patch.yml"
+      },
+      "client": {
+        "platform": "web",
+        "inject": [],
+        "external": [],
+        "immediately": false
+      }
+    }
+  }
+}

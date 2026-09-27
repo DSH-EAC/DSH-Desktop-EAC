@@ -1,0 +1,27 @@
+{
+  "apiVersion": "admission.mojobox.dev/v1alpha1",
+  "kind": "AdmissionProfile",
+  "metadata": {
+    "id": "eac-admission",
+    "version": "0.1"
+  },
+  "host": {
+    "id": "dev.eac.desktop",
+    "name": "DeepSeek Harness EAC"
+  },
+  "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100",
+  "references": {
+    "repository": "https://github.com/T-Auto/dsh-ecosystem-spec",
+    "revision": "d28c267fe7fd775428ec2dccd65b0b7efd4dacee",
+    "profile": "tui-admission/0.15",
+    "dshStdRevision": "614dfa1ac168db79fcf4577cf0ebb34e2e3b944b"
+  },
+  "levels": {
+    "Negotiated": {
+      "requiredChecks": ["EAC-PKG-001", "EAC-ARTIFACT-001", "EAC-HOST-001"]
+    },
+    "Tested": {
+      "requiredChecks": ["pack-install", "trial-boot", "pack-uninstall", "rollback"]
+    }
+  }
+}

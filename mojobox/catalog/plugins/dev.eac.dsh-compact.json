@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.eac.dsh-compact",
+  "name": "dsh-compact",
+  "version": "1.0.0",
+  "facets": {
+    "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/lanyun077/Deepseek-Harness-EAC",
+    "revision": "94304f39405cbada937b26e60c3efe754387f7d3"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "artifactStatus": "unpublished",
+    "sourcePath": "dsh-desktop/assets/plugins/dsh-compact"
+  }
+}

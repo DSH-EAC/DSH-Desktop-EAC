@@ -1,0 +1,37 @@
+{
+  "subject": {
+    "id": "dev.zouyuxuan122.dsh-our-free-model",
+    "name": "dsh-our-free-model",
+    "version": "1.3.0",
+    "sourceRepository": "https://github.com/zouyuxuan122/dsh-our-free-model",
+    "sourceRevision": "73e057d783e6002582395dd476b24cc4ee959bfd"
+  },
+  "license": {
+    "spdx": "MIT",
+    "file": "LICENSE",
+    "copyright": "Copyright (c) 2026 zouyuxuan122",
+    "notes": "MIT preserved unchanged from the upstream repository; no code was relicensed in standardization."
+  },
+  "upstreamRuntime": {
+    "package": "@deepseek-ai/dsh-llm",
+    "isolationFile": "adapter/kernel.js",
+    "contract": "The only @deepseek-ai/* import in the package. Called lazily for attribution headers; any failure degrades to a static fallback User-Agent. No kernel version is pinned and no other module may import the kernel.",
+    "verifiedBy": "scripts/catalog-test.mjs (adapter isolation gate)"
+  },
+  "distribution": {
+    "selfUpdate": "default; in-app updater verifies feed/manifest.json SHA-256 digests before installing",
+    "announcementFeed": "default; owner-published feed/announcements.json",
+    "managedInstallation": "distribution=managed stands both channels down; the distributing pack owns update timing and bytes"
+  },
+  "integrity": {
+    "releaseManifest": "feed/manifest.json",
+    "catalogDigests": "catalog/integrity.json",
+    "algorithm": "sha256",
+    "normalization": "LF-normalized bytes (.gitattributes * text=auto eol=lf), matching what a git blob serves"
+  },
+  "mojobox": {
+    "recordInstalled": false,
+    "artifactDigest": null,
+    "notes": "catalog/dsh-plugin.json is the catalog-ready 0.15 record. It is not added to the Mojobox catalog repository by this change, and no artifact digest exists yet: the digest must be computed from the actual published tgz at release time and never invented. Mojobox integration is claimed only once that repository accepts the record."
+  }
+}

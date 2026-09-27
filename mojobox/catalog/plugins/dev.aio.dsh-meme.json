@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-meme", "name": "dsh-meme", "version": "0.1.40",
+  "facets": { "host": { "entry": "index.js", "apiVersion": "v1alpha1" } }, "license": "MIT",
+  "source": { "repository": "https://github.com/yyh-001/dsh-meme", "revision": "0.1.40" },
+  "artifact": { "digest": "sha256:aa472d113bd269f9807863fdea033293b158f3b2bb72cd07797eb55ed9d9bb55", "algorithm": "sha256", "path": "https://registry.npmjs.org/dsh-meme/-/dsh-meme-0.1.40.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh-plugin.json" }
+}

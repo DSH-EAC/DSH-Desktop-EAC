@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.jing-hy.computer-user",
+  "name": "computer-user",
+  "version": "0.3.6",
+  "facets": {
+    "host": { "entry": "src/index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/jing-hy/computer-user",
+    "revision": "0.3.6"
+  },
+  "artifact": {
+    "digest": "sha256:cf6e505c7ff76fec961cea757796b07b79e524b4c8b4403aa1319f74526b655b",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/computer-user/-/computer-user-0.3.6.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Upstream package does not publish dsh-plugin.json"
+  }
+}

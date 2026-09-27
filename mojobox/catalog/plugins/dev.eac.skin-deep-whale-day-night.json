@@ -1,0 +1,50 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.eac.skin-deep-whale-day-night",
+  "name": "@dsh-eac/skin-deep-whale-day-night",
+  "version": "1.1.0",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
+    }
+  },
+  "license": "CC-BY-NC-SA-4.0",
+  "source": {
+    "repository": "https://github.com/DSH-EAC/dsh-ui-skin-loader",
+    "revision": "e3ac8675c51da74c5084c7bf99fc78ce6ee129ac"
+  },
+  "artifact": {
+    "digest": "sha256:8d1f42ed937e1ac84e1726e0cae5b2fc20fc2735671d2268e4f9f31c13aec7d6",
+    "algorithm": "sha256",
+    "path": "https://github.com/DSH-EAC/dsh-ui-skin-loader/releases/download/v1.1.0/dsh-eac-skin-deep-whale-day-night-1.1.0.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Appearance content is CC BY-NC-SA 4.0 (non-commercial; attribution chain 上善 → zipzip → Small-tailqwq), migrated from GGBond2424648901/deep-whale-day-night-theme@3f6c4f14716d1e500f585be0c0d3c139c7a8a90b. The loader's v1.1.0 release manifest defers the package (R3: residual maid-atelier body-marker strings collide with @dsh-eac/skin-maid-atelier) while the final verified bundle still carries its 1.1.0 tgz. Artifact is the GitHub release tgz; digest measured from the locally verified v1.1.0 release bundle (14 tgz + SHA256SUMS.txt); GitHub Release v1.1.0 asset publication and npm publication both pending (Pack Lock source requires npm:)."
+  },
+  "x-mojobox-package": {
+    "dsh": {
+      "manifestVersion": 1,
+      "bundle": {
+        "patch": "./cordis.patch.yml"
+      },
+      "client": {
+        "platform": "web",
+        "inject": [
+          "uiSkinLoader",
+          "theme"
+        ],
+        "external": [],
+        "immediately": false
+      }
+    }
+  },
+  "x-mojobox-skin": {
+    "apiVersion": "dsh.ecosystem.ui-skin-loader/v1",
+    "id": "dsh-eac.skin.deep-whale-day-night",
+    "name": "鲸鱼娘昼夜工坊",
+    "author": "Small-tailqwq · 上善 · zipzip · DSH-EAC"
+  }
+}

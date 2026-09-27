@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.luaphes.dsh-web-attention-badge",
+  "name": "dsh-web-attention-badge",
+  "version": "0.3.2",
+  "facets": {
+    "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/Luaphes/dsh-web-attention-badge",
+    "revision": "0.3.2"
+  },
+  "artifact": {
+    "digest": "sha256:bdb93b1e49821725d075f8ce4af24e01fe50f4bf73d09c8805b8ed942b07aa21",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/dsh-web-attention-badge/-/dsh-web-attention-badge-0.3.2.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Upstream package does not publish dsh-plugin.json"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-wallpaper-engine", "name": "dsh-plugin-wallpaper-engine", "version": "0.6.8",
+  "facets": { "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" } }, "license": "MIT",
+  "source": { "repository": "https://github.com/elysia395/dsh-wallpaper-engine", "revision": "0.6.8" },
+  "artifact": { "digest": "sha256:2ff76ed3b82937efe87ca829c7a4fca00b21ca521a208ffd501124f6b6f17006", "algorithm": "sha256", "path": "https://registry.npmjs.org/dsh-plugin-wallpaper-engine/-/dsh-plugin-wallpaper-engine-0.6.8.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh-plugin.json" }
+}

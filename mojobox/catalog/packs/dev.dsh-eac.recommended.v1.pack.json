@@ -1,0 +1,34 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "dev.dsh-eac.recommended.v1",
+    "version": "0.1.0",
+    "name": "EAC 推荐插件包",
+    "description": "EAC 推荐插件（L2）整合包：成员来自 DSH-Desktop-EAC 内置统一市场的 eacRecommended 名单。仅收录已发布且摘要可验证的 npm artifact；其余推荐成员（dsh-our-free-model）尚未发布，处于 source-pending，见 docs/eac-pack-coverage.md。",
+    "category": "function"
+  },
+  "components": [
+    {
+      "id": "dev.tt-a1i.archify-dsh",
+      "version": "0.1.0",
+      "required": false
+    },
+    {
+      "id": "dev.phant0meow.meow-smooth",
+      "version": "0.5.0",
+      "required": false
+    }
+  ],
+  "requires": {
+    "platforms": [
+      {
+        "os": "win32",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  }
+}

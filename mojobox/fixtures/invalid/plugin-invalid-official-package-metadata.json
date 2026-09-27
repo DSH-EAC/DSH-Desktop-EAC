@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "org.example.invalid-official-package",
+  "name": "@example/invalid-official-package",
+  "version": "1.2.3",
+  "facets": {
+    "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" }
+  },
+  "x-mojobox-package": {
+    "dsh": { "manifestVersion": 2 }
+  }
+}

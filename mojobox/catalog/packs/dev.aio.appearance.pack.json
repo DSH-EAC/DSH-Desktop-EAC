@@ -1,0 +1,21 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "dev.aio.appearance",
+    "version": "0.1.0",
+    "name": "AIO 外观包",
+    "description": "从 DSHEAC AIO v1.1.0 提炼的导航、壁纸和鲸鱼挂件外观组件，不包含功能包依赖。",
+    "category": "appearance"
+  },
+  "components": [
+    { "id": "dev.aio.dsh-navbar", "version": "0.4.0", "required": true },
+    { "id": "dev.aio.dsh-wallpaper-engine", "version": "0.6.8", "required": true },
+    { "id": "dev.aio.dsh-whale-widget", "version": "0.2.10", "required": true }
+  ],
+  "requires": {
+    "hostCapabilities": ["host.snapshot", "host.trial-boot"],
+    "platforms": [{ "os": "win32", "arch": ["x64"] }]
+  }
+}

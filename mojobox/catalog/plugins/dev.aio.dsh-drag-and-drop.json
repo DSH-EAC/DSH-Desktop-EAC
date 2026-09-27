@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-drag-and-drop", "name": "dsh-drag-and-drop", "version": "0.1.6",
+  "facets": { "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" } }, "license": "BSD-3-Clause",
+  "source": { "repository": "https://github.com/omdsh-dev/dsh-drag-and-drop", "revision": "0.1.6" },
+  "artifact": { "digest": "sha256:d50d050373555a73d43bd0ff400028b4012b7375ec5b1134f76adaa48859b8f0", "algorithm": "sha256", "path": "https://registry.npmjs.org/dsh-drag-and-drop/-/dsh-drag-and-drop-0.1.6.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh-plugin.json" }
+}

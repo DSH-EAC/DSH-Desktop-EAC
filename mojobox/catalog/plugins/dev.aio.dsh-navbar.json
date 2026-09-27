@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-navbar", "name": "@vlln/dsh-navbar", "version": "0.4.0",
+  "facets": { "host": { "entry": "lib/index.mjs", "apiVersion": "v1alpha1" } }, "license": "MIT",
+  "source": { "repository": "https://github.com/vlln/dsh-navbar", "revision": "0.4.0" },
+  "artifact": { "digest": "sha256:72886a2376c09e202a830029beb5503ce4710a9b208bacca8759c2d41a61c908", "algorithm": "sha256", "path": "https://registry.npmjs.org/@vlln/dsh-navbar/-/dsh-navbar-0.4.0.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh.plugin.json" }
+}

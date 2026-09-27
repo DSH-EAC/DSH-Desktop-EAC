@@ -1,0 +1,23 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "dev.aio.function",
+    "version": "0.1.0",
+    "name": "AIO 功能包",
+    "description": "从 DSHEAC AIO v1.1.0 提炼的功能增强组件，不包含外观主题。",
+    "category": "function"
+  },
+  "components": [
+    { "id": "dev.aio.dsh-drag-and-drop", "version": "0.1.6", "required": true },
+    { "id": "dev.aio.dsh-find-plugin", "version": "0.3.7", "required": true },
+    { "id": "dev.aio.dsh-meme", "version": "0.1.40", "required": true },
+    { "id": "dev.aio.dsh-smooth-stream", "version": "0.4.3", "required": true },
+    { "id": "dev.aio.dsh-status-rotator", "version": "0.9.1", "required": true }
+  ],
+  "requires": {
+    "hostCapabilities": ["host.snapshot", "host.trial-boot"],
+    "platforms": [{ "os": "win32", "arch": ["x64"] }]
+  }
+}

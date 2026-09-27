@@ -1,0 +1,19 @@
+{
+  "apiVersion": "host.mojobox.dev/v1alpha1",
+  "host": {
+    "id": "dev.eac.desktop",
+    "name": "DeepSeek Harness EAC",
+    "version": "5.3.1"
+  },
+  "runtime": {
+    "dshVersion": "0.1.2-alpha.1",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "capabilities": [
+    "catalog.offline-cache",
+    "host.snapshot",
+    "host.trial-boot",
+    "plan.read-only"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.wine-red.dsh-prompt-stash",
+  "name": "dsh-prompt-stash",
+  "version": "0.2.5",
+  "facets": {
+    "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/Wine-Red/dsh-prompt-stash",
+    "revision": "0.2.5"
+  },
+  "artifact": {
+    "digest": "sha256:126153c3a112d36f4d48ea1f08334a3176a01945bc142e4544353a6d804dce18",
+    "algorithm": "sha256",
+    "path": "https://registry.npmjs.org/dsh-prompt-stash/-/dsh-prompt-stash-0.2.5.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Upstream package does not publish dsh-plugin.json"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "dsh-mojobox",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/validate.mjs",
+    "test:eac": "node scripts/check-eac-coverage.mjs",
+    "prepare:site": "node scripts/build-site.mjs",
+    "dev": "npm run prepare:site && vite --config vite.config.mjs",
+    "build": "npm run prepare:site && vite build --config vite.config.mjs",
+    "preview": "vite preview --config vite.config.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "3.0.1",
+    "archiver": "^8.0.0",
+    "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "lucide": "^1.37.0"
+  }
+}

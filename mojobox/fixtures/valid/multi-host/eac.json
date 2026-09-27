@@ -1,0 +1,39 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "com.example.echo",
+    "version": "0.1.0",
+    "artifactDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "manifestDigest": "sha256:48afcfa077812a62119f086a102d8b167f4ee5f975c1aa4bad2495e439f4b934",
+  "hostDescriptorDigest": "sha256:37be6ec128da838de0d3ba9b27946314718f2a78ee90743025bfa04e89b1d7e7",
+  "specifications": {
+    "dshStdRevision": "3df054302468d2091859db4b3bd079042d33f100",
+    "admissionProfile": "eac-admission/0.1"
+  },
+  "suite": {
+    "id": "eac-admission-fixture",
+    "version": "0.1.0",
+    "digest": "sha256:e9710d83e316f077163f1577a38d4005ec7751032695ebf71cf2cfe732db5254"
+  },
+  "issuer": "fixture:eac-adapter",
+  "host": {
+    "id": "dev.eac.desktop",
+    "name": "DeepSeek Harness EAC",
+    "version": "5.3.1",
+    "adapterVersion": "5.3.1",
+    "dshVersion": "0.1.2-alpha.1",
+    "runtime": "win32-x64"
+  },
+  "evidenceLevel": "Negotiated",
+  "result": "pass",
+  "checks": [
+    { "id": "EAC-PKG-001", "result": "pass", "message": "Reuses dsh-ecosystem-spec conformance/fixtures/valid-plugin.json under the EAC baseline" },
+    { "id": "EAC-ARTIFACT-001", "result": "pass" },
+    { "id": "EAC-HOST-001", "result": "pass" }
+  ],
+  "testedAt": "2026-08-30T00:00:00Z",
+  "revoked": false
+}

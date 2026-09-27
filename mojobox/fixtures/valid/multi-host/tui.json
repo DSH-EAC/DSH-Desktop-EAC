@@ -1,0 +1,40 @@
+{
+  "$schema": "https://mojobox.dev/schemas/evidence-v1alpha1.json",
+  "apiVersion": "evidence.mojobox.dev/v1alpha1",
+  "kind": "Evidence",
+  "subject": {
+    "id": "com.example.echo",
+    "version": "0.1.0",
+    "artifactDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "manifestDigest": "sha256:48afcfa077812a62119f086a102d8b167f4ee5f975c1aa4bad2495e439f4b934",
+  "hostDescriptorDigest": "sha256:fd5f45b2a93b95848a9ccbc254a5d37af27cca8e9a872428ee11343534551025",
+  "specifications": {
+    "dshStdRevision": "614dfa1ac168db79fcf4577cf0ebb34e2e3b944b",
+    "admissionProfile": "tui-admission/0.15"
+  },
+  "suite": {
+    "id": "dsh-tui-admission-v0.15",
+    "version": "0.15.0-experimental",
+    "digest": "sha256:7b934ebe1eb54f08d9c34e6f53d2d8cebc2477bd175c0efe50558b997f921a39"
+  },
+  "issuer": "fixture:dsh-ecosystem-spec",
+  "host": {
+    "id": "dsh-tui",
+    "name": "dsh-TUI",
+    "version": "0.1.0-experimental",
+    "adapterVersion": "0.10.0-beta.4",
+    "dshVersion": "0.1.2-rc.1",
+    "runtime": "remote/linux-x64/node>=22.19"
+  },
+  "evidenceLevel": "Negotiated",
+  "result": "pass",
+  "checks": [
+    { "id": "BASE-STD-001", "result": "pass" },
+    { "id": "TUI-PKG-001", "result": "pass" },
+    { "id": "TUI-PKG-002", "result": "pass" },
+    { "id": "TUI-HOST-001", "result": "pass" }
+  ],
+  "testedAt": "2026-08-30T00:00:00Z",
+  "revoked": false
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "dev.mojobox.windows-operator",
+    "version": "0.2.0",
+    "name": "Windows 操作包",
+    "description": "面向 Windows 桌面操作、会话导航与并行工作流的固定测试组合。"
+  },
+  "components": [
+    { "id": "dev.jing-hy.computer-user", "version": "0.3.6", "required": true },
+    { "id": "dev.jing-hy.picturereader", "version": "3.3.1", "required": true },
+    { "id": "dev.omdsh.dsh-better-sidebar", "version": "0.12.2", "required": true },
+    { "id": "dev.luaphes.dsh-web-attention-badge", "version": "0.3.2", "required": true },
+    { "id": "dev.liliucourier.dsh-chat-outline", "version": "0.1.10", "required": true },
+    { "id": "dev.nwflower.dsh-file-claim", "version": "0.2.0", "required": true },
+    { "id": "dev.wine-red.dsh-prompt-stash", "version": "0.2.5", "required": true }
+  ],
+  "requires": {
+    "hostCapabilities": ["host.snapshot", "host.trial-boot"],
+    "platforms": [
+      { "os": "win32", "arch": ["x64"] }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-lock-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "PackLock",
+  "pack": "dev.mojobox.windows-operator@0.2.0",
+  "components": [
+    {
+      "id": "dev.jing-hy.computer-user",
+      "version": "0.3.6",
+      "source": "npm:computer-user@0.3.6",
+      "manifest": "catalog/plugins/dev.jing-hy.computer-user.json",
+      "manifestDigest": "sha256:77c0fba9300db7cd8ef2e7b6d4ca2b366f768b8164fa5585faefd0378b68d8b9",
+      "artifactDigest": "sha256:cf6e505c7ff76fec961cea757796b07b79e524b4c8b4403aa1319f74526b655b"
+    },
+    {
+      "id": "dev.jing-hy.picturereader",
+      "version": "3.3.1",
+      "source": "npm:picturereader@3.3.1",
+      "manifest": "catalog/plugins/dev.jing-hy.picturereader.json",
+      "manifestDigest": "sha256:0e483d08bb1062bf07a289577e1a8e012a5632d34297d4f11632a2693f9d3570",
+      "artifactDigest": "sha256:0a04a1cfbb1f630bbedb867f876636b16637697f4107fe6356ce38b5ce8d9728"
+    },
+    {
+      "id": "dev.omdsh.dsh-better-sidebar",
+      "version": "0.12.2",
+      "source": "npm:dsh-better-sidebar@0.12.2",
+      "manifest": "catalog/plugins/dev.omdsh.dsh-better-sidebar.json",
+      "manifestDigest": "sha256:b2faa1e6a274e342dbbf23ce6e893677a14747a372a1912cd3f7b97f19c3680b",
+      "artifactDigest": "sha256:5f80d9cfd7f250a675cf9bc7f951ca246c047f09607200831733f845c8255d0f"
+    },
+    {
+      "id": "dev.luaphes.dsh-web-attention-badge",
+      "version": "0.3.2",
+      "source": "npm:dsh-web-attention-badge@0.3.2",
+      "manifest": "catalog/plugins/dev.luaphes.dsh-web-attention-badge.json",
+      "manifestDigest": "sha256:03ce9083a59caba88fce1a148b50ea14567fed453c60a4dbd5284081593fa7cb",
+      "artifactDigest": "sha256:bdb93b1e49821725d075f8ce4af24e01fe50f4bf73d09c8805b8ed942b07aa21"
+    },
+    {
+      "id": "dev.liliucourier.dsh-chat-outline",
+      "version": "0.1.10",
+      "source": "npm:dsh-chat-outline@0.1.10",
+      "manifest": "catalog/plugins/dev.liliucourier.dsh-chat-outline.json",
+      "manifestDigest": "sha256:2ef91762f7d66ce7d5227356b8026bb4cb0ff4eabdfdfdd90cadea3cbdc0a335",
+      "artifactDigest": "sha256:645d7cb30a84130019dc50f922d254aebf5f85002c1942a5d2174c0f8e0fe20a"
+    },
+    {
+      "id": "dev.nwflower.dsh-file-claim",
+      "version": "0.2.0",
+      "source": "npm:dsh-file-claim@0.2.0",
+      "manifest": "catalog/plugins/dev.nwflower.dsh-file-claim.json",
+      "manifestDigest": "sha256:b249c557d63ec200c0b9e6ad276a451bae896aa795540bffd07b94209a70138a",
+      "artifactDigest": "sha256:45bd87bc6cbb566278f3c8b1510ecd028817f8bb5365b1a8c8bd7e6b741a61db"
+    },
+    {
+      "id": "dev.wine-red.dsh-prompt-stash",
+      "version": "0.2.5",
+      "source": "npm:dsh-prompt-stash@0.2.5",
+      "manifest": "catalog/plugins/dev.wine-red.dsh-prompt-stash.json",
+      "manifestDigest": "sha256:89d606724bc33fc1a96a73e31370d58cbe40eecb5f819f4db0db593b0c97aba8",
+      "artifactDigest": "sha256:126153c3a112d36f4d48ea1f08334a3176a01945bc142e4544353a6d804dce18"
+    }
+  ]
+}

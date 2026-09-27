@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.eac.dsh-file-changes",
+  "name": "@deepseek-ai/dsh-file-changes",
+  "version": "0.1.0",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
+    }
+  },
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/DSH-EAC/DSH-Desktop-EAC",
+    "revision": "a9b90e254800dfe84c65c01d150a8596e94f6a31"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "artifactStatus": "unpublished",
+    "sourcePath": "dsh-desktop/assets/plugins/dsh-file-changes"
+  }
+}

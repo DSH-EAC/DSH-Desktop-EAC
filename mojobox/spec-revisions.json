@@ -1,0 +1,68 @@
+{
+  "dshStd": {
+    "repository": "https://github.com/Yan-Zero/dsh-std",
+    "revision": "3df054302468d2091859db4b3bd079042d33f100",
+    "manifestVersion": "0.15",
+    "schema": "vendor/dsh-std/dsh-plugin-0.15.schema.json"
+  },
+  "officialHarness": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness",
+    "revision": "c291e7961a515f6d7af9304e7fd1d257929aef26",
+    "packageManifest": {
+      "package": "@deepseek-ai/dsh-package-manifest",
+      "manifestVersion": 1,
+      "typesPath": "packages/util/package-manifest/src/types.ts"
+    }
+  },
+  "dshEcosystemSpec": {
+    "repository": "https://github.com/T-Auto/dsh-ecosystem-spec",
+    "revision": "84a305dfebdc3d90f738bac859fe404656a82d24",
+    "dshStdRevision": "7c3e7eab117ae9cfb7b201c35eab7637c530835f",
+    "dshDistributionRevision": "c8169c38110ce8ac3931206a573f89dd844fd5d9",
+    "profiles": []
+  },
+  "legacyTuiAdmission": {
+    "repository": "https://github.com/T-Auto/dsh-ecosystem-spec",
+    "revision": "d28c267fe7fd775428ec2dccd65b0b7efd4dacee",
+    "profile": "tui-admission/0.15",
+    "dshStdRevision": "614dfa1ac168db79fcf4577cf0ebb34e2e3b944b",
+    "suite": {
+      "id": "dsh-tui-admission-v0.15",
+      "version": "0.15.0-experimental",
+      "requirementsPath": "conformance/requirements-v0.15.json",
+      "digest": "sha256:7b934ebe1eb54f08d9c34e6f53d2d8cebc2477bd175c0efe50558b997f921a39"
+    },
+    "tuiHostDescriptor": {
+      "path": "registry/host-descriptor.tui.example.json",
+      "digest": "sha256:fd5f45b2a93b95848a9ccbc254a5d37af27cca8e9a872428ee11343534551025"
+    },
+    "sharedFixtures": [
+      {
+        "path": "conformance/fixtures/valid-plugin.json",
+        "sha256": "48afcfa077812a62119f086a102d8b167f4ee5f975c1aa4bad2495e439f4b934",
+        "sourceRequirement": "TUI-PKG-001",
+        "eacCheck": "EAC-PKG-001"
+      }
+    ]
+  },
+  "dshTui": {
+    "repository": "https://github.com/ccch1mneyyy/dsh-TUI",
+    "revision": "ece45c2eb3b861b768000675b840679ed90bd650",
+    "legacyEvidence": {
+      "revision": "c8a59a3d88066f61c36b9dbf4817fb4a5fb68031",
+      "version": "0.10.0-beta.4",
+      "profile": "tui-admission/0.15",
+      "ecosystemSpecRevision": "d28c267fe7fd775428ec2dccd65b0b7efd4dacee",
+      "dshStdRevision": "614dfa1ac168db79fcf4577cf0ebb34e2e3b944b"
+    }
+  },
+  "dshDistribution": {
+    "repository": "https://github.com/T-Auto/dsh-distribution",
+    "revision": "e6d7071dbef2fb80282101df17cf092b0cb0b8f9",
+    "ecosystemPinnedRevision": "c8169c38110ce8ac3931206a573f89dd844fd5d9"
+  },
+  "eacUpstream": {
+    "repository": "https://github.com/lanyun077/Deepseek-Harness-EAC",
+    "revision": "64080f6c307d7c88bc3947a0ff6cddc3f183bfbd"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://mojobox.dev/schemas/pack-v1alpha1.json",
+  "apiVersion": "packs.mojobox.dev/v1alpha1",
+  "kind": "Pack",
+  "metadata": {
+    "id": "org.example.coding-pack",
+    "version": "1.0.0",
+    "name": "Coding Pack",
+    "description": "A minimal valid Pack fixture.",
+    "category": "workflow"
+  },
+  "components": [
+    { "id": "org.example.file-preview", "version": "1.2.3", "required": true }
+  ]
+}

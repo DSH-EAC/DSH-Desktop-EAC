@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-whale-widget", "name": "dsh-whale-widget", "version": "0.2.10",
+  "facets": { "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" } }, "license": "MIT",
+  "source": { "repository": "https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget", "revision": "0.2.10" },
+  "artifact": { "digest": "sha256:c53074c8e792a7f42c8341a45063276fa194307fc3752a594848cc64aa833bc2", "algorithm": "sha256", "path": "https://registry.npmjs.org/dsh-whale-widget/-/dsh-whale-widget-0.2.10.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh-plugin.json" }
+}

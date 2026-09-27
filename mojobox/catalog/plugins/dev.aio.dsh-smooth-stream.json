@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-smooth-stream", "name": "dsh-smooth-stream", "version": "0.4.3",
+  "facets": { "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" } }, "license": "MIT",
+  "source": { "repository": "https://github.com/Laplace-bit/dsh-smooth-stream", "revision": "0.4.3" },
+  "artifact": { "digest": "sha256:8e1746b755d3d606d91641da9905e91647fe2a78a41d9a85f7a8b3a0b1a31038", "algorithm": "sha256", "path": "https://registry.npmjs.org/dsh-smooth-stream/-/dsh-smooth-stream-0.4.3.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh-plugin.json" }
+}

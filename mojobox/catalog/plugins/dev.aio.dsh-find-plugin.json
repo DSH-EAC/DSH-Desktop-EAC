@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15", "id": "dev.aio.dsh-find-plugin", "name": "dsh-find-plugin", "version": "0.3.7",
+  "facets": { "host": { "entry": "lib/index.js", "apiVersion": "v1alpha1" } }, "license": "MIT",
+  "source": { "repository": "https://github.com/awesome-dsh-plugin/dsh-find-plugin", "revision": "0.3.7" },
+  "artifact": { "digest": "sha256:46c408fc9f649b90ec25b30fa02dcc0f1e783c4a269e82468b7095ce1cffa992", "algorithm": "sha256", "path": "https://registry.npmjs.org/dsh-find-plugin/-/dsh-find-plugin-0.3.7.tgz" },
+  "x-mojobox-maintenance": { "source": "registry-maintained", "reason": "Upstream package does not publish dsh-plugin.json" }
+}

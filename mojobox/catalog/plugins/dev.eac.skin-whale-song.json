@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/3df054302468d2091859db4b3bd079042d33f100/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dev.eac.skin-whale-song",
+  "name": "@dsh-eac/skin-whale-song",
+  "version": "1.1.0",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
+    }
+  },
+  "license": "MIT AND BSD-3-Clause",
+  "source": {
+    "repository": "https://github.com/DSH-EAC/dsh-ui-skin-loader",
+    "revision": "e3ac8675c51da74c5084c7bf99fc78ce6ee129ac"
+  },
+  "artifact": {
+    "digest": "sha256:7becbd60588e67b0974e7524c3adbbdc3f986b4b2c6ccef0c54bf0741a70f5ce",
+    "algorithm": "sha256",
+    "path": "https://github.com/DSH-EAC/dsh-ui-skin-loader/releases/download/v1.1.0/dsh-eac-skin-whale-song-1.1.0.tgz"
+  },
+  "x-mojobox-maintenance": {
+    "source": "registry-maintained",
+    "reason": "Appearance content is BSD-3-Clause (c) zhu1090093659 via dsh-web-ui (@linxin666/dsh-client-ui-skin-whale-song 0.1.11; upstream figurative artwork removed per IP ruling R13), migrated from DSH-Desktop-EAC@26841f5ee83c154a9768cc0a9cec1d70078f0ddf and recorded with full source/license text in the package THIRD-PARTY-NOTICES.md. Artifact is the GitHub release tgz; digest measured from the locally verified v1.1.0 release bundle (14 tgz + SHA256SUMS.txt); GitHub Release v1.1.0 asset publication and npm publication both pending (Pack Lock source requires npm:)."
+  },
+  "x-mojobox-package": {
+    "dsh": {
+      "manifestVersion": 1,
+      "bundle": {
+        "patch": "./cordis.patch.yml"
+      },
+      "client": {
+        "platform": "web",
+        "inject": [],
+        "external": [],
+        "immediately": false
+      }
+    }
+  },
+  "x-mojobox-skin": {
+    "apiVersion": "dsh.ecosystem.ui-skin-loader/v1",
+    "id": "dsh-eac.skin.whale-song",
+    "name": "鲸吟",
+    "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC (covenant conversion)"
+  }
+}
