@@ -9,22 +9,22 @@
  *   DSH-Desktop-EAC/.sync/plugin-distribution.json
  *   DSH-Desktop-EAC/.sync/plugins.json
  *
- * 47 plugin records, 6 packs (one derived skin view).
+ * 47 plugin records, 5 packs.
  * Every member carries a real artifact URL/digest from the sources above; no
- * digest is fabricated. The derived skin pack names its provenance.
+ * digest is fabricated.
  *
  * @module data/snapshot
  */
 
 /** Build timestamp of this snapshot. */
-export const SNAPSHOT_GENERATED_AT = "2026-09-26T17:27:18.420Z"
+export const SNAPSHOT_GENERATED_AT = "2026-09-30T11:47:18.861Z"
 
 /** Mojobox repository revision this snapshot was read from, when known. */
 export const SNAPSHOT_SOURCES = {
   "mojobox": "dsh-mojobox",
   "desktop": "DSH-Desktop-EAC",
   "pluginRecords": 47,
-  "packs": 6
+  "packs": 5
 } as const
 
 /** The catalog document, parsed and validated by `core/catalog.ts` at load time. */
@@ -679,10 +679,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.aurora",
         "name": "极光之夜",
         "author": "DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -730,10 +726,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.blue-fantasy",
         "name": "蓝色幻想",
         "author": "powerdog996 (DreamSkin) · zhu1090093659 (dsh-web-ui) · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -784,10 +776,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.deep-whale-day-night",
         "name": "鲸鱼娘昼夜工坊",
         "author": "Small-tailqwq · 上善 · zipzip · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -835,10 +823,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.dragon-heir",
         "name": "龙的传人",
         "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC (covenant conversion)"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -886,10 +870,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.inkwash",
         "name": "水墨青烟",
         "author": "DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -937,10 +917,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.maid-atelier",
         "name": "深海女仆工坊",
         "author": "Small-tailqwq · 上善 · zipzip · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -988,10 +964,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.miku",
         "name": "初音未来 · 电子歌姬",
         "author": "涂山苏苏 · zhu1090093659 (dsh-web-ui) · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -1039,10 +1011,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.minecraft",
         "name": "Minecraft 方块世界",
         "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -1090,10 +1058,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.qq98",
         "name": "QQ2008 怀旧版",
         "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -1141,10 +1105,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.ths",
         "name": "同花顺风格",
         "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -1192,10 +1152,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.trading",
         "name": "交易终端",
         "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC (covenant conversion)"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -1243,10 +1199,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.whale-song",
         "name": "鲸吟",
         "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC (covenant conversion)"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -1294,10 +1246,6 @@ export const snapshotDocument: unknown = {
         "id": "dsh-eac.skin.xp",
         "name": "Windows XP (Luna)",
         "author": "zhu1090093659 (dsh-web-ui) · DSH-EAC"
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -1339,10 +1287,6 @@ export const snapshotDocument: unknown = {
             "immediately": false
           }
         }
-      },
-      "x-mojobox-distribution": {
-        "distributionClass": "recommended",
-        "source": "installer-policy"
       }
     },
     {
@@ -2081,107 +2025,6 @@ export const snapshotDocument: unknown = {
             "manifestDigest": "sha256:89d606724bc33fc1a96a73e31370d58cbe40eecb5f819f4db0db593b0c97aba8",
             "artifactDigest": "sha256:126153c3a112d36f4d48ea1f08334a3176a01945bc142e4544353a6d804dce18"
           }
-        ]
-      }
-    },
-    {
-      "metadata": {
-        "id": "dev.dsh-eac.skins.v1",
-        "version": "1.1.0",
-        "name": "EAC 皮肤包",
-        "description": "EAC 皮肤链：皮肤加载器 1.1.0 + 13 款公约皮肤（2 款参考实现 + 11 款迁移皮肤）。成员均为 Mojobox 目录中的真实记录，制品为 GitHub Release tgz（v1.1.0 资产与 npm 发布均待 M8）。",
-        "category": "appearance"
-      },
-      "components": [
-        {
-          "id": "dev.eac.ui-skin-loader",
-          "version": "1.1.0",
-          "required": true
-        },
-        {
-          "id": "dev.eac.skin-aurora",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-blue-fantasy",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-deep-whale-day-night",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-dragon-heir",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-inkwash",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-maid-atelier",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-miku",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-minecraft",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-qq98",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-ths",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-trading",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-whale-song",
-          "version": "1.1.0",
-          "required": false
-        },
-        {
-          "id": "dev.eac.skin-xp",
-          "version": "1.1.0",
-          "required": false
-        }
-      ],
-      "x-dsh-eac-provenance": {
-        "kind": "snapshot-derived",
-        "reason": "Mojobox 尚无 eac.skins.v1 Pack 记录（M4 记 draft/source-pending）；此视图由真实目录记录派生（loader v1.1.0 + 13 款皮肤），不虚构 digest 或制品。桌面注册表将皮肤链登记为 builtin/bundled（不可取消勾选），安装器按自身策略呈现为「可选」外观包（可逐项取消勾选），分级来源如实标注为 installer-policy。",
-        "sources": [
-          "dev.eac.ui-skin-loader",
-          "dev.eac.skin-aurora",
-          "dev.eac.skin-blue-fantasy",
-          "dev.eac.skin-deep-whale-day-night",
-          "dev.eac.skin-dragon-heir",
-          "dev.eac.skin-inkwash",
-          "dev.eac.skin-maid-atelier",
-          "dev.eac.skin-miku",
-          "dev.eac.skin-minecraft",
-          "dev.eac.skin-qq98",
-          "dev.eac.skin-ths",
-          "dev.eac.skin-trading",
-          "dev.eac.skin-whale-song",
-          "dev.eac.skin-xp"
         ]
       }
     }

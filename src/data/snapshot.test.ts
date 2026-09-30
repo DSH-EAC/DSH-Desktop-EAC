@@ -44,48 +44,21 @@ test('a locked pack resolves its members to real npm registry specs', () => {
   assert.match(archify.artifactDigest ?? '', /^sha256:[a-f0-9]{64}$/)
 })
 
-test('the derived skin pack is present, labelled as derived, and carries the full v1.1.0 chain', () => {
-  const skins = findPack(snapshot, 'dev.dsh-eac.skins.v1')
-  assert.ok(skins)
-  assert.equal(skins.provenance.kind, 'snapshot-derived')
-  assert.match(skins.provenance.reason, /M4|source-pending/)
-  assert.equal(skins.version, '1.1.0')
-  assert.deepEqual(skins.components.map((component) => component.id), [
-    'dev.eac.ui-skin-loader',
-    'dev.eac.skin-aurora',
-    'dev.eac.skin-blue-fantasy',
-    'dev.eac.skin-deep-whale-day-night',
-    'dev.eac.skin-dragon-heir',
-    'dev.eac.skin-inkwash',
-    'dev.eac.skin-maid-atelier',
-    'dev.eac.skin-miku',
-    'dev.eac.skin-minecraft',
-    'dev.eac.skin-qq98',
-    'dev.eac.skin-ths',
-    'dev.eac.skin-trading',
-    'dev.eac.skin-whale-song',
-    'dev.eac.skin-xp'
-  ])
-  assert.deepEqual(skins.provenance.sources, skins.components.map((component) => component.id))
-
-  const loader = skins.components.find((component) => component.id === 'dev.eac.ui-skin-loader')
-  assert.ok(loader)
-  assert.equal(loader.required, true)
-  assert.match(loader.installSpec ?? '', /^https:\/\/github\.com\/DSH-EAC\/dsh-ui-skin-loader\/releases\/download\/v1\.1\.0\//)
-})
-
-test('every skin-chain member keeps the v1.1.0 release URL that matches its own version and digest', () => {
-  const skins = findPack(snapshot, 'dev.dsh-eac.skins.v1')
-  assert.ok(skins)
-  for (const component of skins.components) {
-    assert.equal(component.version, '1.1.0', `${component.id} is not on the v1.1.0 chain`)
-    assert.match(component.artifactUrl ?? '', new RegExp(`/releases/download/v1\\.1\\.0/${component.name.replace('@dsh-eac/', 'dsh-eac-')}-1\\.1\\.0\\.tgz$`))
-    // Offline installability is the whole point of the embedded snapshot: a
-    // member whose release URL did not become an install spec would be a
-    // silently uninstallable row.
-    assert.equal(component.installSpec, component.artifactUrl)
-    assert.equal(component.sourcePending, false)
-    assert.match(component.artifactDigest ?? '', /^sha256:[a-f0-9]{64}$/)
+test('EAC-CORE-SHELL-01: the derived skin pack is gone; skins remain catalog index records only', () => {
+  // 皮肤平台随 EAC-CORE-SHELL-01 外迁：安装器不再派生 `dev.dsh-eac.skins.v1`
+  // 外观包，也不为皮肤链钉任何分级。皮肤仍在 Mojobox 目录中作为索引记录
+  // 存在（Market Core 按需安装），但不再由本安装器预置或强推。
+  assert.equal(findPack(snapshot, 'dev.dsh-eac.skins.v1'), undefined,
+    '派生的皮肤包必须随外迁移除');
+  const rawPlugins = (snapshotDocument as { plugins?: { id?: string; 'x-mojobox-distribution'?: { distributionClass?: string; source?: string } }[] }).plugins ?? []
+  const skinRecords = rawPlugins.filter((record) => (record.id ?? '').startsWith('dev.eac.skin-')
+    || record.id === 'dev.eac.ui-skin-loader')
+  assert.ok(skinRecords.length >= 14, `皮肤索引记录仍应留在目录中（实际 ${skinRecords.length}）`);
+  for (const record of skinRecords) {
+    assert.notEqual(record['x-mojobox-distribution']?.distributionClass, 'recommended',
+      `${record.id} 不得再被安装器策略钉成 recommended`);
+    assert.notEqual(record['x-mojobox-distribution']?.source, 'installer-policy',
+      `${record.id} 不得再声明 installer-policy 分级来源`);
   }
 })
 
@@ -124,12 +97,3 @@ test('an unclassified component fails safe to L3/unmapped rather than being prom
   assert.equal(archify.tierSource, 'unmapped')
 })
 
-test('the derived skin chain records its tier as an installer policy, not as an upstream class', () => {
-  const skins = findPack(snapshot, 'dev.dsh-eac.skins.v1')
-  assert.ok(skins)
-  for (const component of skins.components) {
-    assert.equal(component.distributionClass, 'recommended')
-    assert.equal(component.tier, 'L2')
-    assert.equal(component.tierSource, 'installer-policy')
-  }
-})

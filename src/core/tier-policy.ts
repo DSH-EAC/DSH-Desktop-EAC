@@ -94,9 +94,8 @@ export function tierSourceLabel(source: TierSource): string {
     case 'desktop-sync':
       return '来自 EAC 桌面分级注册表'
     case 'installer-policy':
-      // The skin chain does have an upstream class (`builtin`); the installer
-      // overrides it to keep skins opt-out, so the label must not claim the
-      // upstream registry has no record at all.
+      // EAC-CORE-SHELL-01 移除了派生的皮肤包，当前快照已无条目使用这个来源；
+      // 保留该分支以兼容旧快照（TierSource 枚举仍合法）。
       return '由安装器策略指定（非上游分级）'
     case 'unmapped':
       return '未分类，按 L3 保守处理'
