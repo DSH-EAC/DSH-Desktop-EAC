@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/Yan-Zero/dsh-std/614dfa1ac168db79fcf4577cf0ebb34e2e3b944b/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "$schema": "https://raw.githubusercontent.com/T-Auto/dsh-std/614dfa1ac168db79fcf4577cf0ebb34e2e3b944b/packages/manifest/schema/dsh-plugin-0.15.schema.json",
   "manifestVersion": "0.15",
   "id": "io.github.jing-hy.dsh-unified-market",
   "name": "dsh-unified-market",

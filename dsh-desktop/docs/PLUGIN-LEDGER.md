@@ -113,5 +113,5 @@ session-controller/client-modules 等 10 个），**硬性排除我们当前的
 
 产品决策：发布版维持 companion-sync 注册表加载路径不动；随包 manifest 仅作
 身份元数据（x-eac.role=identity-metadata）。切换适配层的前置条件：dsh-std
-上游（Yan-Zero/dsh-std）发布 peer 范围含 0.1.3 的 adapter 版本，并按
+上游（T-Auto/dsh-std）发布 peer 范围含 0.1.3 的 adapter 版本，并按
 [手册流程]向其发 issue/PR 推进；届时先在隔离 profile 试装协商，再评估迁移。
