@@ -12,16 +12,6 @@
 
 </div>
 
-> [!IMPORTANT]
-> 
-> 本项目正在进行重大重构，详情请关注[任务看板](https://github.com/orgs/DSH-EAC/projects/1/views/1)
-> 
-> v5剩余的Bug将不再进行修复，我们会尽快推出v6全面替代v5的功能, 敬请期待。
-
-> [!NOTE]
-> 
-> 以下为v5版本的README
-
 <div align="center">
 
 **🚀 全新产品：[Deepseek Harness EAC IDE](https://github.com/zouyuxuan122/Deepseek-Harness-EAC-IDE) —— 内置 EAC 的独立 IDE · 开箱即用 · [前往下载 →](https://github.com/zouyuxuan122/Deepseek-Harness-EAC-IDE/releases)**
